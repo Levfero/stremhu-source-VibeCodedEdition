@@ -96,6 +96,7 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
                 "miszerint": "seeders",
                 "hogyan": "DESC",
                 "jsons": True,
+                "tipus": "all"
             },
         )
 

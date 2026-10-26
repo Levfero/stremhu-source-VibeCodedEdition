@@ -57,12 +57,13 @@ function RouteComponent() {
 
             <CardContent className="grid gap-4">
               {systemStatus.isReverseProxy ? (
-                <Alert variant="destructive">
-                  <InfoIcon />
-                  <AlertTitle>Környezeti változó mód aktív</AlertTitle>
+                <Alert variant="default" className="border-primary/20 bg-primary/5">
+                  <InfoIcon className="text-primary" />
+                  <AlertTitle>Környezeti változó (Reverse Proxy) mód aktív</AlertTitle>
                   <AlertDescription>
-                    A hálózati elérést a REVERSE_PROXY_DOMAIN környezeti változó
-                    vezérli, emiatt ezen a felületen nem módosítható.
+                    A fő nyilvános domaint a REVERSE_PROXY_DOMAIN környezeti változó
+                    vezérli. A kliens eléréseket (LAN, Tailscale és egyedi VPN) az
+                    alábbi kártyán tudod beállítani és testreszabni.
                   </AlertDescription>
                 </Alert>
               ) : (

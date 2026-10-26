@@ -49,10 +49,24 @@ export function NetworkAccessInfo() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Hálózati elérés</CardTitle>
-        <CardDescription>
-          Hálózati eléréssel kapcsolatos információk
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Hálózati elérés</CardTitle>
+            <CardDescription>
+              Hálózati eléréssel kapcsolatos információk
+            </CardDescription>
+          </div>
+          <Button
+            size="icon-sm"
+            variant="outline"
+            className="rounded-full shrink-0"
+            asChild
+          >
+            <Link to="/dashboard/system/network" title="Hálózati elérések és manifestek kezelése">
+              <SettingsIcon />
+            </Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-2">
@@ -85,31 +99,51 @@ export function NetworkAccessInfo() {
             </>
           )}
         </div>
-        <Separator />
-        {systemStatus.isReverseProxy ? (
-          <Item className="p-0">
-            <ItemContent>
-              <ItemTitle className="text-muted-foreground">
-                A hálózati elérés környezeti változóban van beállítva.
-              </ItemTitle>
-            </ItemContent>
-          </Item>
-        ) : (
-          <Item className="p-0">
-            <ItemContent>
-              <ItemTitle>
-                Hálózati elérés frissítése vagy új konfiguráció alkalmazása.
-              </ItemTitle>
-            </ItemContent>
-            <ItemActions>
-              <Button size="icon-sm" className="rounded-full" asChild>
-                <Link to="/dashboard/system/network">
-                  <SettingsIcon />
-                </Link>
-              </Button>
-            </ItemActions>
-          </Item>
+
+        {systemStatus.manifestEndpoints && systemStatus.manifestEndpoints.length > 0 && (
+          <>
+            <Separator />
+            <div className="grid gap-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Konfigurált kliens elérések
+              </span>
+              <div className="grid gap-1.5 text-xs font-mono">
+                {systemStatus.manifestEndpoints.map((ep) => (
+                  <div
+                    key={ep.id}
+                    className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/40"
+                  >
+                    <span className="font-medium font-sans">{ep.name}:</span>
+                    <span className="text-muted-foreground truncate">{ep.baseUrl}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         )}
+
+        <Separator />
+        <Item className="p-0 flex-nowrap">
+          <ItemContent className="min-w-0">
+            <ItemTitle>
+              {systemStatus.isReverseProxy
+                ? 'Kliens elérések és manifestek kezelése'
+                : 'Hálózati elérés frissítése vagy új konfiguráció alkalmazása.'}
+            </ItemTitle>
+            <ItemDescription>
+              {systemStatus.isReverseProxy
+                ? 'A fő elérést a REVERSE_PROXY_DOMAIN környezeti változó vezérli, de a LAN, Tailscale és egyedi elérések itt módosíthatók.'
+                : 'Állítsd be a szerver hálózati elérését és a kliens manifesteket.'}
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button size="icon-sm" className="rounded-full shrink-0" asChild>
+              <Link to="/dashboard/system/network">
+                <SettingsIcon />
+              </Link>
+            </Button>
+          </ItemActions>
+        </Item>
       </CardContent>
     </Card>
   )

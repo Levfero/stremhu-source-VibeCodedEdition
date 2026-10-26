@@ -134,21 +134,21 @@ class SettingsService:
             or (f"http://{detected_ts_ip}:{config.port}" if detected_ts_ip else "")
         )
 
+        lan_url = (saved.lan_url if saved and saved.lan_url else "") or default_lan_url
         lan_enabled = (
             saved.lan_enabled
-            if saved and saved.lan_enabled is not None
-            else bool(default_lan_url)
+            if (saved and saved.lan_enabled is not None and saved.lan_url)
+            else bool(lan_url)
         )
-        lan_url = (saved.lan_url if saved and saved.lan_url else "") or default_lan_url
 
-        tailscale_enabled = (
-            saved.tailscale_enabled
-            if saved and saved.tailscale_enabled is not None
-            else bool(default_tailscale_url)
-        )
         tailscale_url = (
             (saved.tailscale_url if saved and saved.tailscale_url else "")
             or default_tailscale_url
+        )
+        tailscale_enabled = (
+            saved.tailscale_enabled
+            if (saved and saved.tailscale_enabled is not None and saved.tailscale_url)
+            else bool(tailscale_url)
         )
 
         return ManifestSettings(
@@ -213,6 +213,22 @@ class SettingsService:
 
 
 def _detect_tailscale_ip() -> str | None:
+    # 1. Próbálkozás: SIOCGIFADDR ioctl (tiszta Python standard library, független külső parancsoktól)
+    try:
+        import fcntl
+        import socket
+        import struct
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ifreq = struct.pack("256s", b"tailscale0")
+        res = fcntl.ioctl(s.fileno(), 0x8915, ifreq)
+        ip = socket.inet_ntoa(res[20:24])
+        if ip and ip.startswith("100."):
+            return ip
+    except Exception:
+        pass
+
+    # 2. Próbálkozás: ip binary (ha létezik)
     try:
         import subprocess
 

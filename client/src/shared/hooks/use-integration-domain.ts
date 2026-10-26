@@ -27,39 +27,53 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
   assertExists(systemStatus)
 
   const manifests = useMemo<IntegrationManifestItem[]>(() => {
+    const rawList =
+      systemStatus.manifestEndpoints ||
+      (systemStatus as any).manifest_endpoints
     const rawEndpoints =
-      systemStatus.manifestEndpoints && systemStatus.manifestEndpoints.length > 0
-        ? systemStatus.manifestEndpoints
+      rawList && rawList.length > 0
+        ? rawList
         : [
             {
               id: 'default',
               name: 'Alapértelmezett',
-              badge: systemStatus.isReverseProxy
+              badge: (systemStatus.isReverseProxy ?? (systemStatus as any).is_reverse_proxy)
                 ? 'Cloudflare'
                 : 'Alapértelmezett',
               urlSuffix: 'stremio',
-              baseUrl: systemStatus.appUrl,
+              baseUrl: systemStatus.appUrl || (systemStatus as any).app_url || '',
               isEnabled: true,
             },
           ]
 
-    return rawEndpoints.map((ep) => {
-      const cleanBase = (ep.baseUrl || systemStatus.appUrl).replace(/\/+$/, '')
+    return rawEndpoints.map((ep: any) => {
+      const urlSuffix =
+        ep.urlSuffix ||
+        ep.url_suffix ||
+        (ep.id === 'default' ? 'stremio' : `stremio-${ep.id}`)
+      const rawBase = ep.baseUrl || ep.base_url || ''
+      const cleanBase = (rawBase || systemStatus.appUrl).replace(/\/+$/, '')
       let endpointHost = cleanBase
       try {
         endpointHost = new URL(cleanBase).host
       } catch {
         endpointHost = cleanBase.replace(/^https?:\/\//, '')
       }
-      const manifestPath = `/api/${apiKey}/${ep.urlSuffix}/manifest.json`
+      const manifestPath = `/api/${apiKey}/${urlSuffix}/manifest.json`
       const fullUrl = `${cleanBase}${manifestPath}`
 
       return {
         id: ep.id,
         name: ep.name,
-        badge: ep.badge,
+        badge:
+          ep.badge ||
+          (ep.id === 'lan'
+            ? 'LAN'
+            : ep.id === 'tailscale'
+              ? 'Tailscale'
+              : 'Cloudflare'),
         baseUrl: cleanBase,
-        urlSuffix: ep.urlSuffix,
+        urlSuffix,
         appEndpoint: `stremio://${endpointHost}${manifestPath}`,
         urlEndpoint: fullUrl,
         webEndpoint: `https://web.stremio.com/#/addons?addon=${encodeURIComponent(fullUrl)}`,

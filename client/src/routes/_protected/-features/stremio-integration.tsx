@@ -27,7 +27,6 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/shared/components/ui/item'
-import { Separator } from '@/shared/components/ui/separator'
 import { useCopy } from '@/shared/hooks/use-copy'
 import { useIntegrationDomain } from '@/shared/hooks/use-integration-domain'
 import { assertExists, cn } from '@/shared/lib/utils'
@@ -84,14 +83,14 @@ export function StremioIntegration() {
                   type="button"
                   onClick={() => setSelectedId(m.id)}
                   className={cn(
-                    'flex-1 min-w-[100px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                    'flex-1 min-w-[80px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
                     isSelected
                       ? 'bg-background text-foreground shadow-sm font-semibold'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {icon}
-                  <span>{m.name}</span>
+                  <span>{m.badge || (m.id === 'lan' ? 'LAN' : m.id === 'tailscale' ? 'Tailscale' : 'Cloudflare')}</span>
                 </button>
               )
             })}
@@ -103,7 +102,7 @@ export function StremioIntegration() {
             <AppWindowIcon />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>Telepítés appban ({activeManifest.name})</ItemTitle>
+            <ItemTitle>Telepítés appban</ItemTitle>
             <ItemDescription>
               Megnyitja az alkalmazást és hozzáadja az addont.
             </ItemDescription>
@@ -149,7 +148,7 @@ export function StremioIntegration() {
             <LinkIcon />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>URL másolása ({activeManifest.name})</ItemTitle>
+            <ItemTitle>URL másolása</ItemTitle>
             <ItemDescription className="truncate max-w-[260px] font-mono text-xs">
               {stremio.urlEndpoint}
             </ItemDescription>
@@ -165,43 +164,6 @@ export function StremioIntegration() {
             </Button>
           </ItemActions>
         </Item>
-
-        {manifests.length > 1 && (
-          <>
-            <Separator />
-            <div className="grid gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Összes konfigurált manifest
-              </span>
-              <div className="grid gap-1.5">
-                {manifests.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/40 text-xs"
-                  >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Badge variant="outline" className="text-[10px] shrink-0">
-                        {m.badge}
-                      </Badge>
-                      <span className="font-mono text-muted-foreground truncate">
-                        {m.urlEndpoint}
-                      </span>
-                    </div>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="shrink-0 rounded-full"
-                      onClick={() => handleCopy(m.urlEndpoint)}
-                      title={`${m.name} URL másolása`}
-                    >
-                      <CopyIcon className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
       </CardContent>
     </Card>
   )

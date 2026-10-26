@@ -76,14 +76,14 @@ export function NuvioIntegration() {
                   type="button"
                   onClick={() => setSelectedId(m.id)}
                   className={cn(
-                    'flex-1 min-w-[100px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
+                    'flex-1 min-w-[80px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
                     isSelected
                       ? 'bg-background text-foreground shadow-sm font-semibold'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {icon}
-                  <span>{m.name}</span>
+                  <span>{m.badge || (m.id === 'lan' ? 'LAN' : m.id === 'tailscale' ? 'Tailscale' : 'Cloudflare')}</span>
                 </button>
               )
             })}
@@ -95,7 +95,7 @@ export function NuvioIntegration() {
             <LinkIcon />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>URL másolása ({activeManifest.name})</ItemTitle>
+            <ItemTitle>URL másolása</ItemTitle>
             <ItemDescription className="truncate max-w-[260px] font-mono text-xs">
               {nuvioUrl}
             </ItemDescription>

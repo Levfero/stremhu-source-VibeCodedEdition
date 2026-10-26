@@ -42,10 +42,11 @@ export function ManifestSettingsCard() {
 
   useEffect(() => {
     if (manifestsData) {
-      setLanEnabled(manifestsData.lanEnabled)
-      setLanUrl(manifestsData.lanUrl || '')
-      setTailscaleEnabled(manifestsData.tailscaleEnabled)
-      setTailscaleUrl(manifestsData.tailscaleUrl || '')
+      const data = manifestsData as any
+      setLanEnabled(data.lanEnabled ?? data.lan_enabled ?? true)
+      setLanUrl(data.lanUrl || data.lan_url || '')
+      setTailscaleEnabled(data.tailscaleEnabled ?? data.tailscale_enabled ?? false)
+      setTailscaleUrl(data.tailscaleUrl || data.tailscale_url || '')
     }
   }, [manifestsData])
 

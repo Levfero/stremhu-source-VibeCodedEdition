@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 from app.config import config
 from app.modules.settings.enums import NetworkConnectionEnum, NetworkModeEnum
@@ -73,6 +74,11 @@ class RelaySettingsUpdate(BaseModel):
 
 
 class ManifestEndpointInfo(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+
     id: str
     name: str
     badge: str
@@ -82,6 +88,11 @@ class ManifestEndpointInfo(BaseModel):
 
 
 class ManifestSettings(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+
     lan_enabled: bool = True
     lan_url: str | None = None
     tailscale_enabled: bool = False
@@ -89,6 +100,11 @@ class ManifestSettings(BaseModel):
 
 
 class ManifestSettingsUpdate(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+
     lan_enabled: bool | None = None
     lan_url: str | None = None
     tailscale_enabled: bool | None = None

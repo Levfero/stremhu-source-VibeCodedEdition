@@ -51,20 +51,20 @@ export function NuvioIntegration({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <Item variant="default" className="p-0">
+        <Item variant="default" className="p-0 flex-nowrap">
           <ItemMedia variant="icon">
             <LinkIcon />
           </ItemMedia>
-          <ItemContent>
+          <ItemContent className="min-w-0">
             <ItemTitle>URL másolása</ItemTitle>
-            <ItemDescription className="truncate max-w-[260px] font-mono text-xs">
-              {url}
+            <ItemDescription>
+              A kimásolt URL-t illeszd be az addonok közé.
             </ItemDescription>
           </ItemContent>
           <ItemActions>
             <Button
               size="icon-sm"
-              className="rounded-full"
+              className="rounded-full shrink-0"
               onClick={() => handleCopy(url)}
             >
               <CopyIcon />

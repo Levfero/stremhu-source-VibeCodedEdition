@@ -67,11 +67,11 @@ export function StremioIntegration({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <Item variant="default" className="p-0">
+        <Item variant="default" className="p-0 flex-nowrap">
           <ItemMedia variant="icon">
             <AppWindowIcon />
           </ItemMedia>
-          <ItemContent>
+          <ItemContent className="min-w-0">
             <ItemTitle>Telepítés appban</ItemTitle>
             <ItemDescription>
               Megnyitja az alkalmazást és hozzáadja az addont.
@@ -81,7 +81,7 @@ export function StremioIntegration({
             <Button
               size="icon-sm"
               variant="default"
-              className="rounded-full"
+              className="rounded-full shrink-0"
               asChild
             >
               <a href={appEndpoint} target="_blank">
@@ -90,11 +90,11 @@ export function StremioIntegration({
             </Button>
           </ItemActions>
         </Item>
-        <Item variant="default" className="p-0">
+        <Item variant="default" className="p-0 flex-nowrap">
           <ItemMedia variant="icon">
             <CodeIcon />
           </ItemMedia>
-          <ItemContent>
+          <ItemContent className="min-w-0">
             <ItemTitle>Telepítés weben</ItemTitle>
             <ItemDescription>
               A weboldalon jóváhagyással telepítheted az addont.
@@ -104,7 +104,7 @@ export function StremioIntegration({
             <Button
               size="icon-sm"
               variant="default"
-              className="rounded-full"
+              className="rounded-full shrink-0"
               asChild
             >
               <a href={webEndpoint} target="_blank">
@@ -113,21 +113,21 @@ export function StremioIntegration({
             </Button>
           </ItemActions>
         </Item>
-        <Item variant="default" className="p-0">
+        <Item variant="default" className="p-0 flex-nowrap">
           <ItemMedia variant="icon">
             <LinkIcon />
           </ItemMedia>
-          <ItemContent>
+          <ItemContent className="min-w-0">
             <ItemTitle>URL másolása</ItemTitle>
-            <ItemDescription className="truncate max-w-[260px] font-mono text-xs">
-              {urlEndpoint}
+            <ItemDescription>
+              A kimásolt URL-t illeszd be az addonok közé.
             </ItemDescription>
           </ItemContent>
           <ItemActions>
             <Button
               size="icon-sm"
               variant="default"
-              className="rounded-full"
+              className="rounded-full shrink-0"
               onClick={() => handleCopy(urlEndpoint)}
             >
               <CopyIcon />

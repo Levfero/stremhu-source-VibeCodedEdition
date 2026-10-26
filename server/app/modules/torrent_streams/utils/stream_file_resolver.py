@@ -227,7 +227,9 @@ class StreamFileResolver:
             return self._get_largest_video_file(self.valid_files)
 
         # Torrent root feldolgozása (gyökér kontextus) egyszer
-        torrent_seasons, torrent_episodes = SeriesParser(self.torrent_info.name).parse()
+        torrent_seasons, torrent_episodes = SeriesParser(self.torrent_info.name).parse(
+            allow_standalone_episode=False
+        )
 
         if torrent_seasons:
             season_allowed = any(s in self.target_seasons for s in torrent_seasons)
@@ -245,8 +247,12 @@ class StreamFileResolver:
             if not season_allowed:
                 return None
 
-        # Early optimization: Ha a torrent címe maga egyetlen konkrét epizódot jelöl
-        if torrent_episodes and len(torrent_episodes) == 1:
+        # Early optimization: Ha a torrent címe maga egyetlen konkrét epizódot jelöl és egyetlen fájl
+        if (
+            len(self.valid_files) == 1
+            and torrent_episodes
+            and len(torrent_episodes) == 1
+        ):
             ep = torrent_episodes[0]
             is_absolute_match = ep in self.alt_episodes_set
             season_ok = (

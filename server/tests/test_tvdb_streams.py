@@ -631,10 +631,13 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
 
     mock_torrent_source_provider.find_by_imdb_id.side_effect = fake_find_by_imdb_id
 
+    mock_torrents_service = MagicMock()
+    mock_torrents_service.get_torrents.return_value = []
+
     service = TorrentStreamsService(
         db=AsyncMock(),
         torrent_source_provider_service=mock_torrent_source_provider,
-        torrents_service=AsyncMock(),
+        torrents_service=mock_torrents_service,
         settings_service=mock_settings_service,
         preferences_service=mock_preferences,
     )

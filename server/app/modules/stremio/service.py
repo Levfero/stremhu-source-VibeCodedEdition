@@ -41,18 +41,19 @@ class StremioService:
         name = "StremHU Source"
         version = config.version.removeprefix("v")
 
-        if endpoint_type == "lan":
-            name = f"{name} (LAN)"
-            addon_id = f"{addon_id}.lan"
-            target_url = self._settings_service.get_manifest_url("lan")
-            if target_url:
-                app_url = target_url.rstrip("/")
-        elif endpoint_type == "tailscale":
-            name = f"{name} (Tailscale)"
-            addon_id = f"{addon_id}.tailscale"
-            target_url = self._settings_service.get_manifest_url("tailscale")
-            if target_url:
-                app_url = target_url.rstrip("/")
+        if endpoint_type != "default":
+            ep = self._settings_service.get_endpoint_by_id(endpoint_type)
+            if ep:
+                name = f"{name} ({ep.name})"
+                addon_id = f"{addon_id}.{ep.id.replace('_', '.')}"
+                if ep.base_url:
+                    app_url = ep.base_url.rstrip("/")
+            else:
+                target_url = self._settings_service.get_manifest_url(endpoint_type)
+                if target_url:
+                    app_url = target_url.rstrip("/")
+                name = f"{name} ({endpoint_type})"
+                addon_id = f"{addon_id}.{endpoint_type.replace('_', '.')}"
 
         if not re.match(r"^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$", version):
             version = "0.0.0"

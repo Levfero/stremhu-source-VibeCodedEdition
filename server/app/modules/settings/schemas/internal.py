@@ -87,15 +87,30 @@ class ManifestEndpointInfo(BaseModel):
     is_enabled: bool = True
 
 
+class ManifestEndpointConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    id: str
+    name: str
+    base_url: str
+    is_enabled: bool = True
+    badge: str | None = None
+    url_suffix: str | None = None
+
+
 class ManifestSettings(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         alias_generator=to_camel,
     )
 
-    lan_enabled: bool = True
+    endpoints: list[ManifestEndpointConfig] = Field(default_factory=list)
+    lan_enabled: bool | None = None
     lan_url: str | None = None
-    tailscale_enabled: bool = False
+    tailscale_enabled: bool | None = None
     tailscale_url: str | None = None
 
 
@@ -105,6 +120,7 @@ class ManifestSettingsUpdate(BaseModel):
         alias_generator=to_camel,
     )
 
+    endpoints: list[ManifestEndpointConfig] | None = None
     lan_enabled: bool | None = None
     lan_url: str | None = None
     tailscale_enabled: bool | None = None

@@ -1,13 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import {
   AppWindowIcon,
-  CloudIcon,
   CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
-  HardDriveIcon,
   LinkIcon,
-  ShieldIcon,
 } from 'lucide-react'
 
 import { Badge } from '@/shared/components/ui/badge'
@@ -28,20 +24,26 @@ import {
   ItemTitle,
 } from '@/shared/components/ui/item'
 import { useCopy } from '@/shared/hooks/use-copy'
-import { useIntegrationDomain } from '@/shared/hooks/use-integration-domain'
-import { assertExists, cn } from '@/shared/lib/utils'
-import { getMe } from '@/shared/queries/me'
+import type { IntegrationManifestItem } from '@/shared/hooks/use-integration-domain'
 
-export function StremioIntegration() {
-  const { data: me } = useQuery(getMe())
-  assertExists(me)
+interface StremioIntegrationProps {
+  activeManifest?: IntegrationManifestItem
+  stremio?: {
+    appEndpoint: string
+    webEndpoint: string
+    urlEndpoint: string
+  }
+}
 
-  const { manifests, selectedId, setSelectedId, activeManifest, stremio } =
-    useIntegrationDomain({
-      apiKey: me.apiKey,
-    })
-
+export function StremioIntegration({
+  activeManifest,
+  stremio,
+}: StremioIntegrationProps) {
   const { handleCopy } = useCopy()
+
+  const appEndpoint = stremio?.appEndpoint || ''
+  const webEndpoint = stremio?.webEndpoint || ''
+  const urlEndpoint = stremio?.urlEndpoint || ''
 
   return (
     <Card>
@@ -50,7 +52,7 @@ export function StremioIntegration() {
           <CardTitle>Stremio</CardTitle>
           {activeManifest && (
             <Badge variant="outline" className="text-xs">
-              {activeManifest.badge}
+              {activeManifest.name}
             </Badge>
           )}
         </div>
@@ -65,38 +67,6 @@ export function StremioIntegration() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        {manifests.length > 1 && (
-          <div className="flex flex-wrap gap-1.5 p-1 bg-muted/80 rounded-xl border border-border/50">
-            {manifests.map((m) => {
-              const isSelected = m.id === selectedId
-              const icon =
-                m.id === 'lan' ? (
-                  <HardDriveIcon className="size-3.5" />
-                ) : m.id === 'tailscale' ? (
-                  <ShieldIcon className="size-3.5" />
-                ) : (
-                  <CloudIcon className="size-3.5" />
-                )
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setSelectedId(m.id)}
-                  className={cn(
-                    'flex-1 min-w-[80px] px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer',
-                    isSelected
-                      ? 'bg-background text-foreground shadow-sm font-semibold'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {icon}
-                  <span>{m.badge || (m.id === 'lan' ? 'LAN' : m.id === 'tailscale' ? 'Tailscale' : 'Cloudflare')}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
         <Item variant="default" className="p-0">
           <ItemMedia variant="icon">
             <AppWindowIcon />
@@ -114,7 +84,7 @@ export function StremioIntegration() {
               className="rounded-full"
               asChild
             >
-              <a href={stremio.appEndpoint} target="_blank">
+              <a href={appEndpoint} target="_blank">
                 <ExternalLinkIcon />
               </a>
             </Button>
@@ -137,7 +107,7 @@ export function StremioIntegration() {
               className="rounded-full"
               asChild
             >
-              <a href={stremio.webEndpoint} target="_blank">
+              <a href={webEndpoint} target="_blank">
                 <ExternalLinkIcon />
               </a>
             </Button>
@@ -150,7 +120,7 @@ export function StremioIntegration() {
           <ItemContent>
             <ItemTitle>URL másolása</ItemTitle>
             <ItemDescription className="truncate max-w-[260px] font-mono text-xs">
-              {stremio.urlEndpoint}
+              {urlEndpoint}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -158,7 +128,7 @@ export function StremioIntegration() {
               size="icon-sm"
               variant="default"
               className="rounded-full"
-              onClick={() => handleCopy(stremio.urlEndpoint)}
+              onClick={() => handleCopy(urlEndpoint)}
             >
               <CopyIcon />
             </Button>

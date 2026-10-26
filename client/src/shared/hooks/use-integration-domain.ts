@@ -36,10 +36,8 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
         : [
             {
               id: 'default',
-              name: 'Alapértelmezett',
-              badge: (systemStatus.isReverseProxy ?? (systemStatus as any).is_reverse_proxy)
-                ? 'Cloudflare'
-                : 'Alapértelmezett',
+              name: 'Nyilvános',
+              badge: 'Nyilvános',
               urlSuffix: 'stremio',
               baseUrl: systemStatus.appUrl || (systemStatus as any).app_url || '',
               isEnabled: true,
@@ -64,14 +62,14 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
 
       return {
         id: ep.id,
-        name: ep.name,
+        name: ep.name || (ep.id === 'default' ? 'Nyilvános' : ep.id === 'lan' ? 'Helyi hálózat (LAN)' : ep.id === 'tailscale' ? 'Tailscale' : ep.id),
         badge:
           ep.badge ||
           (ep.id === 'lan'
             ? 'LAN'
             : ep.id === 'tailscale'
               ? 'Tailscale'
-              : 'Cloudflare'),
+              : 'Nyilvános'),
         baseUrl: cleanBase,
         urlSuffix,
         appEndpoint: `stremio://${endpointHost}${manifestPath}`,
@@ -101,5 +99,6 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
       urlEndpoint: activeManifest.urlEndpoint,
     },
     nuvioUrl: activeManifest.nuvioUrl,
+    kodiUrl: activeManifest.baseUrl,
   }
 }

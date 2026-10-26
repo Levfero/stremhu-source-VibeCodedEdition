@@ -32,6 +32,11 @@ def test_multi_manifest_endpoints(client):
         "lan": "http://192.168.1.100:7070",
         "tailscale": "http://100.64.0.1:7070",
     }.get(ep)
+    from app.modules.settings.schemas.internal import ManifestEndpointInfo
+    mock_settings_service.get_endpoint_by_id.side_effect = lambda ep: {
+        "lan": ManifestEndpointInfo(id="lan", name="LAN", badge="LAN", url_suffix="stremio-lan", base_url="http://192.168.1.100:7070", is_enabled=True),
+        "tailscale": ManifestEndpointInfo(id="tailscale", name="Tailscale", badge="Tailscale", url_suffix="stremio-tailscale", base_url="http://100.64.0.1:7070", is_enabled=True),
+    }.get(ep)
 
     mock_torrent_streams_service = AsyncMock(spec=TorrentStreamsService)
     mock_tvdb_resolver = AsyncMock(spec=TvdbResolver)

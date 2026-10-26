@@ -504,14 +504,15 @@ export interface ManifestEndpointInfo {
 }
 
 export interface ManifestSettingsResponse {
-  lanEnabled: boolean
-  lanUrl: string
-  tailscaleEnabled: boolean
-  tailscaleUrl: string
+  lanEnabled?: boolean
+  lanUrl?: string
+  tailscaleEnabled?: boolean
+  tailscaleUrl?: string
   endpoints: ManifestEndpointInfo[]
 }
 
 export interface ManifestSettingsUpdateRequest {
+  endpoints?: ManifestEndpointInfo[] | null
   lanEnabled?: boolean | null
   lanUrl?: string | null
   tailscaleEnabled?: boolean | null

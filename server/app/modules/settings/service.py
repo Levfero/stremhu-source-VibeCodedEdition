@@ -4,6 +4,7 @@ from app.config import config
 from app.modules.settings.enums import NetworkModeEnum, SettingsKeyEnum
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.schemas.internal import (
+    ManifestEndpointConfig,
     ManifestEndpointInfo,
     ManifestSettings,
     ManifestSettingsUpdate,
@@ -123,92 +124,179 @@ class SettingsService:
     def get_manifest_settings(self) -> ManifestSettings:
         saved = self.find_manifests()
 
+        default_app_url = self.get_app_url().rstrip("/")
         default_lan_url = (
             config.lan_url
             or (f"http://{config.host_ip}:{config.port}" if config.host_ip else "")
-        )
+        ).rstrip("/")
 
         detected_ts_ip = config.tailscale_ip or _detect_tailscale_ip()
         default_tailscale_url = (
             config.tailscale_url
             or (f"http://{detected_ts_ip}:{config.port}" if detected_ts_ip else "")
-        )
+        ).rstrip("/")
 
-        lan_url = (saved.lan_url if saved and saved.lan_url else "") or default_lan_url
-        lan_enabled = (
-            saved.lan_enabled
-            if (saved and saved.lan_enabled is not None and saved.lan_url)
-            else bool(lan_url)
-        )
+        env_endpoints: list[ManifestEndpointConfig] = [
+            ManifestEndpointConfig(
+                id="default",
+                name="Nyilvános",
+                badge="Nyilvános",
+                url_suffix="stremio",
+                base_url=default_app_url,
+                is_enabled=True,
+            )
+        ]
+        if default_lan_url:
+            env_endpoints.append(
+                ManifestEndpointConfig(
+                    id="lan",
+                    name="Helyi hálózat (LAN)",
+                    badge="LAN",
+                    url_suffix="stremio-lan",
+                    base_url=default_lan_url,
+                    is_enabled=True,
+                )
+            )
+        if default_tailscale_url:
+            env_endpoints.append(
+                ManifestEndpointConfig(
+                    id="tailscale",
+                    name="Tailscale",
+                    badge="Tailscale",
+                    url_suffix="stremio-tailscale",
+                    base_url=default_tailscale_url,
+                    is_enabled=True,
+                )
+            )
 
-        tailscale_url = (
-            (saved.tailscale_url if saved and saved.tailscale_url else "")
-            or default_tailscale_url
-        )
-        tailscale_enabled = (
-            saved.tailscale_enabled
-            if (saved and saved.tailscale_enabled is not None and saved.tailscale_url)
-            else bool(tailscale_url)
-        )
+        if not saved or (not saved.endpoints and saved.lan_enabled is None and saved.tailscale_enabled is None):
+            return ManifestSettings(
+                endpoints=env_endpoints,
+                lan_enabled=bool(default_lan_url),
+                lan_url=default_lan_url,
+                tailscale_enabled=bool(default_tailscale_url),
+                tailscale_url=default_tailscale_url,
+            )
 
+        if saved.endpoints:
+            endpoints_map = {ep.id: ep for ep in saved.endpoints}
+            for env_ep in env_endpoints:
+                if env_ep.id not in endpoints_map:
+                    saved.endpoints.append(env_ep)
+                else:
+                    saved_ep = endpoints_map[env_ep.id]
+                    if not saved_ep.base_url:
+                        saved_ep.base_url = env_ep.base_url
+
+            lan_ep = next((ep for ep in saved.endpoints if ep.id == "lan"), None)
+            ts_ep = next((ep for ep in saved.endpoints if ep.id == "tailscale"), None)
+            return ManifestSettings(
+                endpoints=saved.endpoints,
+                lan_enabled=lan_ep.is_enabled if lan_ep else False,
+                lan_url=lan_ep.base_url if lan_ep else "",
+                tailscale_enabled=ts_ep.is_enabled if ts_ep else False,
+                tailscale_url=ts_ep.base_url if ts_ep else "",
+            )
+
+        endpoints = list(env_endpoints)
+        for ep in endpoints:
+            if ep.id == "lan" and saved.lan_enabled is not None:
+                ep.is_enabled = saved.lan_enabled
+                if saved.lan_url:
+                    ep.base_url = saved.lan_url
+            elif ep.id == "tailscale" and saved.tailscale_enabled is not None:
+                ep.is_enabled = saved.tailscale_enabled
+                if saved.tailscale_url:
+                    ep.base_url = saved.tailscale_url
+
+        lan_ep = next((ep for ep in endpoints if ep.id == "lan"), None)
+        ts_ep = next((ep for ep in endpoints if ep.id == "tailscale"), None)
         return ManifestSettings(
-            lan_enabled=lan_enabled,
-            lan_url=lan_url,
-            tailscale_enabled=tailscale_enabled,
-            tailscale_url=tailscale_url,
+            endpoints=endpoints,
+            lan_enabled=lan_ep.is_enabled if lan_ep else False,
+            lan_url=lan_ep.base_url if lan_ep else "",
+            tailscale_enabled=ts_ep.is_enabled if ts_ep else False,
+            tailscale_url=ts_ep.base_url if ts_ep else "",
         )
 
     def save_manifests(self, payload: ManifestSettingsUpdate) -> ManifestSettings:
         current = self.get_manifest_settings()
         data = current.model_dump()
         update_data = payload.model_dump(exclude_unset=True)
-        data.update({k: v for k, v in update_data.items() if v is not None})
+
+        if "endpoints" in update_data and update_data["endpoints"] is not None:
+            cleaned_endpoints = []
+            for ep_dict in update_data["endpoints"]:
+                ep_id = ep_dict.get("id") or "custom"
+                name = ep_dict.get("name") or ep_id
+                base_url = (ep_dict.get("base_url") or "").rstrip("/")
+                is_enabled = ep_dict.get("is_enabled", True)
+                badge = ep_dict.get("badge") or (name if len(name) <= 12 else ep_id.upper())
+                url_suffix = ep_dict.get("url_suffix") or ("stremio" if ep_id == "default" else f"stremio-{ep_id}")
+                cleaned_endpoints.append(
+                    {
+                        "id": ep_id,
+                        "name": name,
+                        "base_url": base_url,
+                        "is_enabled": is_enabled,
+                        "badge": badge,
+                        "url_suffix": url_suffix,
+                    }
+                )
+            data["endpoints"] = cleaned_endpoints
+
+        if "lan_enabled" in update_data and update_data["lan_enabled"] is not None:
+            data["lan_enabled"] = update_data["lan_enabled"]
+        if "lan_url" in update_data and update_data["lan_url"] is not None:
+            data["lan_url"] = update_data["lan_url"]
+        if "tailscale_enabled" in update_data and update_data["tailscale_enabled"] is not None:
+            data["tailscale_enabled"] = update_data["tailscale_enabled"]
+        if "tailscale_url" in update_data and update_data["tailscale_url"] is not None:
+            data["tailscale_url"] = update_data["tailscale_url"]
+
         self._settings_repository.save(SettingsKeyEnum.MANIFESTS, data)
         return self.get_manifest_settings()
 
     def get_manifest_endpoints(self) -> list[ManifestEndpointInfo]:
-        app_url = self.get_app_url().rstrip("/")
-        endpoints = [
-            ManifestEndpointInfo(
-                id="default",
-                name="Nyilvános (Cloudflare)" if config.reverse_proxy_domain else "Alapértelmezett",
-                badge="Cloudflare" if config.reverse_proxy_domain else "Nyilvános",
-                url_suffix="stremio",
-                base_url=app_url,
-                is_enabled=True,
-            )
-        ]
         settings = self.get_manifest_settings()
-        if settings.lan_enabled and settings.lan_url:
-            endpoints.append(
+        result = []
+        for ep in settings.endpoints:
+            if not ep.is_enabled or not ep.base_url:
+                continue
+            url_suffix = ep.url_suffix or ("stremio" if ep.id == "default" else f"stremio-{ep.id}")
+            badge = ep.badge or (ep.name if len(ep.name) <= 12 else ep.id.upper())
+            result.append(
                 ManifestEndpointInfo(
-                    id="lan",
-                    name="Helyi hálózat (LAN)",
-                    badge="LAN",
-                    url_suffix="stremio-lan",
-                    base_url=settings.lan_url.rstrip("/"),
-                    is_enabled=True,
+                    id=ep.id,
+                    name=ep.name,
+                    badge=badge,
+                    url_suffix=url_suffix,
+                    base_url=ep.base_url.rstrip("/"),
+                    is_enabled=ep.is_enabled,
                 )
             )
-        if settings.tailscale_enabled and settings.tailscale_url:
-            endpoints.append(
-                ManifestEndpointInfo(
-                    id="tailscale",
-                    name="Tailscale (VPN)",
-                    badge="Tailscale",
-                    url_suffix="stremio-tailscale",
-                    base_url=settings.tailscale_url.rstrip("/"),
-                    is_enabled=True,
+        return result
+
+    def get_endpoint_by_id(self, endpoint_id: str) -> ManifestEndpointInfo | None:
+        settings = self.get_manifest_settings()
+        for ep in settings.endpoints:
+            if ep.id == endpoint_id:
+                url_suffix = ep.url_suffix or ("stremio" if ep.id == "default" else f"stremio-{ep.id}")
+                badge = ep.badge or (ep.name if len(ep.name) <= 12 else ep.id.upper())
+                return ManifestEndpointInfo(
+                    id=ep.id,
+                    name=ep.name,
+                    badge=badge,
+                    url_suffix=url_suffix,
+                    base_url=ep.base_url.rstrip("/"),
+                    is_enabled=ep.is_enabled,
                 )
-            )
-        return endpoints
+        return None
 
     def get_manifest_url(self, endpoint_type: str) -> str | None:
-        settings = self.get_manifest_settings()
-        if endpoint_type == "lan":
-            return settings.lan_url if settings.lan_enabled else None
-        elif endpoint_type == "tailscale":
-            return settings.tailscale_url if settings.tailscale_enabled else None
+        ep = self.get_endpoint_by_id(endpoint_type)
+        if ep and ep.is_enabled and ep.base_url:
+            return ep.base_url
         return None
 
 

@@ -1,6 +1,6 @@
-import { useSuspenseQueries } from '@tanstack/react-query'
 import { CopyIcon, LinkIcon } from 'lucide-react'
 
+import { Badge } from '@/shared/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -16,19 +16,32 @@ import {
   InputGroupInput,
 } from '@/shared/components/ui/input-group'
 import { useCopy } from '@/shared/hooks/use-copy'
-import { getSystemStatus } from '@/shared/queries/system'
+import type { IntegrationManifestItem } from '@/shared/hooks/use-integration-domain'
 
-export function KodiIntegration() {
-  const [{ data: systemStatus }] = useSuspenseQueries({
-    queries: [getSystemStatus],
-  })
+interface KodiIntegrationProps {
+  activeManifest?: IntegrationManifestItem
+  kodiUrl?: string
+}
 
+export function KodiIntegration({
+  activeManifest,
+  kodiUrl,
+}: KodiIntegrationProps) {
   const { handleCopy } = useCopy()
+
+  const url = kodiUrl || ''
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Kodi</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Kodi</CardTitle>
+          {activeManifest && (
+            <Badge variant="outline" className="text-xs">
+              {activeManifest.name}
+            </Badge>
+          )}
+        </div>
         <CardDescription>
           <a className="link-primary" href="https://kodi.tv/" target="_blank">
             https://kodi.tv
@@ -42,12 +55,12 @@ export function KodiIntegration() {
         </p>
         <Field className="max-w-sm">
           <InputGroup>
-            <InputGroupInput value={systemStatus.appUrl} />
+            <InputGroupInput value={url} readOnly />
             <InputGroupAddon align="inline-start">
               <LinkIcon />
             </InputGroupAddon>
             <InputGroupAddon align="inline-end">
-              <InputGroupButton onClick={() => handleCopy(systemStatus.appUrl)}>
+              <InputGroupButton onClick={() => handleCopy(url)}>
                 <CopyIcon />
               </InputGroupButton>
             </InputGroupAddon>

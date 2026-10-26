@@ -103,11 +103,11 @@ class ManifestSettingsResponse(BaseModel):
         alias_generator=to_camel,
     )
 
-    lan_enabled: bool
-    lan_url: str
-    tailscale_enabled: bool
-    tailscale_url: str
     endpoints: list[ManifestEndpointInfo]
+    lan_enabled: bool = True
+    lan_url: str = ""
+    tailscale_enabled: bool = False
+    tailscale_url: str = ""
 
 
 class ManifestSettingsUpdateRequest(ManifestSettingsUpdate):

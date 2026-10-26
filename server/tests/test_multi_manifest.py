@@ -10,7 +10,6 @@ from app.modules.settings.service import SettingsService
 from app.modules.stremio.dependencies import get_stremio_service
 from app.modules.stremio.schemas import BehaviorHints, StremioStream
 from app.modules.stremio.service import StremioService
-from app.modules.stremio.tvdb_resolver import TvdbResolver
 from app.modules.torrent_streams.service import TorrentStreamsService
 from app.modules.users.models import UserModel
 
@@ -39,10 +38,8 @@ def test_multi_manifest_endpoints(client):
     }.get(ep)
 
     mock_torrent_streams_service = AsyncMock(spec=TorrentStreamsService)
-    mock_tvdb_resolver = AsyncMock(spec=TvdbResolver)
 
     real_stremio_service = StremioService(
-        tvdb_resolver_service=mock_tvdb_resolver,
         torrent_streams_service=mock_torrent_streams_service,
         settings_service=mock_settings_service,
     )

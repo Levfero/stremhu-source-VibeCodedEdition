@@ -80,7 +80,7 @@ def get_manifest_settings(
     _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
 ):
     manifest_settings = settings_service.get_manifest_settings()
-    endpoints = settings_service.get_manifest_endpoints()
+    endpoints = settings_service.get_manifest_endpoints(only_enabled=False)
     return ManifestSettingsResponse(
         lan_enabled=manifest_settings.lan_enabled,
         lan_url=manifest_settings.lan_url or "",
@@ -100,7 +100,7 @@ def update_manifest_settings(
     _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
 ):
     manifest_settings = settings_service.save_manifests(payload)
-    endpoints = settings_service.get_manifest_endpoints()
+    endpoints = settings_service.get_manifest_endpoints(only_enabled=False)
     return ManifestSettingsResponse(
         lan_enabled=manifest_settings.lan_enabled,
         lan_url=manifest_settings.lan_url or "",

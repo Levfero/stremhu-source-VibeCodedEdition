@@ -257,11 +257,13 @@ class SettingsService:
         self._settings_repository.save(SettingsKeyEnum.MANIFESTS, data)
         return self.get_manifest_settings()
 
-    def get_manifest_endpoints(self) -> list[ManifestEndpointInfo]:
+    def get_manifest_endpoints(
+        self, only_enabled: bool = True
+    ) -> list[ManifestEndpointInfo]:
         settings = self.get_manifest_settings()
         result = []
         for ep in settings.endpoints:
-            if not ep.is_enabled or not ep.base_url:
+            if only_enabled and (not ep.is_enabled or not ep.base_url):
                 continue
             url_suffix = ep.url_suffix or ("stremio" if ep.id == "default" else f"stremio-{ep.id}")
             badge = ep.badge or (ep.name if len(ep.name) <= 12 else ep.id.upper())

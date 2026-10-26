@@ -143,3 +143,44 @@ def test_multi_manifest_stream_url_rewriting(client):
 
     finally:
         app.dependency_overrides.clear()
+
+
+def test_manifest_endpoints_enabled_filtering():
+    from app.modules.settings.schemas.internal import (
+        ManifestEndpointConfig,
+        ManifestSettings,
+    )
+
+    mock_repo = MagicMock()
+    service = SettingsService(settings_repository=mock_repo)
+
+    # Mock get_manifest_settings to return one enabled and one disabled endpoint
+    service.get_manifest_settings = MagicMock(
+        return_value=ManifestSettings(
+            endpoints=[
+                ManifestEndpointConfig(
+                    id="default",
+                    name="Nyilvános",
+                    base_url="https://stremio.example.com",
+                    is_enabled=True,
+                ),
+                ManifestEndpointConfig(
+                    id="lan",
+                    name="LAN",
+                    base_url="http://192.168.1.100:7070",
+                    is_enabled=False,
+                ),
+            ]
+        )
+    )
+
+    # only_enabled=True (default) should filter out disabled endpoints
+    enabled_only = service.get_manifest_endpoints(only_enabled=True)
+    assert len(enabled_only) == 1
+    assert enabled_only[0].id == "default"
+
+    # only_enabled=False should return all endpoints
+    all_endpoints = service.get_manifest_endpoints(only_enabled=False)
+    assert len(all_endpoints) == 2
+    assert [ep.id for ep in all_endpoints] == ["default", "lan"]
+    assert all_endpoints[1].is_enabled is False

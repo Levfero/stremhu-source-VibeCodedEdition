@@ -34,6 +34,15 @@ class SeriesParser:
         re.IGNORECASE,
     )
 
+    PATTERN_R_FORMAT = re.compile(
+        r"\br([1-9])[ ._-]*(?:e|ep|episode|[-–—]|\s)\s*(\d{1,4})(?:-(?:e|ep|episode)?[ ._-]?(\d{1,4}))?\b",
+        re.IGNORECASE,
+    )
+    PATTERN_ORDINAL_SEASON_EPISODE = re.compile(
+        r"\b(\d{1,2})(?:st|nd|rd|th)[ ._-]+seasons?[ ._-]*(?:e|ep|episode|[-–—]|\s)\s*(\d{1,4})(?:-(?:e|ep|episode)?[ ._-]?(\d{1,4}))?\b",
+        re.IGNORECASE,
+    )
+
     # Cleaners for standalone episode extraction
     PATTERN_CLEAN_RESOLUTIONS = re.compile(
         r"\b\d{3,4}\s*[xX]\s*\d{3,4}\b|(1080|720|2160|480|576|540|20\d{2}|19\d{2})",
@@ -46,13 +55,15 @@ class SeriesParser:
         r"\b(?:s\d{1,2}[ ._+]+)+s\d{1,2}\b", re.IGNORECASE
     )
     PATTERN_SEASON_LIST = re.compile(
-        r"\b(?:seasons?|s|évad|evad)[ ._-]?(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*(?:seasons?|s)?\s*\d{1,2})*)(?:[ ._-]?p\d+)?\b|"
-        r"\b(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*\d{1,2})*)\.?\s*(?:évad|evad)\b",
+        r"\b(?:seasons?|s|r|round|évad|evad)[ ._-]?(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*(?:seasons?|s|r)?\s*\d{1,2})*)(?:[ ._-]?p\d+)?\b|"
+        r"\b(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*\d{1,2})*)\.?\s*(?:évad|evad)\b|"
+        r"\b(\d{1,2})(?:st|nd|rd|th)[ ._-]+seasons?\b",
         re.IGNORECASE,
     )
     PATTERN_NORM_TO = re.compile(r"\s*(?:-|to)\s*", re.IGNORECASE)
     PATTERN_SEASON_SPLIT = re.compile(r"[ ,&+]+|\band\b", re.IGNORECASE)
-    PATTERN_STRIP_SEASON = re.compile(r"(?:seasons?|s)", re.IGNORECASE)
+    PATTERN_STRIP_SEASON = re.compile(r"(?:seasons?|s|r|round)", re.IGNORECASE)
+    PATTERN_STRIP_ORDINAL = re.compile(r"(?:st|nd|rd|th)", re.IGNORECASE)
     PATTERN_STRIP_PART = re.compile(r"p\d+", re.IGNORECASE)
     PATTERN_SEASON_TOKEN_RANGE = re.compile(r"^(\d{1,2})-(\d{1,2})$")
     PATTERN_SEASON_TOKEN_NUM = re.compile(r"^(\d{1,2})$")
@@ -88,6 +99,7 @@ class SeriesParser:
             if not token:
                 continue
             token = cls.PATTERN_STRIP_SEASON.sub("", token)
+            token = cls.PATTERN_STRIP_ORDINAL.sub("", token)
             token = cls.PATTERN_STRIP_PART.sub("", token)
             range_match = cls.PATTERN_SEASON_TOKEN_RANGE.match(token)
             if range_match:
@@ -150,6 +162,8 @@ class SeriesParser:
             self.PATTERN_X_FORMAT,
             self.PATTERN_EXPLICIT,
             self.PATTERN_HUNGARIAN,
+            self.PATTERN_R_FORMAT,
+            self.PATTERN_ORDINAL_SEASON_EPISODE,
         ]
         for pattern in patterns:
             match = pattern.search(self.name_lower)

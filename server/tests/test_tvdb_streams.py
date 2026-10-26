@@ -502,6 +502,54 @@ def test_one_piece_series_parser_and_resolver():
     assert "- 39" in res_abs_39.name
 
 
+    # 9. Code Geass R2 és Ordinal Season (pl. 2nd Season) felismerése és feloldása S2E2-re
+    cg_s2_series = SeriesInfo(season=2, episode=2)
+
+    # 720p BDRip S01-S02 pakk (ID 2137664)
+    t_cg_720p_pack = TorrentInfo(
+        info_hash="hash_cg_720p",
+        name="Code Geass Lelouch of the Rebellion (BD_1280x720)",
+        size=17000,
+        piece_size=1000,
+        files=[
+            make_file("Code Geass Lelouch of the Rebellion (BD_1280x720)/Code Geass Hangyaku no Lelouch - 02 (BD 1280x720 x264 AAC).mkv", 0),
+            make_file("Code Geass Lelouch of the Rebellion (BD_1280x720)/Code Geass Hangyaku no Lelouch R2 - 02 (BD 1280x720 x264 AAC).mkv", 1),
+        ],
+    )
+    res_cg_720p = StreamFileResolver(t_cg_720p_pack, series=cg_s2_series).resolve()
+    assert res_cg_720p is not None
+    assert "R2 - 02" in res_cg_720p.name
+
+    # 1080p BDRip S01-S02 pakk
+    t_cg_1080p_pack = TorrentInfo(
+        info_hash="hash_cg_1080p",
+        name="Code Geass - Hangyaku no Lelouch S01-S02 (BD_1920x1080)",
+        size=54000,
+        piece_size=2000,
+        files=[
+            make_file("Code Geass - Hangyaku no Lelouch S01-S02 (BD_1920x1080)/[Yousei-raws] Code Geass - Hangyaku no Lelouch 02 [BDrip 1920x1080 x264 FLAC].mkv", 0),
+            make_file("Code Geass - Hangyaku no Lelouch S01-S02 (BD_1920x1080)/[Yousei-raws] Code Geass - Hangyaku no Lelouch R2 02 [BDrip 1920x1080 x264 FLAC].mkv", 1),
+        ],
+    )
+    res_cg_1080p = StreamFileResolver(t_cg_1080p_pack, series=cg_s2_series).resolve()
+    assert res_cg_1080p is not None
+    assert "R2 02" in res_cg_1080p.name
+
+    # Ordinal season (2nd Season)
+    t_mob_2nd = TorrentInfo(
+        info_hash="hash_mob_2nd",
+        name="Mob Psycho 100 2nd Season",
+        size=5000,
+        piece_size=1000,
+        files=[
+            make_file("Mob Psycho 100 2nd Season - 02.mkv", 0),
+        ],
+    )
+    res_mob_2nd = StreamFileResolver(t_mob_2nd, series=SeriesInfo(season=2, episode=2)).resolve()
+    assert res_mob_2nd is not None
+    assert "2nd Season - 02" in res_mob_2nd.name
+
+
 @pytest.mark.anyio
 async def test_get_episode_mappings_generic_caching():
     resolver = TvdbResolver()
@@ -524,6 +572,7 @@ async def test_resolve_kitsu_aot_season_isolation():
     # Kitsu belső season=1-et TILOS hozzáadni az alt_seasons-hoz, ha a valódi évad 3!
     assert 1 not in alt_seasons
     assert alt_seasons == []
+
 
 
 

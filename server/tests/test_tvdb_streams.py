@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -601,7 +601,9 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     mock_torrent_source_provider = AsyncMock()
     mock_settings_service = AsyncMock()
     mock_settings_service.get_app_url.return_value = "http://localhost:7070"
-    mock_preferences = AsyncMock()
+    mock_preferences = MagicMock()
+    mock_preferences.get_list.return_value = []
+    mock_preferences.get_system_preferences.return_value = []
 
     source_1989 = create_torrent_source(
         indexer_id="ncore",

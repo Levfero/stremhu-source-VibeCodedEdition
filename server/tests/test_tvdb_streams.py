@@ -454,6 +454,54 @@ def test_one_piece_series_parser_and_resolver():
     assert res_ns.name == "Naruto Shippuden - 500.mkv"
 
 
+    # 8. Attack on Titan Season 3 Episode 2 - S01E02 és standalone "- 02" torrent kizárása, de S03E02 és "- 39" illesztése
+    aot_s3_series = SeriesInfo(season=3, episode=2, alternate_episodes=[39])
+
+    # S01E02 explicit 1. évad -> nem szabad illeszkednie!
+    t_aot_s01 = TorrentInfo(
+        info_hash="hash_aot_s01",
+        name="Attack.on.Titan.S01E02.BDRIP.x264-Krissz.mkv",
+        size=1000,
+        piece_size=500,
+        files=[make_file("Attack.on.Titan.S01E02.BDRIP.x264-Krissz.mkv", 0)],
+    )
+    assert StreamFileResolver(t_aot_s01, series=aot_s3_series).resolve() is None
+
+    # Standalone "- 02" évad nélkül -> nem szabad S3E2-re illeszkednie!
+    t_aot_standalone_02 = TorrentInfo(
+        info_hash="hash_aot_02",
+        name="Shingeki no Kyojin - 02 (BD 1280x720 x264 AAC).mkv",
+        size=1000,
+        piece_size=500,
+        files=[make_file("Shingeki no Kyojin - 02 (BD 1280x720 x264 AAC).mkv", 0)],
+    )
+    assert StreamFileResolver(t_aot_standalone_02, series=aot_s3_series).resolve() is None
+
+    # S03E02 -> egyeznie kell!
+    t_aot_s03 = TorrentInfo(
+        info_hash="hash_aot_s03",
+        name="attack.on.titan.s03e02.dubbed.hdtv.x264-w4f.mkv",
+        size=1000,
+        piece_size=500,
+        files=[make_file("attack.on.titan.s03e02.dubbed.hdtv.x264-w4f.mkv", 0)],
+    )
+    res_s03 = StreamFileResolver(t_aot_s03, series=aot_s3_series).resolve()
+    assert res_s03 is not None
+    assert "s03e02" in res_s03.name
+
+    # Standalone "- 39" abszolút epizódszám -> egyeznie kell S3E2-re!
+    t_aot_abs_39 = TorrentInfo(
+        info_hash="hash_aot_39",
+        name="[ReinForce] Shingeki no Kyojin - 39 (BDRip 1920x1080 x264 FLAC).mkv",
+        size=1000,
+        piece_size=500,
+        files=[make_file("[ReinForce] Shingeki no Kyojin - 39 (BDRip 1920x1080 x264 FLAC).mkv", 0)],
+    )
+    res_abs_39 = StreamFileResolver(t_aot_abs_39, series=aot_s3_series).resolve()
+    assert res_abs_39 is not None
+    assert "- 39" in res_abs_39.name
+
+
 @pytest.mark.anyio
 async def test_get_episode_mappings_generic_caching():
     resolver = TvdbResolver()
@@ -462,5 +510,20 @@ async def test_get_episode_mappings_generic_caching():
     alts, seasons = await resolver.get_episode_mappings("tt0388629", 21, 1)
     assert alts == [892]
     assert seasons == []
+
+
+@pytest.mark.anyio
+async def test_resolve_kitsu_aot_season_isolation():
+    # Attack on Titan S3 Kitsu ID: 13569, Ep: 2
+    resolver = TvdbResolver()
+    imdb_id, season, ep, alt_eps, alt_seasons = await resolver.resolve_kitsu_to_imdb("13569", 2)
+    assert imdb_id == "tt2560140"
+    assert season == 3
+    assert ep == 2
+    assert 39 in alt_eps
+    # Kitsu belső season=1-et TILOS hozzáadni az alt_seasons-hoz, ha a valódi évad 3!
+    assert 1 not in alt_seasons
+    assert alt_seasons == []
+
 
 

@@ -223,9 +223,12 @@ class TvdbResolver:
                                         alt_eps.append(abs_ep)
                                     if episode and episode != ep and episode not in alt_eps:
                                         alt_eps.append(episode)
-                                    v_s = v.get("season") or 1
-                                    if v_s != season and v_s not in alt_seasons:
-                                        if not (v_s == 1 and abs_ep and abs_ep > 20 and ep != episode):
+                                    v_s = v.get("season")
+                                    if v_s and v_s != season and v_s not in alt_seasons:
+                                        # Kitsu belső indexelése season=1 az egyes anime bejegyzésekhez,
+                                        # még akkor is, ha az a franchise 2., 3. vagy későbbi évada.
+                                        # Ezt sosem szabad alternatív évadként megadni, ha a valódi IMDb évad > 1.
+                                        if not (v_s == 1 and season > 1):
                                             alt_seasons.append(v_s)
                                     break
                         logger.info(

@@ -113,11 +113,9 @@ class StreamFileResolver:
             if seasons and len(seasons) == 1:
                 file_season = seasons[0]
 
-            effective_file_season = file_season if file_season is not None else 1
-
             if self._is_episode_match(
                 file_info=node.file_info,
-                effective_season=effective_file_season,
+                file_season=file_season,
                 seasons=seasons,
                 episodes=episodes,
             ):
@@ -139,8 +137,6 @@ class StreamFileResolver:
                 if not self.alt_episodes_set:
                     return []
 
-            effective_folder_season = folder_season if folder_season is not None else 1
-
             # Először megnézzük, hogy az almappákban/fájlokban van-e közvetlen találat
             matches: list[TorrentFileInfo] = []
             for child in node.children.values():
@@ -156,11 +152,19 @@ class StreamFileResolver:
 
             # Csak ha a gyermekelemek nem adtak konkrét találatot, akkor vizsgáljuk,
             # hogy maga a mappa képviseli-e a keresett epizódot (pl. S01E01 nevű mappa egy videóval)
+            folder_season_ok = (
+                folder_season in self.target_seasons
+                if folder_season is not None
+                else (self.series.season == 1 or 1 in self.target_seasons)
+            )
             if (
-                effective_folder_season in self.target_seasons
+                folder_season_ok
                 and episodes
                 and len(episodes) == 1
-                and episodes[0] in self.target_episodes
+                and (
+                    episodes[0] in self.alt_episodes_set
+                    or (episodes[0] == self.series.episode and folder_season_ok)
+                )
             ):
                 return self._get_all_files_in_folder(node)
 
@@ -169,35 +173,48 @@ class StreamFileResolver:
     def _is_episode_match(
         self,
         file_info: TorrentFileInfo,
-        effective_season: int,
+        file_season: int | None,
         seasons: list[int],
         episodes: list[int],
     ) -> bool:
         if not self.series or not episodes:
             return False
 
-        # 1. Évad és epizód közvetlen egyezése (figyelembe véve az alternatív évadokat és epizódokat is)
-        season_matches = (
-            effective_season in self.target_seasons
-            or any(s in self.target_seasons for s in seasons)
-        )
-        if season_matches and any(e in self.target_episodes for e in episodes):
-            return True
-
-        # 2. Ha a fájl abszolút epizódszámozású (seasons üres vagy a szám közvetlenül szerepel az alternatív epizódok között)
+        # 1. Abszolút epizódszámozás egyezése (pl. anime: Ep 39)
+        # Ez évadtól függetlenül egyezik, mivel az anime abszolút epizódszámok globálisan egyediek.
         if self.alt_episodes_set and any(
             alt in self.alt_episodes_set for alt in episodes
         ):
             return True
 
-        # 3. Ha az 1. évadot keressük, és a fájlnévben nem volt explicit évad, és közvetlenül egyezik
-        if (
-            not seasons
-            and effective_season == 1
-            and self.series.season == 1
-            and self.series.episode in episodes
-        ):
-            return True
+        # 2. Relatív epizód közvetlen egyezése (pl. E02)
+        if self.series.episode in episodes:
+            if file_season is not None:
+                if file_season in self.target_seasons:
+                    return True
+            elif seasons:
+                if any(s in self.target_seasons for s in seasons):
+                    return True
+            else:
+                # Nincs megadva évad sehol (pl. "Anime - 02.mkv") -> csak akkor egyezhet,
+                # ha az 1. évadot keressük!
+                if self.series.season == 1 or 1 in self.target_seasons:
+                    return True
+
+        # 3. Alternatív évad és epizód párok egyezése (pl. One Piece S21E01 amikor S1E892 a kérés)
+        if self.series.alternate_seasons and self.series.alternate_episodes:
+            alt_s_set = set(self.series.alternate_seasons)
+            alt_e_set = set(self.series.alternate_episodes)
+            if any(e in alt_e_set for e in episodes):
+                if file_season is not None:
+                    if file_season in alt_s_set:
+                        return True
+                elif seasons:
+                    if any(s in alt_s_set for s in seasons):
+                        return True
+                else:
+                    if 1 in alt_s_set:
+                        return True
 
         return False
 
@@ -214,17 +231,44 @@ class StreamFileResolver:
 
         if torrent_seasons:
             season_allowed = any(s in self.target_seasons for s in torrent_seasons)
-            # Ha vannak alternatív epizódok (pl. anime/hosszú sorozatok abszolút számozása),
-            # nem szűrünk évadra a torrent nevénél, mert a torrent pakk tartalmazhatja a keresett részt!
+            # Ha a torrent évada nem egyezik a célévaddal, de a torrent neve konkrétan egy abszolút
+            # epizódot jelöl, vagy egy teljes pakk (nincs konkrét epizód a torrent nevében), engedélyezzük.
+            # DE ha a torrent címében explicit más évad és más epizód van (pl. S01E02 mikor S03E02-t keresünk),
+            # akkor nem engedélyezzük!
             if not season_allowed and self.alt_episodes_set:
-                season_allowed = True
+                if torrent_episodes and any(
+                    ep in self.alt_episodes_set for ep in torrent_episodes
+                ):
+                    season_allowed = True
+                elif not torrent_episodes:
+                    season_allowed = True
             if not season_allowed:
                 return None
 
         # Early optimization: Ha a torrent címe maga egyetlen konkrét epizódot jelöl
         if torrent_episodes and len(torrent_episodes) == 1:
             ep = torrent_episodes[0]
-            if ep in self.target_episodes:
+            is_absolute_match = ep in self.alt_episodes_set
+            season_ok = (
+                any(s in self.target_seasons for s in torrent_seasons)
+                if torrent_seasons
+                else (self.series.season == 1 or 1 in self.target_seasons)
+            )
+            is_relative_match = ep == self.series.episode and season_ok
+
+            is_alt_pair_match = False
+            if self.series.alternate_seasons and self.series.alternate_episodes:
+                alt_s_set = set(self.series.alternate_seasons)
+                alt_e_set = set(self.series.alternate_episodes)
+                alt_season_ok = (
+                    any(s in alt_s_set for s in torrent_seasons)
+                    if torrent_seasons
+                    else (1 in alt_s_set)
+                )
+                if ep in alt_e_set and alt_season_ok:
+                    is_alt_pair_match = True
+
+            if is_absolute_match or is_relative_match or is_alt_pair_match:
                 return self._get_largest_video_file(self.valid_files)
             else:
                 return None

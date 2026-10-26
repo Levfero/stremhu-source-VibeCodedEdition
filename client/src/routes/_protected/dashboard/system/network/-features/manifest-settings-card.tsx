@@ -182,7 +182,7 @@ export function ManifestSettingsCard() {
       <Separator />
 
       <CardContent className="grid gap-4 pt-6">
-        {endpoints.map((ep, idx) => (
+        {endpoints.map((ep) => (
           <div
             key={ep.id}
             className="grid gap-3 p-4 rounded-xl border border-border/60 bg-muted/20"

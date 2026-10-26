@@ -38,10 +38,12 @@ class StreamFileResolver:
         self.target_seasons: set[int] = set()
         self.target_episodes: set[int] = set()
         self.alt_episodes_set: set[int] = set()
+        self.alt_seasons_set: set[int] = set()
         if self.series:
             self.target_seasons.add(self.series.season)
             if self.series.alternate_seasons:
                 self.target_seasons.update(self.series.alternate_seasons)
+                self.alt_seasons_set.update(self.series.alternate_seasons)
             if self.series.episode is not None:
                 self.target_episodes.add(self.series.episode)
             if self.series.alternate_episodes:
@@ -202,18 +204,16 @@ class StreamFileResolver:
                     return True
 
         # 3. Alternatív évad és epizód párok egyezése (pl. One Piece S21E01 amikor S1E892 a kérés)
-        if self.series.alternate_seasons and self.series.alternate_episodes:
-            alt_s_set = set(self.series.alternate_seasons)
-            alt_e_set = set(self.series.alternate_episodes)
-            if any(e in alt_e_set for e in episodes):
+        if self.alt_seasons_set and self.alt_episodes_set:
+            if any(e in self.alt_episodes_set for e in episodes):
                 if file_season is not None:
-                    if file_season in alt_s_set:
+                    if file_season in self.alt_seasons_set:
                         return True
                 elif seasons:
-                    if any(s in alt_s_set for s in seasons):
+                    if any(s in self.alt_seasons_set for s in seasons):
                         return True
                 else:
-                    if 1 in alt_s_set:
+                    if 1 in self.alt_seasons_set:
                         return True
 
         return False
@@ -263,15 +263,13 @@ class StreamFileResolver:
             is_relative_match = ep == self.series.episode and season_ok
 
             is_alt_pair_match = False
-            if self.series.alternate_seasons and self.series.alternate_episodes:
-                alt_s_set = set(self.series.alternate_seasons)
-                alt_e_set = set(self.series.alternate_episodes)
+            if self.alt_seasons_set and self.alt_episodes_set:
                 alt_season_ok = (
-                    any(s in alt_s_set for s in torrent_seasons)
+                    any(s in self.alt_seasons_set for s in torrent_seasons)
                     if torrent_seasons
-                    else (1 in alt_s_set)
+                    else (1 in self.alt_seasons_set)
                 )
-                if ep in alt_e_set and alt_season_ok:
+                if ep in self.alt_episodes_set and alt_season_ok:
                     is_alt_pair_match = True
 
             if is_absolute_match or is_relative_match or is_alt_pair_match:

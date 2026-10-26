@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 import humanize
 from sqlalchemy.orm import Session
 
+from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.modules.attributes.models import AttributeModel
 from app.modules.preferences.service import PreferencesService
@@ -79,9 +80,16 @@ class TorrentStreamsService:
                             torrent_sources.append(s)
 
         if not torrent_sources and fallback_title:
-            actual_title = (
-                await fallback_title() if callable(fallback_title) else fallback_title
-            )
+            try:
+                actual_title = (
+                    await fallback_title() if callable(fallback_title) else fallback_title
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[TorrentStreamsService] Hiba történt a fallback cím lekérése közben ({imdb_id}): {e}"
+                )
+                actual_title = None
+
             if actual_title:
                 cleaned_title = actual_title.split(":")[0].strip()
                 (
@@ -138,7 +146,7 @@ class TorrentStreamsService:
 
                 sorted_torrent_streams = grouped_torrent_streams[:limit]
 
-        return sorted_torrent_streams, indexer_errors
+        return sorted_torrent_streams, list(dict.fromkeys(indexer_errors))
 
     async def find_by_torrent_id(
         self,

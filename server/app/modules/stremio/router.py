@@ -1,6 +1,7 @@
 import os
 import socket
 import struct
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, status
@@ -30,6 +31,7 @@ from app.modules.stremio.service import StremioService
 from app.modules.users.models import UserModel
 
 
+@lru_cache(maxsize=16)
 def _get_target_base_url(endpoint_type: str) -> str | None:
     if endpoint_type == "lan":
         lan_url = os.environ.get("LAN_URL")

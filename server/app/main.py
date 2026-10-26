@@ -18,6 +18,7 @@ from app.modules.indexer_definitions.dependencies import get_indexer_definitions
 from app.modules.network.background_tasks import verify_self_connection
 from app.modules.relay.background_tasks import resume_save_loop
 from app.modules.relay.dependencies import get_relay_service
+from app.modules.stremio.tvdb_resolver import tvdb_resolver
 from app.modules.torrents.background_tasks import (
     register_persisted_torrents_callbacks,
     restore_torrents,
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
     indexer_definitions_service = get_indexer_definitions_service()
 
     await indexer_definitions_service.close_all()
+    await tvdb_resolver.aclose()
 
     priority_manager_task.cancel()
     scheduler.shutdown()

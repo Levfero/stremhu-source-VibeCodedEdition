@@ -599,7 +599,7 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     from tests.helpers import create_torrent_source
 
     mock_torrent_source_provider = AsyncMock()
-    mock_settings_service = AsyncMock()
+    mock_settings_service = MagicMock()
     mock_settings_service.get_app_url.return_value = "http://localhost:7070"
     mock_preferences = MagicMock()
     mock_preferences.get_list.return_value = []

@@ -8,6 +8,7 @@ from app.common.logger import logger
 from app.config import config
 
 _MAX_CACHE_ENTRIES = 10000
+_MAX_SERIES_CACHE = 2000
 
 # Gyakori anime és sorozatok ismert alternatív / iker IMDb azonosítói (pl. eredeti japán TV sugárzás vs nemzetközi/angol premier)
 # nCore-on és egyéb indexereken a feltöltők gyakran az egyikre vagy másikra töltik fel a torrenteket.
@@ -395,6 +396,9 @@ class TvdbResolver:
 
                     # Sorozat-szintű index felépítése a jövőbeli epizód-lekérdezésekhez
                     if c_imdb not in self._series_epmap:
+                        if len(self._series_epmap) >= _MAX_SERIES_CACHE:
+                            for old_k in list(self._series_epmap.keys())[:200]:
+                                self._series_epmap.pop(old_k, None)
                         self._series_epmap[c_imdb] = {}
 
                     for v in videos:
@@ -444,6 +448,9 @@ class TvdbResolver:
                         s_counts = defaultdict(int)
                         for v in vids:
                             s_counts[v.get("season")] += 1
+                        if len(self._cinemeta_counts) >= _MAX_SERIES_CACHE:
+                            for old_k in list(self._cinemeta_counts.keys())[:200]:
+                                self._cinemeta_counts.pop(old_k, None)
                         self._cinemeta_counts[imdb_id] = s_counts
                 except Exception as e:
                     logger.debug(f"[TvdbResolver] Cinemeta epmap lekérési hiba ({imdb_id}): {e}")

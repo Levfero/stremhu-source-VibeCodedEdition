@@ -34,12 +34,25 @@ class StremioService:
         self._torrent_streams_service = torrent_streams_service
         self._settings_service = settings_service
 
-    def manifest(self, user: UserModel) -> Manifest:
+    def manifest(self, user: UserModel, endpoint_type: str = "default") -> Manifest:
         app_url = self._settings_service.get_app_url()
 
         addon_id = "hu.stremhu-source.addon"
         name = "StremHU Source"
         version = config.version.removeprefix("v")
+
+        if endpoint_type == "lan":
+            name = f"{name} (LAN)"
+            addon_id = f"{addon_id}.lan"
+            target_url = self._settings_service.get_manifest_url("lan")
+            if target_url:
+                app_url = target_url.rstrip("/")
+        elif endpoint_type == "tailscale":
+            name = f"{name} (Tailscale)"
+            addon_id = f"{addon_id}.tailscale"
+            target_url = self._settings_service.get_manifest_url("tailscale")
+            if target_url:
+                app_url = target_url.rstrip("/")
 
         if not re.match(r"^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$", version):
             version = "0.0.0"
@@ -89,6 +102,7 @@ class StremioService:
         self,
         user: UserModel,
         parsed_id: StreamId,
+        endpoint_type: str = "default",
     ) -> list[StremioStream]:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
@@ -124,5 +138,14 @@ class StremioService:
                     external_url=app_url,
                 )
             )
+
+        if endpoint_type != "default":
+            target_url = self._settings_service.get_manifest_url(endpoint_type)
+            if target_url:
+                main_app_url = app_url.rstrip("/")
+                clean_target = target_url.rstrip("/")
+                for s in stremio_streams:
+                    if s.url and main_app_url in s.url:
+                        s.url = s.url.replace(main_app_url, clean_target)
 
         return stremio_streams

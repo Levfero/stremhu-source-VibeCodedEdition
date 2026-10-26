@@ -4,8 +4,6 @@ from fastapi import APIRouter, Depends, Path, status
 from fastapi.responses import RedirectResponse
 
 from app.modules.auth.dependencies import ApiKeyGuard
-from app.modules.settings.dependencies import get_settings_service
-from app.modules.settings.service import SettingsService
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.dependencies import (
     get_parsed_catalog_id,
@@ -32,18 +30,12 @@ def create_stremio_router(endpoint_type: str = "default") -> APIRouter:
     if endpoint_type == "lan":
         prefix = "/{api_key}/stremio-lan"
         tag_name = "Stremio LAN"
-        addon_suffix = " (LAN)"
-        id_suffix = ".lan"
     elif endpoint_type == "tailscale":
         prefix = "/{api_key}/stremio-tailscale"
         tag_name = "Stremio Tailscale"
-        addon_suffix = " (Tailscale)"
-        id_suffix = ".tailscale"
     else:
         prefix = "/{api_key}/stremio"
         tag_name = "Stremio"
-        addon_suffix = ""
-        id_suffix = ""
 
     r = APIRouter(
         prefix=prefix,
@@ -57,17 +49,9 @@ def create_stremio_router(endpoint_type: str = "default") -> APIRouter:
     )
     def manifest(
         stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
-        settings_service: Annotated[SettingsService, Depends(get_settings_service)],
         user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> Manifest:
-        m = stremio_service.manifest(user)
-        if addon_suffix:
-            m.name = f"{m.name}{addon_suffix}"
-            m.id = f"{m.id}{id_suffix}"
-        target_url = settings_service.get_manifest_url(endpoint_type)
-        if target_url:
-            m.logo = f"{target_url.rstrip('/')}/logo.png"
-        return m
+        return stremio_service.manifest(user, endpoint_type=endpoint_type)
 
     @r.get(
         "/configure",
@@ -89,17 +73,11 @@ def create_stremio_router(endpoint_type: str = "default") -> APIRouter:
         media_type: Annotated[MediaType, Path(..., description="A média típusa")],
         parsed_id: Annotated[StreamId, Depends(get_parsed_stream_id)],
         stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
-        settings_service: Annotated[SettingsService, Depends(get_settings_service)],
         user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> StremioStreams:
-        stremio_streams = await stremio_service.get_streams(user, parsed_id)
-        target_url = settings_service.get_manifest_url(endpoint_type)
-        if target_url:
-            main_app_url = settings_service.get_app_url().rstrip("/")
-            clean_target = target_url.rstrip("/")
-            for s in stremio_streams:
-                if s.url and main_app_url in s.url:
-                    s.url = s.url.replace(main_app_url, clean_target)
+        stremio_streams = await stremio_service.get_streams(
+            user, parsed_id, endpoint_type=endpoint_type
+        )
         return StremioStreams(streams=stremio_streams)
 
     @r.get(

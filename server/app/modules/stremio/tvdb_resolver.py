@@ -115,7 +115,6 @@ class TvdbResolver:
             logger.warning(
                 f"[TvdbResolver] Nem sikerült IMDb azonosítót találni a TVDB ID-hoz: {clean_id}"
             )
-            self._set_cache(clean_id, None)
             return None
 
     async def _resolve_from_tvmaze(self, tvdb_id: str) -> str | None:
@@ -223,9 +222,7 @@ class TvdbResolver:
             logger.warning(
                 f"[TvdbResolver] Nem sikerült IMDb azonosítót találni a Kitsu ID-hoz: {clean_id}"
             )
-            empty_res = (None, None, None, [], [])
-            self._set_cache(cache_key, empty_res)
-            return empty_res
+            return None, None, None, [], []
 
     async def _resolve_from_anime_kitsu(
         self, kitsu_id: str, episode: int | None

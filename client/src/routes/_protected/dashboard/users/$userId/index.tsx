@@ -12,6 +12,13 @@ import {
   ItemDescription,
   ItemTitle,
 } from '@/shared/components/ui/item'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select'
 import { Separator } from '@/shared/components/ui/separator'
 import { useCopy } from '@/shared/hooks/use-copy'
 import { useIntegrationDomain } from '@/shared/hooks/use-integration-domain'
@@ -33,7 +40,7 @@ function UserRoute() {
   })
   assertExists(user)
 
-  const { manifests, nuvioUrl } = useIntegrationDomain({
+  const integration = useIntegrationDomain({
     apiKey: user.apiKey,
   })
 
@@ -60,48 +67,100 @@ function UserRoute() {
       </div>
       <Separator />
       <div className="grid gap-3">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Kliens integrációs linkek
-        </span>
-        <div className="grid md:grid-cols-2 gap-4">
-          {manifests.map((m) => (
-            <Item key={m.id} variant="muted">
-              <ItemContent>
-                <div className="flex items-center gap-2">
-                  <ItemTitle>{m.name} (Stremio)</ItemTitle>
-                  <Badge variant="outline" className="text-[10px] shrink-0">
-                    {m.badge}
-                  </Badge>
-                </div>
-                <ItemDescription className="font-mono text-xs truncate max-w-[280px]">
-                  {m.urlEndpoint}
-                </ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <Button
-                  size="icon-sm"
-                  className="rounded-full"
-                  onClick={() => handleCopy(m.urlEndpoint)}
-                  title={`${m.name} másolása`}
-                >
-                  <CopyIcon />
-                </Button>
-              </ItemActions>
-            </Item>
-          ))}
-          <Item variant="muted">
-            <ItemContent>
-              <ItemTitle>Nuvio URL</ItemTitle>
-              <ItemDescription className="font-mono text-xs truncate max-w-[280px]">
-                {nuvioUrl}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Kliens integrációs linkek
+            </span>
+          </div>
+          {integration.manifests.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                Elérés:
+              </span>
+              <Select
+                value={integration.selectedId}
+                onValueChange={integration.setSelectedId}
+              >
+                <SelectTrigger className="w-[190px] h-9 font-medium text-xs">
+                  <SelectValue placeholder="Válassz elérést" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {integration.manifests.map((m) => (
+                    <SelectItem key={m.id} value={m.id} className="text-xs">
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Item variant="muted" className="flex-nowrap">
+            <ItemContent className="min-w-0">
+              <div className="flex items-center gap-2">
+                <ItemTitle>Stremio</ItemTitle>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {integration.activeManifest.badge}
+                </Badge>
+              </div>
+              <ItemDescription className="font-mono text-xs truncate">
+                {integration.stremio.urlEndpoint}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Button
                 size="icon-sm"
-                className="rounded-full"
-                onClick={() => handleCopy(nuvioUrl)}
+                className="rounded-full shrink-0"
+                onClick={() => handleCopy(integration.stremio.urlEndpoint)}
+                title="Stremio URL másolása"
+              >
+                <CopyIcon />
+              </Button>
+            </ItemActions>
+          </Item>
+          <Item variant="muted" className="flex-nowrap">
+            <ItemContent className="min-w-0">
+              <div className="flex items-center gap-2">
+                <ItemTitle>Nuvio</ItemTitle>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {integration.activeManifest.badge}
+                </Badge>
+              </div>
+              <ItemDescription className="font-mono text-xs truncate">
+                {integration.nuvioUrl}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                size="icon-sm"
+                className="rounded-full shrink-0"
+                onClick={() => handleCopy(integration.nuvioUrl)}
                 title="Nuvio URL másolása"
+              >
+                <CopyIcon />
+              </Button>
+            </ItemActions>
+          </Item>
+          <Item variant="muted" className="flex-nowrap">
+            <ItemContent className="min-w-0">
+              <div className="flex items-center gap-2">
+                <ItemTitle>Kodi</ItemTitle>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {integration.activeManifest.badge}
+                </Badge>
+              </div>
+              <ItemDescription className="font-mono text-xs truncate">
+                {integration.kodiUrl}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                size="icon-sm"
+                className="rounded-full shrink-0"
+                onClick={() => handleCopy(integration.kodiUrl)}
+                title="Kodi URL másolása"
               >
                 <CopyIcon />
               </Button>

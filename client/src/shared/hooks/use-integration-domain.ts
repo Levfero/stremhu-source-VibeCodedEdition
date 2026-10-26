@@ -30,9 +30,12 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
     const rawList =
       systemStatus.manifestEndpoints ||
       (systemStatus as any).manifest_endpoints
+    const filteredList = rawList?.filter(
+      (ep: any) => ep.isEnabled !== false && ep.is_enabled !== false,
+    )
     const rawEndpoints =
-      rawList && rawList.length > 0
-        ? rawList
+      filteredList && filteredList.length > 0
+        ? filteredList
         : [
             {
               id: 'default',

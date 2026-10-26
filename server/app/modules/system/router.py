@@ -9,6 +9,8 @@ from app.modules.roles.constants import UserRoleKey
 from app.modules.roles.schemas.api import RoleResponse
 from app.modules.settings.dependencies import get_settings_service
 from app.modules.settings.schemas.api import (
+    ManifestSettingsResponse,
+    ManifestSettingsUpdateRequest,
     SystemSettingsResponse,
     SystemSettingsUpdateRequest,
 )
@@ -67,6 +69,45 @@ def update_settings(
     _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
 ):
     return settings_service.save_system(payload)
+
+
+@router.get(
+    "/manifests",
+    response_model=ManifestSettingsResponse,
+)
+def get_manifest_settings(
+    settings_service: Annotated[SettingsService, Depends(get_settings_service)],
+    _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
+):
+    manifest_settings = settings_service.get_manifest_settings()
+    endpoints = settings_service.get_manifest_endpoints()
+    return ManifestSettingsResponse(
+        lan_enabled=manifest_settings.lan_enabled,
+        lan_url=manifest_settings.lan_url or "",
+        tailscale_enabled=manifest_settings.tailscale_enabled,
+        tailscale_url=manifest_settings.tailscale_url or "",
+        endpoints=endpoints,
+    )
+
+
+@router.put(
+    "/manifests",
+    response_model=ManifestSettingsResponse,
+)
+def update_manifest_settings(
+    payload: ManifestSettingsUpdateRequest,
+    settings_service: Annotated[SettingsService, Depends(get_settings_service)],
+    _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
+):
+    manifest_settings = settings_service.save_manifests(payload)
+    endpoints = settings_service.get_manifest_endpoints()
+    return ManifestSettingsResponse(
+        lan_enabled=manifest_settings.lan_enabled,
+        lan_url=manifest_settings.lan_url or "",
+        tailscale_enabled=manifest_settings.tailscale_enabled,
+        tailscale_url=manifest_settings.tailscale_url or "",
+        endpoints=endpoints,
+    )
 
 
 @router.post(

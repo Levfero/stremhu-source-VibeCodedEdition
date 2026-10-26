@@ -4,14 +4,19 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
-import type { SystemSettingsUpdateRequest } from '../lib/source/source-client'
+import type {
+  ManifestSettingsUpdateRequest,
+  SystemSettingsUpdateRequest,
+} from '../lib/source/source-client'
 import {
+  systemGetManifests,
   systemGetRoles,
   systemGetSettings,
   systemGetStatus,
   systemIndexersCleanup,
   systemRestart,
   systemTorrentFilesCleanup,
+  systemUpdateManifests,
   systemUpdateSettings,
 } from '../lib/source/source-client'
 
@@ -81,3 +86,28 @@ export function useSystemRestart() {
     },
   })
 }
+
+export const getSystemManifests = queryOptions({
+  queryKey: ['system', 'manifests'],
+  queryFn: async () => {
+    const response = await systemGetManifests()
+    return response
+  },
+})
+
+export function useSystemManifestsUpdate() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: ManifestSettingsUpdateRequest) => {
+      const response = await systemUpdateManifests(payload)
+      return response
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.fetchQuery({ ...getSystemManifests, staleTime: 0 }),
+        queryClient.fetchQuery({ ...getSystemStatus, staleTime: 0 }),
+      ])
+    },
+  })
+}
+

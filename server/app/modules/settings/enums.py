@@ -5,6 +5,7 @@ class SettingsKeyEnum(str, Enum):
     SYSTEM = "system"
     RELAY = "relay"
     NETWORK = "network"
+    MANIFESTS = "manifests"
 
 
 class NetworkModeEnum(str, Enum):

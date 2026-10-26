@@ -70,3 +70,27 @@ class RelaySettingsUpdate(BaseModel):
     connections_limit: int | None = None
     torrent_connections_limit: int | None = None
     enable_upnp_and_natpmp: bool | None = None
+
+
+class ManifestEndpointInfo(BaseModel):
+    id: str
+    name: str
+    badge: str
+    url_suffix: str
+    base_url: str
+    is_enabled: bool = True
+
+
+class ManifestSettings(BaseModel):
+    lan_enabled: bool = True
+    lan_url: str | None = None
+    tailscale_enabled: bool = False
+    tailscale_url: str | None = None
+
+
+class ManifestSettingsUpdate(BaseModel):
+    lan_enabled: bool | None = None
+    lan_url: str | None = None
+    tailscale_enabled: bool | None = None
+    tailscale_url: str | None = None
+

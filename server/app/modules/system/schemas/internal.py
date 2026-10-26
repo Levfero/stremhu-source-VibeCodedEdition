@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.modules.settings.schemas.internal import ManifestEndpointInfo
 
 
 class SystemStatus(BaseModel):
@@ -13,3 +15,6 @@ class SystemStatus(BaseModel):
     port: int
 
     is_reverse_proxy: bool
+
+    manifest_endpoints: list[ManifestEndpointInfo] = Field(default_factory=list)
+

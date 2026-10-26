@@ -494,6 +494,30 @@ export interface SystemSettingsUpdateRequest {
   cacheRetentionSeconds?: number | null
 }
 
+export interface ManifestEndpointInfo {
+  id: string
+  name: string
+  badge: string
+  urlSuffix: string
+  baseUrl: string
+  isEnabled?: boolean
+}
+
+export interface ManifestSettingsResponse {
+  lanEnabled: boolean
+  lanUrl: string
+  tailscaleEnabled: boolean
+  tailscaleUrl: string
+  endpoints: ManifestEndpointInfo[]
+}
+
+export interface ManifestSettingsUpdateRequest {
+  lanEnabled?: boolean | null
+  lanUrl?: string | null
+  tailscaleEnabled?: boolean | null
+  tailscaleUrl?: string | null
+}
+
 export interface SystemStatusResponse {
   configured: boolean
   version: string
@@ -501,6 +525,7 @@ export interface SystemStatusResponse {
   hostIp: string
   port: number
   isReverseProxy: boolean
+  manifestEndpoints?: ManifestEndpointInfo[]
 }
 
 export interface TorrentResponse {
@@ -1243,6 +1268,40 @@ export const systemGetSettings = (
 ) => {
   return sourceClientInstance<SystemSettingsResponse>(
     { url: `/api/system/settings`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Get Manifests
+ */
+export const systemGetManifests = (
+  options?: SecondParameter<
+    typeof sourceClientInstance<ManifestSettingsResponse>
+  >,
+) => {
+  return sourceClientInstance<ManifestSettingsResponse>(
+    { url: `/api/system/manifests`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Update Manifests
+ */
+export const systemUpdateManifests = (
+  manifestSettingsUpdateRequest: ManifestSettingsUpdateRequest,
+  options?: SecondParameter<
+    typeof sourceClientInstance<ManifestSettingsResponse>
+  >,
+) => {
+  return sourceClientInstance<ManifestSettingsResponse>(
+    {
+      url: `/api/system/manifests`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      data: manifestSettingsUpdateRequest,
+    },
     options,
   )
 }

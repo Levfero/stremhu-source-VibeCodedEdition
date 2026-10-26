@@ -6,6 +6,8 @@ from pydantic.alias_generators import to_camel
 
 from app.modules.settings.enums import NetworkConnectionEnum, NetworkModeEnum
 from app.modules.settings.schemas.internal import (
+    ManifestEndpointInfo,
+    ManifestSettingsUpdate,
     NetworkManualSettings,
     RelaySettingsUpdate,
     SystemSettingsUpdate,
@@ -93,3 +95,24 @@ NetworkSettingsResponse = Annotated[
     | NetworkManualSettingsResponse,
     Field(discriminator="mode"),
 ]
+
+
+class ManifestSettingsResponse(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    lan_enabled: bool
+    lan_url: str
+    tailscale_enabled: bool
+    tailscale_url: str
+    endpoints: list[ManifestEndpointInfo]
+
+
+class ManifestSettingsUpdateRequest(ManifestSettingsUpdate):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        alias_generator=to_camel,
+    )
+

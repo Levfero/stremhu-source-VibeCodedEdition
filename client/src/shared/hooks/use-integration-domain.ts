@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { assertExists } from '../lib/utils'
 import { getSystemStatus } from '../queries/system'
@@ -8,29 +8,84 @@ type UseIntegrationDomainProps = {
   apiKey: string
 }
 
+export interface IntegrationManifestItem {
+  id: string
+  name: string
+  badge: string
+  baseUrl: string
+  urlSuffix: string
+  appEndpoint: string
+  webEndpoint: string
+  urlEndpoint: string
+  nuvioUrl: string
+}
+
 export function useIntegrationDomain(props: UseIntegrationDomainProps) {
   const { apiKey } = props
 
   const { data: systemStatus } = useQuery(getSystemStatus)
   assertExists(systemStatus)
 
-  const stremio = useMemo(() => {
-    const endpointHost = new URL(systemStatus.appUrl).host
-    const endpoint = `${endpointHost}/api/${apiKey}/stremio/manifest.json`
+  const manifests = useMemo<IntegrationManifestItem[]>(() => {
+    const rawEndpoints =
+      systemStatus.manifestEndpoints && systemStatus.manifestEndpoints.length > 0
+        ? systemStatus.manifestEndpoints
+        : [
+            {
+              id: 'default',
+              name: 'Alapértelmezett',
+              badge: systemStatus.isReverseProxy
+                ? 'Cloudflare'
+                : 'Alapértelmezett',
+              urlSuffix: 'stremio',
+              baseUrl: systemStatus.appUrl,
+              isEnabled: true,
+            },
+          ]
 
-    const appEndpoint = `stremio://${endpoint}`
-    const urlEndpoint = `https://${endpoint}`
-    const webEndpoint = `https://web.stremio.com/#/addons?addon=${urlEndpoint}`
+    return rawEndpoints.map((ep) => {
+      const cleanBase = (ep.baseUrl || systemStatus.appUrl).replace(/\/+$/, '')
+      let endpointHost = cleanBase
+      try {
+        endpointHost = new URL(cleanBase).host
+      } catch {
+        endpointHost = cleanBase.replace(/^https?:\/\//, '')
+      }
+      const manifestPath = `/api/${apiKey}/${ep.urlSuffix}/manifest.json`
+      const fullUrl = `${cleanBase}${manifestPath}`
 
-    return {
-      appEndpoint,
-      webEndpoint,
-      urlEndpoint,
-    }
-  }, [systemStatus.appUrl, apiKey])
+      return {
+        id: ep.id,
+        name: ep.name,
+        badge: ep.badge,
+        baseUrl: cleanBase,
+        urlSuffix: ep.urlSuffix,
+        appEndpoint: `stremio://${endpointHost}${manifestPath}`,
+        urlEndpoint: fullUrl,
+        webEndpoint: `https://web.stremio.com/#/addons?addon=${encodeURIComponent(fullUrl)}`,
+        nuvioUrl: fullUrl,
+      }
+    })
+  }, [systemStatus, apiKey])
+
+  const [selectedId, setSelectedId] = useState<string>(
+    () => manifests[0]?.id || 'default',
+  )
+
+  const activeManifest = useMemo(() => {
+    return manifests.find((m) => m.id === selectedId) || manifests[0]
+  }, [manifests, selectedId])
 
   return {
-    stremio,
-    nuvioUrl: `${systemStatus.appUrl}/api/${apiKey}/stremio/manifest.json`,
+    manifests,
+    selectedId: activeManifest.id,
+    setSelectedId,
+    activeManifest,
+    stremio: {
+      appEndpoint: activeManifest.appEndpoint,
+      webEndpoint: activeManifest.webEndpoint,
+      urlEndpoint: activeManifest.urlEndpoint,
+    },
+    nuvioUrl: activeManifest.nuvioUrl,
   }
 }

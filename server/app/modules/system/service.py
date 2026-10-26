@@ -27,6 +27,7 @@ class SystemService:
     def status(self) -> SystemStatus:
         has_user = self._users_service.count() > 0
         app_url = self._settings_service.get_app_url()
+        manifest_endpoints = self._settings_service.get_manifest_endpoints()
 
         return SystemStatus(
             configured=has_user,
@@ -35,6 +36,7 @@ class SystemService:
             host_ip=config.host_ip,
             port=config.port,
             is_reverse_proxy=config.reverse_proxy_domain is not None,
+            manifest_endpoints=manifest_endpoints,
         )
 
     async def restart(self):

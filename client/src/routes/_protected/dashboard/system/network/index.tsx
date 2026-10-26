@@ -23,6 +23,7 @@ import { Separator } from '@/shared/components/ui/separator'
 import { getSystemStatus } from '@/shared/queries/system'
 
 import { useNetworkAccessForm } from './-features/network-access/use-network-access-form'
+import { ManifestSettingsCard } from './-features/manifest-settings-card'
 import { DASHBOARD_SYSTEM_NETWORK_NAME } from './route'
 
 export const Route = createFileRoute('/_protected/dashboard/system/network/')({
@@ -40,63 +41,67 @@ function RouteComponent() {
   }
 
   return (
-    <Card>
-      <form.AppForm>
-        <form className="grid gap-6" onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle>{DASHBOARD_SYSTEM_NETWORK_NAME}</CardTitle>
-            <CardDescription>
-              {DASHBOARD_SYSTEM_NETWORK_NAME} frissítése vagy új konfiguráció
-              alkalmazása.
-            </CardDescription>
-          </CardHeader>
+    <div className="grid gap-6">
+      <Card>
+        <form.AppForm>
+          <form className="grid gap-6" onSubmit={handleSubmit}>
+            <CardHeader>
+              <CardTitle>{DASHBOARD_SYSTEM_NETWORK_NAME}</CardTitle>
+              <CardDescription>
+                {DASHBOARD_SYSTEM_NETWORK_NAME} frissítése vagy új konfiguráció
+                alkalmazása.
+              </CardDescription>
+            </CardHeader>
 
-          <Separator />
+            <Separator />
 
-          <CardContent className="grid gap-4">
-            {systemStatus.isReverseProxy ? (
-              <Alert variant="destructive">
-                <InfoIcon />
-                <AlertTitle>Környezeti változó mód aktív</AlertTitle>
-                <AlertDescription>
-                  A hálózati elérést a REVERSE_PROXY_DOMAIN környezeti változó
-                  vezérli, emiatt ezen a felületen nem módosítható.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                <NetworkSelector form={form} />
-                <UrlConfiguration form={form} />
-              </>
-            )}
-          </CardContent>
+            <CardContent className="grid gap-4">
+              {systemStatus.isReverseProxy ? (
+                <Alert variant="destructive">
+                  <InfoIcon />
+                  <AlertTitle>Környezeti változó mód aktív</AlertTitle>
+                  <AlertDescription>
+                    A hálózati elérést a REVERSE_PROXY_DOMAIN környezeti változó
+                    vezérli, emiatt ezen a felületen nem módosítható.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <NetworkSelector form={form} />
+                  <UrlConfiguration form={form} />
+                </>
+              )}
+            </CardContent>
 
-          <CardFooter className="gap-4 justify-end">
-            <Button variant="outline" asChild>
-              <Link to="/dashboard/system">Mégsem</Link>
-            </Button>
-            <form.Subscribe
-              selector={(state) => ({
-                mode: state.values.mode,
-                isSubmitting: state.isSubmitting,
-              })}
-            >
-              {({ mode, isSubmitting }) => {
-                if (mode === 'none') return null
+            <CardFooter className="gap-4 justify-end">
+              <Button variant="outline" asChild>
+                <Link to="/dashboard/system">Mégsem</Link>
+              </Button>
+              <form.Subscribe
+                selector={(state) => ({
+                  mode: state.values.mode,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ mode, isSubmitting }) => {
+                  if (mode === 'none') return null
 
-                return (
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || systemStatus.isReverseProxy}
-                  >
-                    Alkalmazás
-                  </Button>
-                )
-              }}
-            </form.Subscribe>
-          </CardFooter>
-        </form>
-      </form.AppForm>
-    </Card>
+                  return (
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || systemStatus.isReverseProxy}
+                    >
+                      Alkalmazás
+                    </Button>
+                  )
+                }}
+              </form.Subscribe>
+            </CardFooter>
+          </form>
+        </form.AppForm>
+      </Card>
+
+      <ManifestSettingsCard />
+    </div>
   )
 }

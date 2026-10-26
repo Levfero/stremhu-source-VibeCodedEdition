@@ -27,12 +27,10 @@ def test_multi_manifest_endpoints(client):
     )
 
     mock_settings_service = MagicMock(spec=SettingsService)
-    mock_settings_service.get_app_url.return_value = (
-        "https://stremio-ncore-addon.levfero.stream"
-    )
+    mock_settings_service.get_app_url.return_value = "https://stremio.example.com"
     mock_settings_service.get_manifest_url.side_effect = lambda ep: {
-        "lan": "http://192.168.1.5:7070",
-        "tailscale": "http://100.66.1.85:7070",
+        "lan": "http://192.168.1.100:7070",
+        "tailscale": "http://100.64.0.1:7070",
     }.get(ep)
 
     mock_torrent_streams_service = AsyncMock(spec=TorrentStreamsService)
@@ -61,7 +59,7 @@ def test_multi_manifest_endpoints(client):
         m_lan = res_lan.json()
         assert m_lan["name"] == "StremHU Source (LAN)"
         assert m_lan["id"] == "hu.stremhu-source.addon.lan"
-        assert "http://192.168.1.5:7070" in m_lan["logo"]
+        assert "http://192.168.1.100:7070" in m_lan["logo"]
 
         # 3. Tailscale manifest
         res_ts = client.get("/api/dummy_key/stremio-tailscale/manifest.json")
@@ -69,7 +67,7 @@ def test_multi_manifest_endpoints(client):
         m_ts = res_ts.json()
         assert m_ts["name"] == "StremHU Source (Tailscale)"
         assert m_ts["id"] == "hu.stremhu-source.addon.tailscale"
-        assert "http://100.66.1.85:7070" in m_ts["logo"]
+        assert "http://100.64.0.1:7070" in m_ts["logo"]
 
     finally:
         app.dependency_overrides.clear()
@@ -82,12 +80,10 @@ def test_multi_manifest_stream_url_rewriting(client):
     )
 
     mock_settings_service = MagicMock(spec=SettingsService)
-    mock_settings_service.get_app_url.return_value = (
-        "https://stremio-ncore-addon.levfero.stream"
-    )
+    mock_settings_service.get_app_url.return_value = "https://stremio.example.com"
     mock_settings_service.get_manifest_url.side_effect = lambda ep: {
-        "lan": "http://192.168.1.5:7070",
-        "tailscale": "http://100.66.1.85:7070",
+        "lan": "http://192.168.1.100:7070",
+        "tailscale": "http://100.64.0.1:7070",
     }.get(ep)
 
     mock_stremio_service = AsyncMock(spec=StremioService)
@@ -97,7 +93,7 @@ def test_multi_manifest_stream_url_rewriting(client):
             StremioStream(
                 name="1080p Stream",
                 description="Test stream",
-                url="https://stremio-ncore-addon.levfero.stream/api/dummy_key/stream/test_token",
+                url="https://stremio.example.com/api/dummy_key/stream/test_token",
                 behavior_hints=BehaviorHints(not_web_ready=True),
             )
         ]
@@ -123,14 +119,14 @@ def test_multi_manifest_stream_url_rewriting(client):
         res_default = client.get("/api/dummy_key/stremio/stream/movie/tt1234567.json")
         assert res_default.status_code == 200
         stream_def = res_default.json()["streams"][0]
-        assert "https://stremio-ncore-addon.levfero.stream" in stream_def["url"]
+        assert "https://stremio.example.com" in stream_def["url"]
 
         # LAN endpoint rewrites stream URL to LAN base URL
         res_lan = client.get("/api/dummy_key/stremio-lan/stream/movie/tt1234567.json")
         assert res_lan.status_code == 200
         stream_lan = res_lan.json()["streams"][0]
         assert stream_lan["url"].startswith(
-            "http://192.168.1.5:7070/api/dummy_key/stream/test_token"
+            "http://192.168.1.100:7070/api/dummy_key/stream/test_token"
         )
 
         # Tailscale endpoint rewrites stream URL to Tailscale base URL
@@ -140,7 +136,7 @@ def test_multi_manifest_stream_url_rewriting(client):
         assert res_ts.status_code == 200
         stream_ts = res_ts.json()["streams"][0]
         assert stream_ts["url"].startswith(
-            "http://100.66.1.85:7070/api/dummy_key/stream/test_token"
+            "http://100.64.0.1:7070/api/dummy_key/stream/test_token"
         )
 
     finally:

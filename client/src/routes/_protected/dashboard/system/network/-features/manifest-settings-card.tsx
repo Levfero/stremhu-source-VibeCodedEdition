@@ -119,7 +119,7 @@ export function ManifestSettingsCard() {
               id="lan-url-input"
               value={lanUrl}
               onChange={(e) => setLanUrl(e.target.value)}
-              placeholder="pl. http://192.168.1.5:7070"
+              placeholder="pl. http://192.168.1.100:7070"
               disabled={!lanEnabled || isLoading}
               className="max-w-md font-mono text-sm"
             />
@@ -166,7 +166,7 @@ export function ManifestSettingsCard() {
               id="ts-url-input"
               value={tailscaleUrl}
               onChange={(e) => setTailscaleUrl(e.target.value)}
-              placeholder="pl. http://100.66.1.85:7070"
+              placeholder="pl. http://100.64.0.1:7070"
               disabled={!tailscaleEnabled || isLoading}
               className="max-w-md font-mono text-sm"
             />

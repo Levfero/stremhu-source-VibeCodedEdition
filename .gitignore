@@ -15,5 +15,3 @@ __pycache__/
 *.py[cod]
 *$py.class
 junit.xml
-data/
-docs/anime-tvdb-kitsu-tamogatas.md

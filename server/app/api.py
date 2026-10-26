@@ -13,11 +13,7 @@ from app.modules.playbacks.router import router as playbacks_router
 from app.modules.preferences.router import router as preferences_router
 from app.modules.relay_settings.router import router as relay_settings_router
 from app.modules.stream.router import router as stream_router
-from app.modules.stremio.router import (
-    router as stremio_router,
-    router_lan as stremio_lan_router,
-    router_tailscale as stremio_tailscale_router,
-)
+from app.modules.stremio.router import router as stremio_router
 from app.modules.system.router import router as system_router
 from app.modules.torrents.router import router as torrents_router
 from app.modules.torznab.router import router as torznab_router
@@ -64,8 +60,6 @@ api_router.include_router(
 api_router.include_router(stream_router)
 api_router.include_router(torznab_router)
 api_router.include_router(stremio_router)
-api_router.include_router(stremio_lan_router)
-api_router.include_router(stremio_tailscale_router)
 api_router.include_router(kodi_router)
 api_router.include_router(
     indexers_router,

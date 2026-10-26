@@ -604,14 +604,18 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     mock_preferences = AsyncMock()
 
     source_1989 = create_torrent_source(
-        name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
+        indexer_id="ncore",
+        indexer_name="nCore",
         torrent_id="t1",
+        name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
         seeders=14,
         files=["Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv"],
     )
     source_1996 = create_torrent_source(
-        name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
+        indexer_id="ncore",
+        indexer_name="nCore",
         torrent_id="t2",
+        name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
         seeders=304,
         files=["Dragon.Ball.Z.E141.BDrip.HUN.x264-DenZo.mkv"],
     )

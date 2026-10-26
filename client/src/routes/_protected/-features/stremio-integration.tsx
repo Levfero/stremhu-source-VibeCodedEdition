@@ -188,9 +188,9 @@ export function StremioIntegration() {
                       </span>
                     </div>
                     <Button
-                      size="icon-xs"
+                      size="icon-sm"
                       variant="ghost"
-                      className="shrink-0"
+                      className="shrink-0 rounded-full"
                       onClick={() => handleCopy(m.urlEndpoint)}
                       title={`${m.name} URL másolása`}
                     >

@@ -195,7 +195,7 @@ class SeriesParser:
                 if s_matches:
                     seasons_set = set()
                     for s_match in s_matches:
-                        val = s_match.group(1) or s_match.group(2)
+                        val = next((g for g in s_match.groups() if g is not None), None)
                         if val:
                             seasons_set.update(self._parse_season_list(val))
                     if seasons_set:

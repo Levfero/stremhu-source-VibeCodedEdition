@@ -74,12 +74,14 @@ async def test_stremio_service_resolves_tvdb():
     streams = await service.get_streams(user=user, parsed_id=parsed_id)
 
     mock_tvdb_resolver.resolve_tvdb_to_imdb.assert_awaited_once_with("348545")
-    mock_torrent_streams_service.find_by_imdb.assert_awaited_once_with(
-        user=user,
-        imdb_id="tt9335498",
-        series=SeriesInfo(season=1, episode=1),
-        fallback_title="Demon Slayer",
-    )
+    assert mock_torrent_streams_service.find_by_imdb.await_count == 1
+    call_kwargs = mock_torrent_streams_service.find_by_imdb.await_args.kwargs
+    assert call_kwargs["imdb_id"] == "tt9335498"
+    assert call_kwargs["series"] == SeriesInfo(season=1, episode=1)
+    assert callable(call_kwargs["fallback_title"])
+    # A lazy getter meghívásával a címlekérésnek le kell futnia
+    assert await call_kwargs["fallback_title"]() == "Demon Slayer"
+    mock_tvdb_resolver.get_title_by_imdb.assert_awaited_once_with("tt9335498")
     assert streams == []
 
 

@@ -50,6 +50,17 @@ class SeriesParser:
         r"\b(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*\d{1,2})*)\.?\s*(?:évad|evad)\b",
         re.IGNORECASE,
     )
+    PATTERN_NORM_TO = re.compile(r"\s*(?:-|to)\s*", re.IGNORECASE)
+    PATTERN_SEASON_SPLIT = re.compile(r"[ ,&+]+|\band\b", re.IGNORECASE)
+    PATTERN_STRIP_SEASON = re.compile(r"(?:seasons?|s)", re.IGNORECASE)
+    PATTERN_STRIP_PART = re.compile(r"p\d+", re.IGNORECASE)
+    PATTERN_SEASON_TOKEN_RANGE = re.compile(r"^(\d{1,2})-(\d{1,2})$")
+    PATTERN_SEASON_TOKEN_NUM = re.compile(r"^(\d{1,2})$")
+    PATTERN_LEAD_DIGIT = re.compile(r"^([1-9])\s+[A-Za-z]")
+    PATTERN_FILE_EXT = re.compile(r"\.[^.]+$")
+    GENERIC_SEASON_WORDS = (
+        (re.compile(r"\b(?:the\s+final\s+season|final\s+season)\b", re.IGNORECASE), 4),
+    )
 
     def __init__(self, name: str):
         self.raw_name = name
@@ -67,26 +78,26 @@ class SeriesParser:
             end_int = start_int + 250
         return list(range(start_int, end_int + 1))
 
-    @staticmethod
-    def _parse_season_list(s: str) -> list[int]:
-        s_norm = re.sub(r"\s*(?:-|to)\s*", "-", s)
-        tokens = re.split(r"[ ,&+]+|\band\b", s_norm)
+    @classmethod
+    def _parse_season_list(cls, s: str) -> list[int]:
+        s_norm = cls.PATTERN_NORM_TO.sub("-", s)
+        tokens = cls.PATTERN_SEASON_SPLIT.split(s_norm)
         seasons = []
         for token in tokens:
             token = token.strip().lower()
             if not token:
                 continue
-            token = re.sub(r"(?:seasons?|s)", "", token)
-            token = re.sub(r"p\d+", "", token)
-            range_match = re.match(r"^(\d{1,2})-(\d{1,2})$", token)
+            token = cls.PATTERN_STRIP_SEASON.sub("", token)
+            token = cls.PATTERN_STRIP_PART.sub("", token)
+            range_match = cls.PATTERN_SEASON_TOKEN_RANGE.match(token)
             if range_match:
                 seasons.extend(
-                    SeriesParser._expand_range(
+                    cls._expand_range(
                         range_match.group(1), range_match.group(2)
                     )
                 )
             else:
-                num_match = re.match(r"^(\d{1,2})$", token)
+                num_match = cls.PATTERN_SEASON_TOKEN_NUM.match(token)
                 if num_match:
                     seasons.append(int(num_match.group(1)))
         return sorted(list(set(seasons)))
@@ -151,13 +162,10 @@ class SeriesParser:
     def _extract_seasons(self, text: str) -> tuple[list[int], str]:
         seasons: list[int] = []
 
-        GENERIC_SEASON_WORDS = [
-            (r"\b(?:the\s+final\s+season|final\s+season)\b", 4),
-        ]
-        for arc_pat, arc_s in GENERIC_SEASON_WORDS:
-            if re.search(arc_pat, text, re.IGNORECASE):
+        for arc_pat, arc_s in self.GENERIC_SEASON_WORDS:
+            if arc_pat.search(text):
                 seasons = [arc_s]
-                text = re.sub(arc_pat, " ", text, flags=re.IGNORECASE)
+                text = arc_pat.sub(" ", text)
                 break
 
         if not seasons:
@@ -181,7 +189,7 @@ class SeriesParser:
                     text = self.PATTERN_SEASON_LIST.sub(" ", text)
 
         if not seasons:
-            lead_digit = re.match(r"^([1-9])\s+[A-Za-z]", text.strip())
+            lead_digit = self.PATTERN_LEAD_DIGIT.match(text.strip())
             if lead_digit:
                 seasons = [int(lead_digit.group(1))]
 
@@ -224,7 +232,7 @@ class SeriesParser:
         seasons = list(current_seasons) if current_seasons is not None else []
 
         file_part = text.split("/")[-1]
-        file_name_only = re.sub(r"\.[^.]+$", "", file_part)
+        file_name_only = self.PATTERN_FILE_EXT.sub("", file_part)
 
         cleaned_file_part = self.PATTERN_CLEAN_RESOLUTIONS.sub("", file_name_only)
         alone_eps = self.PATTERN_ALONE_EPISODE.findall(cleaned_file_part)

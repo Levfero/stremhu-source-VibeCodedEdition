@@ -64,15 +64,18 @@ class TorrentStreamsService:
             )
             torrent_sources = []
             indexer_errors = []
-            seen_source_ids: set[str] = set()
+            seen_source_ids: set[tuple[str, str]] = set()
             for res in results:
                 if isinstance(res, tuple):
                     sources, errs = res
                     indexer_errors.extend(errs)
                     for s in sources:
-                        s_id = s.indexer_torrent.id
-                        if s_id not in seen_source_ids:
-                            seen_source_ids.add(s_id)
+                        s_key = (
+                            s.indexer_torrent.indexer_account.indexer_id,
+                            s.indexer_torrent.torrent_id,
+                        )
+                        if s_key not in seen_source_ids:
+                            seen_source_ids.add(s_key)
                             torrent_sources.append(s)
 
         if not torrent_sources and fallback_title:

@@ -23,7 +23,9 @@ def is_video(filename: str) -> bool:
 
 def is_sample(name: str) -> bool:
     base = re.sub(r"\.[^.]+$", "", name.lower())
-    return bool(re.search(r"(^sample|sample$|sample-|-sample-|-sample)", base))
+    return bool(
+        re.search(r"(^sample|sample$|sample-|-sample-|-sample|\bmen[uü]\b)", base)
+    )
 
 
 def is_sample_or_trash(name: str) -> bool:

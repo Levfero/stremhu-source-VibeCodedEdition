@@ -5,10 +5,12 @@ from app.modules.stremio.constants import ADDON_APP_PREFIX_ID
 from app.modules.stremio.enums import StreamIdType
 from app.modules.stremio.schemas import (
     ImdbStreamId,
+    KitsuStreamId,
     ParsedCatalogId,
     ParsedExtra,
     StreamId,
     TorrentStreamId,
+    TvdbStreamId,
 )
 
 
@@ -18,6 +20,8 @@ def parse_stream_id(value: str) -> StreamId:
     - "stremhu-source:<indexer_id>:<torrent_id>" → torrent stream
     - "tt1234567" → IMDB stream
     - "tt1234567:1:2" → IMDB stream sorozattal (season=1, episode=2)
+    - "tvdb:12345" → TVDB stream
+    - "tvdb:12345:1:2" → TVDB stream sorozattal (season=1, episode=2)
     """
     is_app = value.startswith(ADDON_APP_PREFIX_ID)
 
@@ -44,6 +48,88 @@ def parse_stream_id(value: str) -> StreamId:
             type=StreamIdType.TORRENT,
             indexer_id=indexer_id,
             torrent_id=torrent_id,
+        )
+
+    if value.startswith("tvdb"):
+        if value.startswith("tvdb:"):
+            tvdb_val = value[5:]
+        elif value.startswith("tvdb_"):
+            tvdb_val = value[5:]
+        else:
+            tvdb_val = value[4:]
+
+        parts = tvdb_val.split(":")
+        tvdb_id = parts[0]
+
+        if not tvdb_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Érvénytelen TVDB stream azonosító formátum.",
+            )
+
+        season: int | None = None
+        if len(parts) > 1 and parts[1]:
+            try:
+                season = int(parts[1])
+            except ValueError:
+                season = None
+
+        episode: int | None = None
+        if len(parts) > 2 and parts[2]:
+            try:
+                episode = int(parts[2])
+            except ValueError:
+                episode = None
+
+        series_info: SeriesInfo | None = None
+        if season is not None and episode is not None:
+            series_info = SeriesInfo(
+                season=season,
+                episode=episode,
+            )
+
+        return TvdbStreamId(
+            type=StreamIdType.TVDB,
+            tvdb_id=tvdb_id,
+            series_info=series_info,
+        )
+
+    if value.startswith("kitsu"):
+        if value.startswith("kitsu:"):
+            kitsu_val = value[6:]
+        elif value.startswith("kitsu_"):
+            kitsu_val = value[6:]
+        else:
+            kitsu_val = value[5:]
+
+        parts = kitsu_val.split(":")
+        kitsu_id = parts[0]
+
+        if not kitsu_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Érvénytelen Kitsu stream azonosító formátum.",
+            )
+
+        episode: int | None = None
+        if len(parts) > 1 and parts[1]:
+            try:
+                episode = int(parts[1])
+            except ValueError:
+                episode = None
+
+        series_info: SeriesInfo | None = None
+        if episode is not None:
+            series_info = SeriesInfo(
+                season=1,
+                episode=episode,
+            )
+
+        return KitsuStreamId(
+            type=StreamIdType.KITSU,
+            kitsu_id=kitsu_id,
+            episode=episode,
+            series_info=series_info,
         )
 
     parts = value.split(":")

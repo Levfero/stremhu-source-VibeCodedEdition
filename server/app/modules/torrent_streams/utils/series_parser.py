@@ -25,6 +25,14 @@ class SeriesParser:
         r"\b(?:e|ep|episode[ ._-]?)(\d{1,4})(?:(?:[ ._-]?-?[ ._-]?e)(\d{1,4}))?\b|\b(\d{1,4})\.?\s*(?:rész|resz)(?:[ ._-]?-[ ._-]?(\d{1,4})\.?\s*(?:rész|resz)?)?\b",
         re.IGNORECASE,
     )
+    PATTERN_ANIME_DASH_EPISODE = re.compile(
+        r"[-–—]\s*(?:ep|episode|rész|resz)?\s*(\d{1,4})(?:v\d+)?(?:[ ._-]?(?:-|to)[ ._-]?(\d{1,4}))?\b",
+        re.IGNORECASE,
+    )
+    PATTERN_NUMERIC_RANGE = re.compile(
+        r"\b(\d{1,4})\s*[-–—]\s*(\d{1,4})\b",
+        re.IGNORECASE,
+    )
 
     # Cleaners for standalone episode extraction
     PATTERN_CLEAN_RESOLUTIONS = re.compile(
@@ -38,12 +46,13 @@ class SeriesParser:
         r"\b(?:s\d{1,2}[ ._+]+)+s\d{1,2}\b", re.IGNORECASE
     )
     PATTERN_SEASON_LIST = re.compile(
-        r"\b(?:seasons?|s|évad|evad)[ ._-]?(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*(?:seasons?|s)?\s*\d{1,2})*)\b|"
+        r"\b(?:seasons?|s|évad|evad)[ ._-]?(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*(?:seasons?|s)?\s*\d{1,2})*)(?:[ ._-]?p\d+)?\b|"
         r"\b(\d{1,2}(?:\s*(?:-|to|,|&|and|\+)\s*\d{1,2})*)\.?\s*(?:évad|evad)\b",
         re.IGNORECASE,
     )
 
     def __init__(self, name: str):
+        self.raw_name = name
         self.name_lower = clean_torrent_name(name).lower()
 
     @staticmethod
@@ -54,8 +63,8 @@ class SeriesParser:
         end_int = int(end)
         if end_int < start_int:
             return [start_int]
-        if end_int - start_int > 100:
-            end_int = start_int + 100
+        if end_int - start_int > 250:
+            end_int = start_int + 250
         return list(range(start_int, end_int + 1))
 
     @staticmethod
@@ -68,6 +77,7 @@ class SeriesParser:
             if not token:
                 continue
             token = re.sub(r"(?:seasons?|s)", "", token)
+            token = re.sub(r"p\d+", "", token)
             range_match = re.match(r"^(\d{1,2})-(\d{1,2})$", token)
             if range_match:
                 seasons.extend(
@@ -82,7 +92,9 @@ class SeriesParser:
         return sorted(list(set(seasons)))
 
     def parse(
-        self, context_seasons: list[int] | None = None
+        self,
+        context_seasons: list[int] | None = None,
+        allow_standalone_episode: bool = True,
     ) -> tuple[list[int], list[int]]:
         """
         Univerzális parser mappákhoz és fájlokhoz.
@@ -90,21 +102,36 @@ class SeriesParser:
         """
         # 1. Exact matches (S01E01)
         s, e = self._match_exact_sxx_exx()
-        if s or e:
+        if s and e:
             return s, e
 
-        # 2. Évadok keresése (pl. "Season 1", "S01-S03")
-        s, _ = self._extract_seasons(self.name_lower)
+        # 2. Évadok keresése (pl. "Season 1", "S01-S03", Anime Arc címek)
+        seasons, cleaned = self._extract_seasons(self.name_lower)
+        if not seasons and s:
+            seasons = s
 
-        # 3. Kifejezett epizódok keresése (pl. "E01", "Episode 5")
-        e, cleaned = self._extract_episodes(self.name_lower)
+        # 3. Kifejezett epizódok keresése (pl. "E01", "Episode 5", " - 01 ")
+        episodes, cleaned = self._extract_episodes(cleaned)
+        if not episodes and e:
+            episodes = e
 
-        # Ha bármelyik konkrét (évad vagy epizód) megvan, visszatérünk
-        if s or e:
-            return s, e
+        # Ha mindkettő megvan, visszatérünk
+        if seasons and episodes:
+            return seasons, episodes
 
-        # 4. Standalone fallback (tisztán számok, pl. "05")
-        return self._extract_standalone_episode(cleaned, context_seasons)
+        if not allow_standalone_episode:
+            return seasons, episodes
+
+        # 4. Standalone fallback (tisztán számok, pl. "05", "105")
+        if not episodes:
+            standalone_seasons, standalone_episodes = self._extract_standalone_episode(
+                cleaned, current_seasons=seasons if seasons else context_seasons
+            )
+            if not seasons:
+                seasons = standalone_seasons
+            episodes = standalone_episodes
+
+        return seasons, episodes
 
     def _match_exact_sxx_exx(self) -> tuple[list[int], list[int]]:
         patterns = [
@@ -123,24 +150,40 @@ class SeriesParser:
 
     def _extract_seasons(self, text: str) -> tuple[list[int], str]:
         seasons: list[int] = []
-        multi_s_match = self.PATTERN_MULTI_SEASON.search(text)
 
-        if multi_s_match:
-            seasons = [
-                int(s) for s in re.findall(r"s(\d{1,2})", multi_s_match.group(0))
-            ]
-            text = self.PATTERN_MULTI_SEASON.sub(" ", text)
-        else:
-            s_matches = list(self.PATTERN_SEASON_LIST.finditer(text))
-            if s_matches:
-                seasons_set = set()
-                for s_match in s_matches:
-                    val = s_match.group(1) or s_match.group(2)
-                    if val:
-                        seasons_set.update(self._parse_season_list(val))
-                if seasons_set:
-                    seasons = sorted(list(seasons_set))
-                text = self.PATTERN_SEASON_LIST.sub(" ", text)
+        GENERIC_SEASON_WORDS = [
+            (r"\b(?:the\s+final\s+season|final\s+season)\b", 4),
+        ]
+        for arc_pat, arc_s in GENERIC_SEASON_WORDS:
+            if re.search(arc_pat, text, re.IGNORECASE):
+                seasons = [arc_s]
+                text = re.sub(arc_pat, " ", text, flags=re.IGNORECASE)
+                break
+
+        if not seasons:
+            multi_s_match = self.PATTERN_MULTI_SEASON.search(text)
+
+            if multi_s_match:
+                seasons = [
+                    int(s) for s in re.findall(r"s(\d{1,2})", multi_s_match.group(0))
+                ]
+                text = self.PATTERN_MULTI_SEASON.sub(" ", text)
+            else:
+                s_matches = list(self.PATTERN_SEASON_LIST.finditer(text))
+                if s_matches:
+                    seasons_set = set()
+                    for s_match in s_matches:
+                        val = s_match.group(1) or s_match.group(2)
+                        if val:
+                            seasons_set.update(self._parse_season_list(val))
+                    if seasons_set:
+                        seasons = sorted(list(seasons_set))
+                    text = self.PATTERN_SEASON_LIST.sub(" ", text)
+
+        if not seasons:
+            lead_digit = re.match(r"^([1-9])\s+[A-Za-z]", text.strip())
+            if lead_digit:
+                seasons = [int(lead_digit.group(1))]
 
         return seasons, text
 
@@ -154,6 +197,23 @@ class SeriesParser:
             elif e_match.group(3):
                 episodes = self._expand_range(e_match.group(3), e_match.group(4))
             text = self.PATTERN_FALLBACK_EPISODE.sub(" ", text)
+
+        if not episodes:
+            range_match = self.PATTERN_NUMERIC_RANGE.search(text)
+            if range_match:
+                start_n, end_n = int(range_match.group(1)), int(range_match.group(2))
+                if 0 < end_n - start_n <= 250 and not (1900 <= start_n <= 2050 and end_n <= 31):
+                    episodes = self._expand_range(str(start_n), str(end_n))
+                    text = self.PATTERN_NUMERIC_RANGE.sub(" ", text)
+
+        if not episodes:
+            raw_lower = getattr(self, "raw_name", "").lower()
+            dash_match = self.PATTERN_ANIME_DASH_EPISODE.search(text) or (
+                self.PATTERN_ANIME_DASH_EPISODE.search(raw_lower) if raw_lower else None
+            )
+            if dash_match:
+                episodes = self._expand_range(dash_match.group(1), dash_match.group(2))
+                text = self.PATTERN_ANIME_DASH_EPISODE.sub(" ", text)
 
         return episodes, text
 
@@ -183,12 +243,13 @@ class SeriesParser:
             if ep_num < 2000:
                 episodes = [ep_num]
 
+                # Ha a szám 3 jegyű (pl. 105), és az évad már ismert (pl. 1. évad),
+                # felvesszük a relatív epizódszámot is alternatívaként ([105, 5])
                 if ep_num >= 100:
-                    s_part = ep_num // 100
-                    e_part = ep_num % 100
-                    episodes = [e_part]
-
-                    if s_part not in seasons:
-                        seasons.append(s_part)
+                    s_guess = ep_num // 100
+                    e_guess = ep_num % 100
+                    if seasons and s_guess in seasons:
+                        if e_guess not in episodes:
+                            episodes.append(e_guess)
 
         return seasons, episodes

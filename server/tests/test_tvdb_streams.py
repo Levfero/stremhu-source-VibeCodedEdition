@@ -1,0 +1,464 @@
+from unittest.mock import AsyncMock
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.common.schemas.internal import SeriesInfo
+from app.main import app
+from app.modules.auth.dependencies import get_auth_service
+from app.modules.auth.service import AuthService
+from app.modules.settings.service import SettingsService
+from app.modules.stremio.dependencies import get_stremio_service
+from app.modules.stremio.enums import StreamIdType
+from app.modules.stremio.schemas import KitsuStreamId, StremioStream, TvdbStreamId
+from app.modules.stremio.service import StremioService
+from app.modules.stremio.tvdb_resolver import TvdbResolver
+from app.modules.stremio.utils import parse_stream_id
+from app.modules.torrent_streams.service import TorrentStreamsService
+from app.modules.users.models import UserModel
+
+
+def test_parse_tvdb_stream_id_with_season_and_episode():
+    result = parse_stream_id("tvdb:348545:2:5")
+    assert isinstance(result, TvdbStreamId)
+    assert result.type == StreamIdType.TVDB
+    assert result.tvdb_id == "348545"
+    assert result.series_info is not None
+    assert result.series_info.season == 2
+    assert result.series_info.episode == 5
+
+
+def test_parse_tvdb_stream_id_single_id():
+    result = parse_stream_id("tvdb:348545")
+    assert isinstance(result, TvdbStreamId)
+    assert result.type == StreamIdType.TVDB
+    assert result.tvdb_id == "348545"
+    assert result.series_info is None
+
+
+@pytest.mark.anyio
+async def test_tvdb_resolver_caching():
+    resolver = TvdbResolver()
+    resolver._cache["12345"] = "tt9999999"
+
+    # A gyorsítótárból azonnal vissza kell térnie
+    res = await resolver.resolve_tvdb_to_imdb("12345")
+    assert res == "tt9999999"
+
+
+@pytest.mark.anyio
+async def test_stremio_service_resolves_tvdb():
+    mock_torrent_streams_service = AsyncMock(spec=TorrentStreamsService)
+    mock_settings_service = AsyncMock(spec=SettingsService)
+    mock_settings_service.get_app_url.return_value = "http://localhost:7070"
+
+    mock_tvdb_resolver = AsyncMock(spec=TvdbResolver)
+    mock_tvdb_resolver.resolve_tvdb_to_imdb.return_value = "tt9335498"
+    mock_tvdb_resolver.get_title_by_imdb.return_value = "Demon Slayer"
+    mock_tvdb_resolver.get_episode_mappings.return_value = ([], [])
+
+    mock_torrent_streams_service.find_by_imdb.return_value = ([], [])
+
+    service = StremioService(
+        torrent_streams_service=mock_torrent_streams_service,
+        settings_service=mock_settings_service,
+        tvdb_resolver_service=mock_tvdb_resolver,
+    )
+
+    user = UserModel(id="user1", username="test")
+    parsed_id = TvdbStreamId(
+        tvdb_id="348545",
+        series_info=SeriesInfo(season=1, episode=1),
+    )
+
+    streams = await service.get_streams(user=user, parsed_id=parsed_id)
+
+    mock_tvdb_resolver.resolve_tvdb_to_imdb.assert_awaited_once_with("348545")
+    mock_torrent_streams_service.find_by_imdb.assert_awaited_once_with(
+        user=user,
+        imdb_id="tt9335498",
+        series=SeriesInfo(season=1, episode=1),
+        fallback_title="Demon Slayer",
+    )
+    assert streams == []
+
+
+@pytest.mark.anyio
+async def test_stremio_service_tvdb_resolution_failure():
+    mock_torrent_streams_service = AsyncMock(spec=TorrentStreamsService)
+    mock_settings_service = AsyncMock(spec=SettingsService)
+    mock_settings_service.get_app_url.return_value = "http://localhost:7070"
+
+    mock_tvdb_resolver = AsyncMock(spec=TvdbResolver)
+    mock_tvdb_resolver.resolve_tvdb_to_imdb.return_value = None
+
+    service = StremioService(
+        torrent_streams_service=mock_torrent_streams_service,
+        settings_service=mock_settings_service,
+        tvdb_resolver_service=mock_tvdb_resolver,
+    )
+
+    user = UserModel(id="user1", username="test")
+    parsed_id = TvdbStreamId(
+        tvdb_id="999999",
+        series_info=None,
+    )
+
+    streams = await service.get_streams(user=user, parsed_id=parsed_id)
+    assert len(streams) == 1
+    assert "TVDB feloldási hiba" in streams[0].name
+
+
+def test_tvdb_stream_api_endpoint():
+    client = TestClient(app)
+    mock_stremio_service = AsyncMock(spec=StremioService)
+    mock_stremio_service.get_streams.return_value = [
+        StremioStream(
+            name="Demon Slayer Stream",
+            description="1080p stream",
+            url="http://localhost/play",
+        )
+    ]
+
+    mock_auth_service = AsyncMock(spec=AuthService)
+    mock_auth_service.verify_api_key.return_value = UserModel(
+        id="user123", username="testuser"
+    )
+
+    app.dependency_overrides[get_stremio_service] = lambda: mock_stremio_service
+    app.dependency_overrides[get_auth_service] = lambda: mock_auth_service
+
+    try:
+        response = client.get(
+            "/api/dummy_api_key/stremio/stream/series/tvdb:348545:1:1.json"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "streams" in data
+        assert len(data["streams"]) == 1
+        assert data["streams"][0]["name"] == "Demon Slayer Stream"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_parse_kitsu_stream_id():
+    result = parse_stream_id("kitsu:41370:1")
+    assert isinstance(result, KitsuStreamId)
+    assert result.type == StreamIdType.KITSU
+    assert result.kitsu_id == "41370"
+    assert result.episode == 1
+    assert result.series_info is not None
+    assert result.series_info.episode == 1
+
+
+@pytest.mark.anyio
+async def test_kitsu_resolver_caching():
+    resolver = TvdbResolver()
+    resolver._cache["kitsu_41370_1"] = ("tt9335498", 1, 1)
+
+    res = await resolver.resolve_kitsu_to_imdb("41370", 1)
+    assert res == ("tt9335498", 1, 1)
+
+
+def test_anime_series_parser_cases():
+    from app.modules.torrent_streams.utils.series_parser import SeriesParser
+
+    # Naruto 3-jegyű számok
+    s, e = SeriesParser("Naruto - 105.mkv").parse()
+    assert s == []
+    assert e == [105]
+
+    s, e = SeriesParser("Naruto Shippuden - 215 [1080p].mkv").parse()
+    assert s == []
+    assert e == [215]
+
+    # Attack on Titan Final Season & Arc
+    s, e = SeriesParser("[Erai-raws] Shingeki no Kyojin The Final Season - 01 [1080p].mkv").parse()
+    assert s == [4]
+    assert e == [1]
+
+    s, e = SeriesParser("Attack.on.Titan.S04E17.1080p.mkv").parse()
+    assert s == [4]
+    assert e == [17]
+
+    # Demon Slayer Arcs (arc nevek nincsenek beleégetve, epizódszámokat generikusan bontja ki)
+    s, e = SeriesParser("[SubsPlease] Kimetsu no Yaiba - Hashira Geiko-hen - 01 (1080p).mkv").parse()
+    assert s == []
+    assert e == [1]
+
+    s, e = SeriesParser("Kimetsu no Yaiba - Yuukaku-hen 01.mkv").parse()
+    assert s == []
+    assert e == [1]
+
+    s, e = SeriesParser("Demon.Slayer.Mugen.Train.Arc.E01.1080p.mkv").parse()
+    assert s == []
+    assert e == [1]
+
+
+def test_anime_stream_file_resolver_matching():
+    from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+
+    def make_file(name: str, index: int) -> TorrentFileInfo:
+        return TorrentFileInfo(
+            name=name,
+            path=name,
+            size=1000,
+            offset=index * 1000,
+            start_piece_index=index,
+            end_piece_index=index,
+            is_video=True,
+            index=index,
+        )
+
+    # Demon Slayer S2E8 (Yuukaku ep 1)
+    t_info_ds = TorrentInfo(
+        info_hash="hash_ds",
+        name="Kimetsu no Yaiba Yuukaku-hen",
+        size=2000,
+        piece_size=1000,
+        files=[
+            make_file("Kimetsu no Yaiba - Yuukaku-hen - 01.mkv", 0),
+            make_file("Kimetsu no Yaiba - Yuukaku-hen - 02.mkv", 1),
+        ],
+    )
+    res_ds = StreamFileResolver(
+        t_info_ds,
+        series=SeriesInfo(season=2, episode=8, alternate_episodes=[1]),
+    ).resolve()
+    assert res_ds is not None
+    assert res_ds.name == "Kimetsu no Yaiba - Yuukaku-hen - 01.mkv"
+
+    # Attack on Titan S4E16 (abszolút ep 75)
+    t_info_aot = TorrentInfo(
+        info_hash="hash_aot",
+        name="Shingeki no Kyojin Pack",
+        size=2000,
+        piece_size=1000,
+        files=[
+            make_file("Shingeki no Kyojin - 74.mkv", 0),
+            make_file("Shingeki no Kyojin - 75.mkv", 1),
+        ],
+    )
+    res_aot = StreamFileResolver(
+        t_info_aot,
+        series=SeriesInfo(season=4, episode=16, alternate_episodes=[75]),
+    ).resolve()
+    assert res_aot is not None
+    assert res_aot.name == "Shingeki no Kyojin - 75.mkv"
+
+    # Naruto S1E5: nem keveri össze a 105. résszel!
+    t_info_naruto = TorrentInfo(
+        info_hash="hash_naruto",
+        name="Naruto Pack",
+        size=2000,
+        piece_size=1000,
+        files=[
+            make_file("Naruto - 005.mkv", 0),
+            make_file("Naruto - 105.mkv", 1),
+        ],
+    )
+    res_naruto = StreamFileResolver(t_info_naruto, series=SeriesInfo(season=1, episode=5)).resolve()
+    assert res_naruto is not None
+    assert res_naruto.name == "Naruto - 005.mkv"
+
+
+@pytest.mark.anyio
+async def test_find_by_imdb_fallback_to_title_search():
+    from unittest.mock import MagicMock
+    from app.modules.preferences.service import PreferencesService
+    from app.modules.torrent_source_provider.service import TorrentSourceProviderService
+
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+    # IMDb keresésre 0 találat
+    mock_provider.find_by_imdb_id.return_value = ([], [])
+    # Név szerinti keresésre van találat
+    mock_provider.find_by_query.return_value = ([], [])
+
+    mock_settings = AsyncMock(spec=SettingsService)
+    mock_settings.get_app_url.return_value = "http://localhost:7070"
+
+    mock_preferences = MagicMock(spec=PreferencesService)
+    mock_preferences.get_list.return_value = []
+
+    mock_torrents = MagicMock()
+    mock_torrents.get_torrents.return_value = []
+
+    service = TorrentStreamsService(
+        db=AsyncMock(),
+        torrent_source_provider_service=mock_provider,
+        torrents_service=mock_torrents,
+        settings_service=mock_settings,
+        preferences_service=mock_preferences,
+    )
+
+    user = UserModel(id="user1", username="test", enable_smart_filter=False)
+    await service.find_by_imdb(
+        user=user,
+        imdb_id="tt9335498",
+        series=SeriesInfo(season=1, episode=1),
+        fallback_title="Demon Slayer: Kimetsu no Yaiba",
+    )
+
+    mock_provider.find_by_imdb_id.assert_awaited_once_with("tt9335498")
+    mock_provider.find_by_query.assert_awaited_once_with("Demon Slayer")
+
+
+def test_one_piece_series_parser_and_resolver():
+    from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+    from app.modules.torrent_streams.utils.series_parser import SeriesParser
+    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+
+    # 1. SeriesParser generikus tesztek
+    p1 = SeriesParser("[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv")
+    s, e = p1.parse()
+    assert e == [1089]
+
+    p2 = SeriesParser("One Piece - Wano Kuni - 892.mkv")
+    s, e = p2.parse()
+    assert e == [892]
+
+    p3 = SeriesParser("One Piece - Egghead Arc - 1089.mkv")
+    s, e = p3.parse()
+    assert e == [1089]
+
+    p4 = SeriesParser("One Piece 890-895.mkv")
+    s, e = p4.parse()
+    assert e == [890, 891, 892, 893, 894, 895]
+
+    def make_file(name: str, index: int) -> TorrentFileInfo:
+        return TorrentFileInfo(
+            name=name,
+            path=name,
+            size=1000,
+            offset=index * 1000,
+            start_piece_index=index,
+            end_piece_index=index,
+            is_video=True,
+            index=index,
+        )
+
+    # 2. Generikus feloldás: S21E01 kérés alternate_episodes=[892]-vel feloldja a "One Piece - 892.mkv" fájlt
+    t_info_op1 = TorrentInfo(
+        info_hash="hash_op1",
+        name="One Piece Batch",
+        size=3000,
+        piece_size=1000,
+        files=[
+            make_file("One Piece - 891.mkv", 0),
+            make_file("One Piece - 892.mkv", 1),
+            make_file("One Piece - 893.mkv", 2),
+        ],
+    )
+    res_cinemeta = StreamFileResolver(
+        t_info_op1,
+        series=SeriesInfo(season=21, episode=1, alternate_episodes=[892]),
+    ).resolve()
+    assert res_cinemeta is not None
+    assert res_cinemeta.name == "One Piece - 892.mkv"
+
+    # 3. S22E04 kérés alternate_episodes=[1089]-vel feloldja az 1089. részt
+    t_info_op2 = TorrentInfo(
+        info_hash="hash_op2",
+        name="[SubsPlease] One Piece - 1089 (1080p)",
+        size=1000,
+        piece_size=1000,
+        files=[
+            make_file("[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv", 0),
+        ],
+    )
+    res_egghead = StreamFileResolver(
+        t_info_op2,
+        series=SeriesInfo(season=22, episode=4, alternate_episodes=[1089]),
+    ).resolve()
+    assert res_egghead is not None
+    assert res_egghead.name == "[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv"
+
+    # 4. Kitsu kérés S1 E892 feloldja a "One Piece - 892.mkv"-t ÉS a "One.Piece.S21E01.mkv"-t is
+    t_info_op_season_name = TorrentInfo(
+        info_hash="hash_op3",
+        name="One Piece Season 21",
+        size=2000,
+        piece_size=1000,
+        files=[
+            make_file("One.Piece.S21E01.1080p.mkv", 0),
+            make_file("One.Piece.S21E02.1080p.mkv", 1),
+        ],
+    )
+    res_kitsu_mapped = StreamFileResolver(
+        t_info_op_season_name,
+        series=SeriesInfo(
+            season=1,
+            episode=892,
+            alternate_seasons=[21],
+            alternate_episodes=[1],
+        ),
+    ).resolve()
+    assert res_kitsu_mapped is not None
+    assert res_kitsu_mapped.name == "One.Piece.S21E01.1080p.mkv"
+
+    # 5. One Piece S2E1 (Cinemeta) -> feloldás S01-nek elnevezett HorribleSubs pakkból (abszolút 9. rész)
+    t_info_op_s01_pack = TorrentInfo(
+        info_hash="hash_op_s1",
+        name="One Piece S01 480p",
+        size=5000,
+        piece_size=1000,
+        files=[
+            make_file("One Piece S01 480p/[HorribleSubs] One Piece - 01 [480p].mkv", 0),
+            make_file("One Piece S01 480p/[HorribleSubs] One Piece - 09 [480p].mkv", 1),
+        ],
+    )
+    res_op_s2e1 = StreamFileResolver(
+        t_info_op_s01_pack,
+        series=SeriesInfo(season=2, episode=1, alternate_episodes=[9]),
+    ).resolve()
+    assert res_op_s2e1 is not None
+    assert "[HorribleSubs] One Piece - 09 [480p].mkv" in res_op_s2e1.name
+
+    # 6. One Piece S5E1 (Cinemeta) -> feloldás S02-nek elnevezett pakkból (abszolút 62. rész)
+    t_info_op_s02_pack = TorrentInfo(
+        info_hash="hash_op_s2",
+        name="One Piece S02 720p",
+        size=5000,
+        piece_size=1000,
+        files=[
+            make_file("One Piece S02 720p/[HorribleSubs] One Piece - 62 [720p].mkv", 0),
+            make_file("One Piece S02 720p/[HorribleSubs] One Piece - 63 [720p].mkv", 1),
+        ],
+    )
+    res_op_s5e1 = StreamFileResolver(
+        t_info_op_s02_pack,
+        series=SeriesInfo(season=5, episode=1, alternate_episodes=[62]),
+    ).resolve()
+    assert res_op_s5e1 is not None
+    assert "[HorribleSubs] One Piece - 62 [720p].mkv" in res_op_s5e1.name
+
+    # 7. Naruto Shippuden abszolút ep 500 -> S22E42 feloldása
+    t_info_shippuden = TorrentInfo(
+        info_hash="hash_ns",
+        name="Naruto Shippuden",
+        size=2000,
+        piece_size=1000,
+        files=[
+            make_file("Naruto Shippuden - 499.mkv", 0),
+            make_file("Naruto Shippuden - 500.mkv", 1),
+        ],
+    )
+    res_ns = StreamFileResolver(
+        t_info_shippuden,
+        series=SeriesInfo(season=22, episode=42, alternate_episodes=[500]),
+    ).resolve()
+    assert res_ns is not None
+    assert res_ns.name == "Naruto Shippuden - 500.mkv"
+
+
+@pytest.mark.anyio
+async def test_get_episode_mappings_generic_caching():
+    resolver = TvdbResolver()
+    # Mocking cache to verify generic caching mechanism
+    resolver._cache["epmap_tt0388629_21_1"] = ([892], [])
+    alts, seasons = await resolver.get_episode_mappings("tt0388629", 21, 1)
+    assert alts == [892]
+    assert seasons == []
+
+

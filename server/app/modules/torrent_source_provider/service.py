@@ -61,6 +61,35 @@ class TorrentSourceProviderService:
 
         return torrent_files, indexer_errors
 
+    async def find_by_query(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        task_key = f"query:{query}"
+        if task_key in _ongoing_tasks:
+            result = await _ongoing_tasks[task_key]
+            return cast(tuple[list[TorrentSource], list[str]], result)
+
+        task = asyncio.create_task(self._find_by_query(query))
+        _ongoing_tasks[task_key] = task
+        try:
+            return await task
+        finally:
+            _ongoing_tasks.pop(task_key, None)
+
+    async def _find_by_query(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        (
+            indexer_torrents,
+            indexer_errors,
+        ) = await self._indexers_service.get_torrents_by_query(query)
+
+        torrent_files = await self._sync_torrent_files(indexer_torrents)
+
+        return torrent_files, indexer_errors
+
     async def find_by_torrent_id(
         self,
         torrent_id: str,

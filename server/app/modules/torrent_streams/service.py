@@ -38,11 +38,21 @@ class TorrentStreamsService:
         user: UserModel,
         imdb_id: str,
         series: SeriesInfo | None = None,
+        fallback_title: str | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
         (
             torrent_sources,
             indexer_errors,
         ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
+
+        if not torrent_sources and fallback_title:
+            cleaned_title = fallback_title.split(":")[0].strip()
+            (
+                fallback_sources,
+                fallback_errors,
+            ) = await self._torrent_source_provider_service.find_by_query(cleaned_title)
+            torrent_sources = fallback_sources
+            indexer_errors.extend(fallback_errors)
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
 

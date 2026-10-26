@@ -653,10 +653,10 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
 
     assert len(streams) == 2
     # The 304 seeder torrent should be sorted first
-    assert streams[0].indexer_torrent.torrent_id == "t2"
-    assert streams[0].indexer_torrent.seeders == 304
-    assert streams[1].indexer_torrent.torrent_id == "t1"
-    assert streams[1].indexer_torrent.seeders == 14
+    assert streams[0].torrent_id == "t2"
+    assert streams[0].seeders == 304
+    assert streams[1].torrent_id == "t1"
+    assert streams[1].seeders == 14
 
 
 

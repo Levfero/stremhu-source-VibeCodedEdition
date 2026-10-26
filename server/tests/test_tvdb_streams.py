@@ -596,52 +596,24 @@ async def test_get_episode_mappings_uses_alias_for_dbz():
 
 @pytest.mark.anyio
 async def test_find_by_imdb_searches_alternate_imdb_ids():
-    from app.modules.indexers.schemas.internal import IndexerTorrent
-    from app.modules.torrent_files.schemas import TorrentFileIdentifier
-    from app.modules.torrent_source_provider.schemas import TorrentSource
+    from tests.helpers import create_torrent_source
 
     mock_torrent_source_provider = AsyncMock()
     mock_settings_service = AsyncMock()
     mock_settings_service.get_app_url.return_value = "http://localhost:7070"
     mock_preferences = AsyncMock()
 
-    source_1989 = TorrentSource(
-        indexer_torrent=IndexerTorrent(
-            id="t1",
-            indexer_id="ncore",
-            name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
-            size=5000000,
-            seeders=14,
-            leechers=1,
-            download_url="http://dummy",
-            info_hash="hash1",
-        ),
-        torrent_file=TorrentFileIdentifier(
-            info_hash="hash1",
-            name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
-            size=5000000,
-            piece_size=1000,
-            files=[make_file("Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv", 0)],
-        ),
+    source_1989 = create_torrent_source(
+        name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
+        torrent_id="t1",
+        seeders=14,
+        files=["Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv"],
     )
-    source_1996 = TorrentSource(
-        indexer_torrent=IndexerTorrent(
-            id="t2",
-            indexer_id="ncore",
-            name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
-            size=66000000000,
-            seeders=304,
-            leechers=68,
-            download_url="http://dummy2",
-            info_hash="hash2",
-        ),
-        torrent_file=TorrentFileIdentifier(
-            info_hash="hash2",
-            name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
-            size=66000000000,
-            piece_size=1000,
-            files=[make_file("Dragon.Ball.Z.E141.BDrip.HUN.x264-DenZo.mkv", 0)],
-        ),
+    source_1996 = create_torrent_source(
+        name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
+        torrent_id="t2",
+        seeders=304,
+        files=["Dragon.Ball.Z.E141.BDrip.HUN.x264-DenZo.mkv"],
     )
 
     async def fake_find_by_imdb_id(iid):
@@ -676,6 +648,7 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     assert streams[0].indexer_torrent.seeders == 304
     assert streams[1].indexer_torrent.id == "t1"
     assert streams[1].indexer_torrent.seeders == 14
+
 
 
 

@@ -41,11 +41,39 @@ class TorrentStreamsService:
         imdb_id: str,
         series: SeriesInfo | None = None,
         fallback_title: str | Callable[[], Awaitable[str | None]] | None = None,
+        alternate_imdb_ids: list[str] | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
-        (
-            torrent_sources,
-            indexer_errors,
-        ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
+        ids_to_search = [imdb_id]
+        if alternate_imdb_ids:
+            for alt_id in alternate_imdb_ids:
+                if alt_id and alt_id not in ids_to_search:
+                    ids_to_search.append(alt_id)
+
+        if len(ids_to_search) == 1:
+            (
+                torrent_sources,
+                indexer_errors,
+            ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
+        else:
+            results = await asyncio.gather(
+                *[
+                    self._torrent_source_provider_service.find_by_imdb_id(i)
+                    for i in ids_to_search
+                ],
+                return_exceptions=True,
+            )
+            torrent_sources = []
+            indexer_errors = []
+            seen_source_ids: set[str] = set()
+            for res in results:
+                if isinstance(res, tuple):
+                    sources, errs = res
+                    indexer_errors.extend(errs)
+                    for s in sources:
+                        s_id = s.indexer_torrent.id
+                        if s_id not in seen_source_ids:
+                            seen_source_ids.add(s_id)
+                            torrent_sources.append(s)
 
         if not torrent_sources and fallback_title:
             actual_title = (

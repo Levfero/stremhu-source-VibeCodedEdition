@@ -574,5 +574,110 @@ async def test_resolve_kitsu_aot_season_isolation():
     assert alt_seasons == []
 
 
+@pytest.mark.anyio
+async def test_get_alternate_imdb_ids_dbz():
+    resolver = TvdbResolver()
+    alts_1989 = await resolver.get_alternate_imdb_ids("tt0121220")
+    assert "tt0214341" in alts_1989
+
+    alts_1996 = await resolver.get_alternate_imdb_ids("tt0214341")
+    assert "tt0121220" in alts_1996
+
+
+@pytest.mark.anyio
+async def test_get_episode_mappings_uses_alias_for_dbz():
+    resolver = TvdbResolver()
+    # Mock Anime-Kitsu cache to verify that tt0121220 queries tt0214341
+    # Ep 141 is Season 5 Episode 2
+    resolver._series_epmap["tt0214341"] = {(5, 2): ([141], [])}
+    alts, seasons = await resolver.get_episode_mappings("tt0121220", 5, 2)
+    assert 141 in alts
+
+
+@pytest.mark.anyio
+async def test_find_by_imdb_searches_alternate_imdb_ids():
+    from app.modules.indexers.schemas.internal import IndexerTorrent
+    from app.modules.torrent_files.schemas import TorrentFileIdentifier
+    from app.modules.torrent_source_provider.schemas import TorrentSource
+
+    mock_torrent_source_provider = AsyncMock()
+    mock_settings_service = AsyncMock()
+    mock_settings_service.get_app_url.return_value = "http://localhost:7070"
+    mock_preferences = AsyncMock()
+
+    source_1989 = TorrentSource(
+        indexer_torrent=IndexerTorrent(
+            id="t1",
+            indexer_id="ncore",
+            name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
+            size=5000000,
+            seeders=14,
+            leechers=1,
+            download_url="http://dummy",
+            info_hash="hash1",
+        ),
+        torrent_file=TorrentFileIdentifier(
+            info_hash="hash1",
+            name="Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv",
+            size=5000000,
+            piece_size=1000,
+            files=[make_file("Dragon.Ball.Z.141.HUN.JAP.1080p.16mm.mkv", 0)],
+        ),
+    )
+    source_1996 = TorrentSource(
+        indexer_torrent=IndexerTorrent(
+            id="t2",
+            indexer_id="ncore",
+            name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
+            size=66000000000,
+            seeders=304,
+            leechers=68,
+            download_url="http://dummy2",
+            info_hash="hash2",
+        ),
+        torrent_file=TorrentFileIdentifier(
+            info_hash="hash2",
+            name="Dragon.Ball.Z.S01-S09.BDrip.HUN.x264-DenZo",
+            size=66000000000,
+            piece_size=1000,
+            files=[make_file("Dragon.Ball.Z.E141.BDrip.HUN.x264-DenZo.mkv", 0)],
+        ),
+    )
+
+    async def fake_find_by_imdb_id(iid):
+        if iid == "tt0121220":
+            return [source_1989], []
+        elif iid == "tt0214341":
+            return [source_1996], []
+        return [], []
+
+    mock_torrent_source_provider.find_by_imdb_id.side_effect = fake_find_by_imdb_id
+
+    service = TorrentStreamsService(
+        db=AsyncMock(),
+        torrent_source_provider_service=mock_torrent_source_provider,
+        torrents_service=AsyncMock(),
+        settings_service=mock_settings_service,
+        preferences_service=mock_preferences,
+    )
+    user = UserModel(id="u1", username="test", enable_smart_filter=False)
+    series_info = SeriesInfo(season=5, episode=2, alternate_episodes=[141])
+
+    streams, errors = await service.find_by_imdb(
+        user=user,
+        imdb_id="tt0121220",
+        series=series_info,
+        alternate_imdb_ids=["tt0214341"],
+    )
+
+    assert len(streams) == 2
+    # The 304 seeder torrent should be sorted first
+    assert streams[0].indexer_torrent.id == "t2"
+    assert streams[0].indexer_torrent.seeders == 304
+    assert streams[1].indexer_torrent.id == "t1"
+    assert streams[1].indexer_torrent.seeders == 14
+
+
+
 
 

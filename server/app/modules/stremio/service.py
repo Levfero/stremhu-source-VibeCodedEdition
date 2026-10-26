@@ -175,6 +175,13 @@ class StremioService:
             if dyn_alt_seasons:
                 series_info.alternate_seasons = dyn_alt_seasons
 
+        # Alternatív/hasított IMDb azonosítók feloldása (pl. Dragon Ball Z tt0121220 <-> tt0214341)
+        alternate_imdb_ids: list[str] | None = None
+        if hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
+            alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
+            if isinstance(alt_res, list):
+                alternate_imdb_ids = alt_res
+
         # IMDb alapú stream lekérdezés kereséssel és feloldással
         # A másodlagos név szerinti kereséshez a cím csak akkor kerül lekérésre, ha IMDb-re 0 torrent érkezett
         torrent_streams, errors = await self._torrent_streams_service.find_by_imdb(
@@ -182,6 +189,7 @@ class StremioService:
             imdb_id=imdb_id,
             series=series_info,
             fallback_title=lambda: self._tvdb_resolver.get_title_by_imdb(imdb_id),
+            alternate_imdb_ids=alternate_imdb_ids,
         )
 
         stremio_streams = [

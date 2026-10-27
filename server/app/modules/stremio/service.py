@@ -1,6 +1,8 @@
 import asyncio
 import re
 
+from app.common.logger import logger
+from app.common.schemas.internal import SeriesInfo
 from app.config import NodeEnv, config
 from app.modules.settings.service import SettingsService
 from app.modules.stremio.constants import (
@@ -13,6 +15,7 @@ from app.modules.stremio.enums import (
     ShortManifestResource,
 )
 from app.modules.stremio.schemas import (
+    KitsuStreamId,
     Manifest,
     ManifestBehaviorHints,
     ManifestCatalog,
@@ -20,7 +23,9 @@ from app.modules.stremio.schemas import (
     StreamId,
     StremioStream,
     TorrentStreamId,
+    TvdbStreamId,
 )
+from app.modules.stremio.tvdb_resolver import TvdbResolver, tvdb_resolver
 from app.modules.torrent_streams.service import TorrentStreamsService
 from app.modules.users.models import UserModel
 
@@ -30,9 +35,11 @@ class StremioService:
         self,
         torrent_streams_service: TorrentStreamsService,
         settings_service: SettingsService,
+        tvdb_resolver_service: TvdbResolver | None = None,
     ):
         self._torrent_streams_service = torrent_streams_service
         self._settings_service = settings_service
+        self._tvdb_resolver = tvdb_resolver_service or tvdb_resolver
 
     def manifest(self, user: UserModel) -> Manifest:
         app_url = self._settings_service.get_app_url()
@@ -75,8 +82,17 @@ class StremioService:
                 ShortManifestResource.CATALOG,
                 ShortManifestResource.META,
             ],
-            types=[ContentType.MOVIE, ContentType.SERIES],
-            id_prefixes=["tt", ADDON_APP_PREFIX_ID],
+            types=[ContentType.MOVIE, ContentType.SERIES, ContentType.ANIME],
+            id_prefixes=[
+                "tt",
+                "tvdb:",
+                "tvdb",
+                "kitsu:",
+                "kitsu",
+                "mal:",
+                "anime:",
+                ADDON_APP_PREFIX_ID,
+            ],
             catalogs=catalogs,
             behavior_hints=ManifestBehaviorHints(
                 configurable=True,
@@ -104,15 +120,113 @@ class StremioService:
                 for torrent_stream in torrent_streams
             ]
 
+        if isinstance(parsed_id, TvdbStreamId):
+            resolved_imdb_id = await self._tvdb_resolver.resolve_tvdb_to_imdb(
+                parsed_id.tvdb_id
+            )
+            if not resolved_imdb_id:
+                return [
+                    StremioStream(
+                        name="⚠️ [StremHU] TVDB feloldási hiba",
+                        description=f"Nem sikerült IMDb azonosítót találni a TVDB ID-hoz ({parsed_id.tvdb_id}).",
+                        external_url=app_url,
+                    )
+                ]
+            imdb_id = resolved_imdb_id
+            series_info = parsed_id.series_info
+        elif isinstance(parsed_id, KitsuStreamId):
+            resolved_imdb_id, season, ep, alt_eps, alt_seasons = (
+                await self._tvdb_resolver.resolve_kitsu_to_imdb(
+                    parsed_id.kitsu_id,
+                    parsed_id.episode,
+                )
+            )
+            if not resolved_imdb_id:
+                return [
+                    StremioStream(
+                        name="⚠️ [StremHU] Kitsu feloldási hiba",
+                        description=f"Nem sikerült IMDb azonosítót találni a Kitsu ID-hoz ({parsed_id.kitsu_id}).",
+                        external_url=app_url,
+                    )
+                ]
+            imdb_id = resolved_imdb_id
+            series_info = (
+                SeriesInfo(
+                    season=season or 1,
+                    episode=ep,
+                    alternate_episodes=alt_eps,
+                    alternate_seasons=alt_seasons,
+                )
+                if ep is not None
+                else None
+            )
+        else:
+            imdb_id = parsed_id.imdb_id
+            series_info = parsed_id.series_info
+
+        # Dinamikus epizód leképezés és alternatív IMDb azonosítók feloldása (párhuzamosítva)
+        mapping_coro = None
+        if series_info and series_info.episode is not None and not series_info.alternate_episodes:
+            mapping_coro = self._tvdb_resolver.get_episode_mappings(
+                imdb_id=imdb_id,
+                season=series_info.season,
+                episode=series_info.episode,
+            )
+
+        alt_imdb_coro = None
+        if hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
+            alt_imdb_coro = self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
+
+        alternate_imdb_ids: list[str] | None = None
+        if mapping_coro and alt_imdb_coro:
+            mapping_res, alt_res = await asyncio.gather(
+                mapping_coro, alt_imdb_coro, return_exceptions=True
+            )
+            if isinstance(mapping_res, tuple) and len(mapping_res) == 2:
+                dyn_alt_eps, dyn_alt_seasons = mapping_res
+                if dyn_alt_eps:
+                    series_info.alternate_episodes = dyn_alt_eps
+                if dyn_alt_seasons:
+                    series_info.alternate_seasons = dyn_alt_seasons
+            elif isinstance(mapping_res, Exception):
+                logger.debug(f"[StremioService] Epizód leképezés hiba: {mapping_res}")
+
+            if isinstance(alt_res, list):
+                alternate_imdb_ids = alt_res
+            elif isinstance(alt_res, Exception):
+                logger.debug(f"[StremioService] Alternatív IMDb feloldási hiba: {alt_res}")
+        elif mapping_coro:
+            try:
+                dyn_alt_eps, dyn_alt_seasons = await mapping_coro
+                if dyn_alt_eps:
+                    series_info.alternate_episodes = dyn_alt_eps
+                if dyn_alt_seasons:
+                    series_info.alternate_seasons = dyn_alt_seasons
+            except Exception as e:
+                logger.debug(f"[StremioService] Epizód leképezés hiba: {e}")
+        elif alt_imdb_coro:
+            try:
+                alt_res = await alt_imdb_coro
+                if isinstance(alt_res, list):
+                    alternate_imdb_ids = alt_res
+            except Exception as e:
+                logger.debug(f"[StremioService] Alternatív IMDb feloldási hiba: {e}")
+
         # IMDb alapú stream lekérdezés kereséssel és feloldással
+        # A másodlagos név szerinti kereséshez a cím csak akkor kerül lekérésre, ha IMDb-re 0 torrent érkezett
         torrent_streams, errors = await self._torrent_streams_service.find_by_imdb(
             user=user,
-            imdb_id=parsed_id.imdb_id,
-            series=parsed_id.series_info,
+            imdb_id=imdb_id,
+            series=series_info,
+            fallback_title=lambda: self._tvdb_resolver.get_title_by_imdb(imdb_id),
+            alternate_imdb_ids=alternate_imdb_ids,
         )
 
         stremio_streams = [
-            StremioStream.from_imdb_torrent_stream(torrent_stream=torrent_stream)
+            StremioStream.from_imdb_torrent_stream(
+                torrent_stream=torrent_stream,
+                is_series=series_info is not None,
+            )
             for torrent_stream in torrent_streams
         ]
 

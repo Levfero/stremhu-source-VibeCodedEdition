@@ -86,13 +86,23 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
     async def _fetch_torrents(
         self, imdb_id: str, page: int | None = None
     ) -> IndexerDefinitionFindTorrentsResult:
+        return await self._query_torrents(mire=imdb_id, miben="imdb", page=page)
+
+    async def _fetch_torrents_by_query(
+        self, query: str, page: int | None = None
+    ) -> IndexerDefinitionFindTorrentsResult:
+        return await self._query_torrents(mire=query, miben="nev", page=page)
+
+    async def _query_torrents(
+        self, mire: str, miben: str, page: int | None = None
+    ) -> IndexerDefinitionFindTorrentsResult:
         current_page = page or 1
         response = await self._client.get(
             "/torrents.php",
             params={
                 "oldal": str(current_page),
-                "miben": "imdb",
-                "mire": imdb_id,
+                "miben": miben,
+                "mire": mire,
                 "miszerint": "seeders",
                 "hogyan": "DESC",
                 "jsons": True,

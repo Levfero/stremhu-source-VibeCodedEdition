@@ -65,7 +65,11 @@ def get_stremio_service(
 
 def get_parsed_stream_id(
     stream_id: Annotated[
-        str, Path(..., description="Stream azonosító (IMDB ID vagy torrent ID)")
+        str,
+        Path(
+            ...,
+            description="Stream azonosító (IMDB ID, TVDB ID vagy torrent ID)",
+        ),
     ],
 ) -> StreamId:
     return parse_stream_id(stream_id)

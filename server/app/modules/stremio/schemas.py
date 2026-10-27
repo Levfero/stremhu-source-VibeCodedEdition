@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydash import compact
 
-from app.common.schemas.internal import ImdbInfo
+from app.common.schemas.internal import ImdbInfo, SeriesInfo
 from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
 from app.modules.preferences.constants import PreferenceKey
@@ -177,6 +177,7 @@ class StremioStream(BaseModel):
     def from_imdb_torrent_stream(
         cls,
         torrent_stream: TorrentStream,
+        is_series: bool = False,
     ) -> StremioStream:
         file_size = f"💾 {humanize.naturalsize(torrent_stream.file_size, binary=True, format='%.2f')}"
         seeders = f"👥 {torrent_stream.seeders}"
@@ -244,8 +245,16 @@ class StremioStream(BaseModel):
                 [readable_is_persisted, readable_resolutions, readable_video_qualities]
             )
         )
+        file_name_line = f"📁 {torrent_stream.file_name}" if is_series else None
         description = "\n".join(
-            [description_first_line, description_second_line, description_third_line]
+            compact(
+                [
+                    file_name_line,
+                    description_first_line,
+                    description_second_line,
+                    description_third_line,
+                ]
+            )
         )
         binge_group = f"{torrent_stream.indexer_account.indexer_definition.id}-{torrent_stream.torrent_id}"
 
@@ -473,7 +482,20 @@ class TorrentStreamId(BaseModel):
     torrent_id: str
 
 
-StreamId = ImdbStreamId | TorrentStreamId
+class TvdbStreamId(BaseModel):
+    type: StreamIdType = StreamIdType.TVDB
+    tvdb_id: str
+    series_info: SeriesInfo | None = None
+
+
+class KitsuStreamId(BaseModel):
+    type: StreamIdType = StreamIdType.KITSU
+    kitsu_id: str
+    episode: int | None = None
+    series_info: SeriesInfo | None = None
+
+
+StreamId = ImdbStreamId | TorrentStreamId | TvdbStreamId | KitsuStreamId
 
 
 class ParsedCatalogId(BaseModel):

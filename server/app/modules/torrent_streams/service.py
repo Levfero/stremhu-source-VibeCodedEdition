@@ -1,8 +1,11 @@
 import asyncio
 
+from collections.abc import Awaitable, Callable
+
 import humanize
 from sqlalchemy.orm import Session
 
+from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.modules.attributes.models import AttributeModel
 from app.modules.preferences.service import PreferencesService
@@ -38,11 +41,63 @@ class TorrentStreamsService:
         user: UserModel,
         imdb_id: str,
         series: SeriesInfo | None = None,
+        fallback_title: str | Callable[[], Awaitable[str | None]] | None = None,
+        alternate_imdb_ids: list[str] | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
-        (
-            torrent_sources,
-            indexer_errors,
-        ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
+        ids_to_search = [imdb_id]
+        if alternate_imdb_ids:
+            for alt_id in alternate_imdb_ids:
+                if alt_id and alt_id not in ids_to_search:
+                    ids_to_search.append(alt_id)
+
+        if len(ids_to_search) == 1:
+            (
+                torrent_sources,
+                indexer_errors,
+            ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
+        else:
+            results = await asyncio.gather(
+                *[
+                    self._torrent_source_provider_service.find_by_imdb_id(i)
+                    for i in ids_to_search
+                ],
+                return_exceptions=True,
+            )
+            torrent_sources = []
+            indexer_errors = []
+            seen_source_ids: set[tuple[str, str]] = set()
+            for res in results:
+                if isinstance(res, tuple):
+                    sources, errs = res
+                    indexer_errors.extend(errs)
+                    for s in sources:
+                        s_key = (
+                            s.indexer_torrent.indexer_account.indexer_id,
+                            s.indexer_torrent.torrent_id,
+                        )
+                        if s_key not in seen_source_ids:
+                            seen_source_ids.add(s_key)
+                            torrent_sources.append(s)
+
+        if not torrent_sources and fallback_title:
+            try:
+                actual_title = (
+                    await fallback_title() if callable(fallback_title) else fallback_title
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[TorrentStreamsService] Hiba történt a fallback cím lekérése közben ({imdb_id}): {e}"
+                )
+                actual_title = None
+
+            if actual_title:
+                cleaned_title = actual_title.split(":")[0].strip()
+                (
+                    fallback_sources,
+                    fallback_errors,
+                ) = await self._torrent_source_provider_service.find_by_query(cleaned_title)
+                torrent_sources = fallback_sources
+                indexer_errors.extend(fallback_errors)
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
 
@@ -91,7 +146,7 @@ class TorrentStreamsService:
 
                 sorted_torrent_streams = grouped_torrent_streams[:limit]
 
-        return sorted_torrent_streams, indexer_errors
+        return sorted_torrent_streams, list(dict.fromkeys(indexer_errors))
 
     async def find_by_torrent_id(
         self,

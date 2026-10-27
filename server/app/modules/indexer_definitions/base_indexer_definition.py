@@ -254,6 +254,17 @@ class BaseIndexerDefinition(ABC):
     ) -> list[IndexerDefinitionTorrent]:
         return await self._find_all(imdb_id, None, [])
 
+    async def find_torrents_by_query(
+        self, query: str
+    ) -> list[IndexerDefinitionTorrent]:
+        return await self._find_all_by_query(query, None, [])
+
+    async def _fetch_torrents_by_query(
+        self, query: str, page: int | None = None
+    ) -> IndexerDefinitionFindTorrentsResult:
+        """Alapértelmezett megvalósítás: üres lista, ha az indexer nem támogatja a név szerinti keresést."""
+        return IndexerDefinitionFindTorrentsResult(torrents=[])
+
     async def find_torrent_by_id(
         self, torrent_id: str
     ) -> IndexerDefinitionTorrent | None:
@@ -302,6 +313,31 @@ class BaseIndexerDefinition(ABC):
 
             return pydash.uniq_by(
                 (torrent for torrent in accumulator if torrent.imdb_id == imdb_id),
+                lambda torrent: torrent.torrent_id,
+            )
+        except Exception as e:
+            error_msg = f"{self.name} nem érhető el vagy megváltozott a struktúrája."
+            self.logger.exception(error_msg)
+            raise IndexerDefinitionException(error_msg) from e
+
+    async def _find_all_by_query(
+        self,
+        query: str,
+        page: int | None,
+        accumulator: list[IndexerDefinitionTorrent],
+    ) -> list[IndexerDefinitionTorrent]:
+        if len(accumulator) > _TORRENTS_LIMIT:
+            return accumulator
+
+        try:
+            result = await self._fetch_torrents_by_query(query, page)
+            accumulator.extend(result.torrents)
+
+            if result.next_page is not None:
+                return await self._find_all_by_query(query, result.next_page, accumulator)
+
+            return pydash.uniq_by(
+                accumulator,
                 lambda torrent: torrent.torrent_id,
             )
         except Exception as e:

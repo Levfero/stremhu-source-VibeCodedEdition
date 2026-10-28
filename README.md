@@ -33,21 +33,75 @@
 
 ## 🔍 Keresési és Szűrési Továbbfejlesztések (`feature/search-filter-tmdb-tvdb` branch)
 
-Ez a branch a **TMDB azonosítók kezelését**, a **másodlagos többjelöltes szöveges fallback keresést**, az **nCore hibajavítást**, valamint az **Extrák és Különkiadások intelligens szűrését** valósítja meg.
-
-### 🚀 Új funkciók összefoglalása
-1. **TMDB Stream ID támogatás**: `tmdb:{id}` és `tmdb:{id}:{season}:{episode}` azonosítók fogadása és feloldása a TheMovieDb API-ból.
-2. **Többjelöltes másodlagos szöveges keresés**: Automatikus címfeldolgozás, ékezetmentesítés és névelő-eltávolítás az IMDb azonosító nélküli tartalmak megtalálásához.
-3. **nCore Boolean IMDb ID javítás**: Megelőzi a `ValidationError` hibákat, ha az nCore scraping `false` értéket ad vissza IMDb link hiányában.
-4. **Extrák és menük szűrése**: Menük (`BD Menü`, `DVD Menu`) és extra mappák (`00. Extrák`) kizárása normál évadoknál, valamint a Specials (0. évad) és OAD/OVA/SP fájlok feloldása.
+Ez a branch a **TMDB azonosítók kezelését**, a **másodlagos többjelöltes szöveges fallback keresést**, az **nCore hibajavítást**, valamint az **Extrák és Menük intelligens szűrését** valósítja meg.
 
 ---
 
-## 🔄 Hogyan működik a gyakorlatban? (End-to-End Workflow & Példák)
+### 🚀 Új funkciók listája ebben a branch-ben
 
-### 🎬 Gyakorlati példa 1: *"A visszavágó - kapj el, ha tudsz!"* (Kivételes eset: Magyar műsor IMDb ID nélkül)
+#### 1. TMDB Stream ID támogatás (TheMovieDb)
+- **Kliens formátumok**: Stremio, Nuvio és modern kiegészítők által küldött TMDB azonosítók feldolgozása:
+  - Filmek: `tmdb:{tmdb_id}` (pl. `tmdb:693134`)
+  - Sorozatok: `tmdb:{tmdb_id}:{season}:{episode}` (pl. `tmdb:273867:1:1`)
+- **API feloldás (`TvdbResolver.resolve_tmdb`)**:
+  - Automatikusan lekérdezi a TheMovieDb API-t a film vagy sorozat hivatalos IMDb azonosítójának és kanonikus címének megállapításához.
+  - Ha az adott epizódhoz nincs nemzetközi IMDb ID csatolva, a lekérdezett cím automatikusan átadódik a másodlagos szöveges keresőnek.
+- **Stremio Series Search Manifest**: A Stremio katalógus keresésben engedélyezve lett a sorozatok keresése TMDB azonosítóval és előtaggal is.
 
-Gyakori probléma, hogy a hazai gyártású sorozatoknak, vetélkedőknek vagy reality műsoroknak egyáltalán nincs IMDb adatlapjuk, a trackereken (pl. nCore) ékezet nélkül töltik fel őket, az oldal pedig `imdb_id: false` értéket ad vissza.
+#### 2. Többjelöltes másodlagos szöveges keresés (Fallback Title Search)
+Ha egy tartalomnak nincs IMDb azonosítója (pl. hazai gyártású műsorok, vetélkedők), vagy az IMDb ID alapján letöltött torrenttalálatok között hiányzik a kért epizód:
+- **Intelligens jelöltgenerálás a hazai trackerek sajátosságaihoz**:
+  1. *Alap tisztított cím*: Kettőspontok, gondolatjelek és alcímek levágása.
+  2. *Ékezetmentesítés*: A magyar trackerek szinte kivétel nélkül ékezet nélküli címkékkel töltik fel az anyagokat (pl. `visszavago`).
+  3. *Névelők eltávolítása*: A kezdő névelők (*A*, *Az*, *The*) eltávolítása, megelőzve, hogy a trackerek szigorú keresőmotorja elvessen egy találatot a névelő miatt.
+  4. *Kulcsszavas keresés*: Több szóból álló címeknél az első két szóval, illetve az első önálló szóval való próbálkozás.
+- **Címkinyerés meglévő torrentekből**: Ha egy sorozat másik évadának torrentje már beérkezett, a rendszer kinyeri a tiszta sorozatcímet a torrent nevéből, és azzal indít célzott szöveges keresést a hiányzó epizódra.
+
+#### 3. nCore Scraping & Boolean IMDb ID validációs javítás
+- Az nCore trackeren, ha egy feltöltéshez nem csatoltak IMDb linket, az oldal adatstruktúrája `false` logikai értéket ad vissza szöveg vagy `None` helyett.
+- A modellbe és az nCore scraperbe épített `sanitize_imdb_id` validátor ezt automatikusan `None`-ra tisztítja, megelőzve a Pydantic `ValidationError` miatti 500-as szerverhibákat.
+
+#### 4. Extrák, Menük és Különkiadások (Specials) szűrése
+- **Menük és extra mappák kizárása normál évadoknál**:
+  - Kiszűri a `00. Extrák`, `Extras`, `Specials`, `BD Menü`, `DVD Menu`, `Borítók`, `NCED`, `NCOP` mappákat és fájlokat normál évadok feloldásakor.
+  - Megakadályozza, hogy a lejátszó véletlenül egy 2 GB-os BD menüvideót indítson el valódi epizód helyett.
+- **Különkiadások (0. évad) natív támogatása**:
+  - Kifejezetten a 0. évad (Specials) kérésekor engedélyezi a belépést az Extrák mappákba.
+  - A `SeriesParser` felismeri az `OAD`, `OVA`, `SP`, `Special` részeket (pl. `Noragami OAD1.mkv`).
+
+---
+
+## 🔄 Hogyan működik a gyakorlatban? (Példák és folyamatábrák)
+
+### 🎬 1. Normál eset: Film vagy sorozat indítása TMDB azonosítóval
+
+Amikor a Nuvio vagy Stremio felületén a TheMovieDb katalógusából indítasz el egy filmet vagy sorozatot:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Felhasználó (Nuvio / Stremio)
+    participant Router as StremioRouter (/stream)
+    participant TMDB as TvdbResolver (TMDB API)
+    participant Service as TorrentStreamsService
+    participant Provider as Tracker Kereső (nCore, stb.)
+    participant Resolver as StreamFileResolver
+
+    User->>Router: Kérés: tmdb:693134 ("Dűne: Második rész")
+    Router->>TMDB: resolve_tmdb("693134")
+    TMDB-->>Router: IMDb ID: tt15239678, Cím: "Dune: Part Two"
+    Router->>Service: find_by_imdb(imdb_id="tt15239678")
+    Service->>Provider: Keresés trackereken IMDb ID alapján
+    Provider-->>Service: Torrentek listája (4K, 1080p release-ek)
+    Service->>Resolver: Legjobb videófájl kiválasztása
+    Resolver-->>Service: Kiválasztott filmfájl
+    Service-->>User: Lejátszható stream link (azonnali P2P lejátszás)
+```
+
+---
+
+### 🎬 2. Kivételes eset (Edge Case 1): Magyar műsor IMDb azonosító nélkül
+**Példa:** *"A visszavágó - kapj el, ha tudsz!"* (Magyar sorozat, amelynek nincs IMDb ID-ja, és nCore-on ékezet nélkül szerepel).
 
 ```mermaid
 sequenceDiagram
@@ -59,86 +113,54 @@ sequenceDiagram
     participant Provider as Tracker Kereső (nCore)
     participant Resolver as StreamFileResolver (Fájlillesztés)
 
-    User->>Router: Kérés indítása: tmdb:273867:1:1
+    User->>Router: Kérés: tmdb:273867:1:1
     Router->>TMDB: resolve_tmdb("273867", season=1, episode=1)
-    TMDB-->>Router: IMDb ID: None (nincs!), Cím: "A visszavágó - kapj el, ha tudsz!"
+    TMDB-->>Router: IMDb ID: None (nincs IMDb-je!), Cím: "A visszavágó - kapj el, ha tudsz!"
     Router->>Service: find_by_imdb(imdb_id=None, fallback_title="A visszavágó - kapj el, ha tudsz!")
     
-    Note over Service: Nincs IMDb azonosító -> Másodlagos jelöltgenerálás!
+    Note over Service: Nincs IMDb azonosító -> Többjelöltes másodlagos generálás!
     Service->>Service: 1. Alcím levágása: "A visszavágó"<br/>2. Ékezetmentesítés: "A visszavago"<br/>3. Névelő eltávolítása: "visszavago"
     
-    Service->>Provider: Keresés trackeren: find_by_query("visszavago")
-    Note over Provider: nCore scraping: imdb_id: false -> sanitize_imdb_id() -> None
+    Service->>Provider: find_by_query("visszavago")
+    Note over Provider: nCore scraping: imdb_id: false -> sanitize_imdb_id() -> None (nincs 500-as hiba!)
     Provider-->>Service: Találat: "A.visszavago.S01E01.720p.HDTV.x264.HUN"
     
-    Service->>Resolver: Fájlstruktúra vizsgálata: S01E01 keresése
-    Resolver-->>Service: Kiválasztott videófájl: "A.visszavago.S01E01.mkv"
+    Service->>Resolver: Fájlstruktúra vizsgálata: S01E01 egyezés
+    Resolver-->>Service: Kiválasztott videófájl
     Service-->>User: Lejátszható stream válasz (azonnali indítás)
 ```
 
-#### A folyamat részletei:
-1. **A kérés beérkezése**: A Nuvio / Stremio a TheMovieDb alapján küldi a kérést: `tmdb:273867:1:1`.
-2. **TMDB metaadat-lekérdezés**: A `TvdbResolver.resolve_tmdb` lekéri a TMDB API-t. Kiderül, hogy a sorozatnak nincs nemzetközi IMDb azonosítója (`imdb_id=None`), de megvan a hivatalos címe: *"A visszavágó - kapj el, ha tudsz!"*.
-3. **Másodlagos jelöltgenerálás**: A `TorrentStreamsService` felismeri, hogy nincs IMDb ID, ezért intelligens jelöltlistát állít össze a magyar trackerek keresési sajátosságaihoz igazodva:
-   - 1. jelölt: `"A visszavágó"` (kötőjel utáni alcím levágása)
-   - 2. jelölt: `"A visszavago"` (ékezetmentesítés, mert a trackereken szinte minden cím ékezet nélkül szerepel)
-   - 3. jelölt: `"visszavago"` (kezdő névelő eltávolítása, mivel a szigorú keresők elhasalnak az "A " névelőn)
-4. **Tracker lekérdezés & nCore javítás**: A tracker kereső lekérdezi a `"visszavago"` kulcsszót. Az nCore felülete `imdb_id: false` mezőt ad vissza, amit a `sanitize_imdb_id` validátor `None`-ra tisztít, megelőzve az 500-as hibát.
-5. **Fájlillesztés és lejátszás**: A megtalált torrentből az 1. évad 1. része sikeresen feloldódik és várakozás nélkül elindul.
+#### Mi történik a háttérben?
+1. A Nuvio a TMDB alapján küldi a kérést: `tmdb:273867:1:1`.
+2. A `TvdbResolver` megállapítja, hogy nincs IMDb ID (`imdb_id=None`), de megvan a cím: *"A visszavágó - kapj el, ha tudsz!"*.
+3. A `TorrentStreamsService` több jelöltet képez:
+   - *"A visszavágó"* (alcím levágva)
+   - *"A visszavago"* (ékezetmentesítve)
+   - *"visszavago"* (névelő eltávolítva)
+4. A tracker kereső lekérdezi a `"visszavago"` kulcsszót. Az nCore felülete `imdb_id: false` mezőt küld, amit a `sanitize_imdb_id` automatikusan `None`-ra tisztít, így nem dob Pydantic hibát.
+5. Megtalálja az `A.visszavago.S01E01.mkv` fájlt és a lejátszás azonnal elindul.
 
 ---
 
-### 🎬 Gyakorlati példa 2: *Noragami Aragoto* (Extrák mappa kiszűrése vs. Különkiadások megnyitása)
-
-Sok anime kiadás tartalmaz menüfájlokat és extrákat (pl. BDBOX kiadások):
-- Mappastruktúra:
-  - `00. Extrák/BD Menü/S02/Vol 2.mkv` (2 GB-os BD menü videó)
-  - `02. Noragami Aragoto/[ReinForce] Noragami Aragoto - 01 (BDRip).mkv` (Valódi 1. rész)
-  - `01. Noragami/[ReinForce] Noragami OAD1 (DVDRip).mkv` (Különkiadás / OVA)
+### 🎬 3. Kivételes eset (Edge Case 2): Menük és Extrák kizárása szezongyűjteményekből
+**Példa:** Olyan torrentpakkok, ahol a gyökérben vagy almappában menüfájlok és bónuszok is találhatók:
+- `00. Extrák/BD Menü/S02/Vol 2.mkv` (2 GB-os BD menü videó)
+- `02. Noragami Aragoto/[ReinForce] Noragami Aragoto - 01 (BDRip).mkv` (Valódi 2. évad 1. rész)
 
 ```mermaid
 graph TD
-    Request[Beérkező kérés] --> Decision{Milyen évadot keresünk?}
+    Request[Beérkező kérés: Season 2 Episode 1] --> Filter[Extrák és Menük vizsgálata]
     
-    Decision -->|Normál évad pl. S02E01| FilterNormal[Extrák mappák szűrése]
-    FilterNormal --> ExcludeExtras[00. Extrák & BD Menü KIZÁRVA]
-    ExcludeExtras --> MatchReal[Valódi epizód kiválasztása: Noragami Aragoto - 01.mkv]
+    Filter --> ExcludeExtras[00. Extrák & BD Menü KIZÁRVA]
+    Filter --> ExcludeMenuFile[Vol 2.mkv menüfájl KIZÁRVA]
     
-    Decision -->|Különkiadás pl. S00E01 / Specials| FilterSpecials[Különkiadás feloldása]
-    FilterSpecials --> AllowExtras[Extrák és OAD/OVA vizsgálata engedélyezve]
-    AllowExtras --> MatchSpecial[Különkiadás kiválasztása: Noragami OAD1.mkv]
+    ExcludeExtras --> MatchReal[Valódi epizód feloldása: Noragami Aragoto - 01.mkv]
+    ExcludeMenuFile --> MatchReal
+    MatchReal --> Playback[Lejátszás indítása a valódi epizóddal]
 ```
 
-- **Normál 2. évad 1. rész kérésekor (`S02E01`)**: Az `is_extra_folder` azonnal felismeri a `00. Extrák` és `BD Menü` mappákat, így kizárja őket. A lejátszó a valódi epizódot kapja meg a menüvideó helyett.
-- **Különkiadás kérésekor (`S00E01` / Specials)**: A feloldó engedélyezi a belépést az extrák közé, a `SeriesParser` felismeri az `OAD1` jelölést, és pontosan a különkiadást adja vissza.
-
----
-
-### 🎬 Gyakorlati példa 3: *One Piece* (Anime abszolút epizódszámozás feloldása)
-
-A `main` branch-ben bevezetett alap anime feloldási logika működése a Wano arc 1089. részén keresztül:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Felhasználó (Stremio / Nuvio)
-    participant API as StremioRouter (/stream)
-    participant TVDB as TvdbResolver (Metaadatok)
-    participant Indexer as Tracker Kereső (nCore, stb.)
-    participant Resolver as StreamFileResolver (Fájlillesztés)
-    participant Engine as BitTorrent Streaming Engine
-
-    User->>API: Lekérés: kitsu:12:1089 vagy series:tt0388629:21:1
-    API->>TVDB: Metaadat és alternatív számozás lekérése
-    TVDB-->>API: IMDb: tt0388629, Évad: 21, Rész: 1, Alt. epizódok: [1089]
-    API->>Indexer: Keresés trackereken (IMDb ID és cím alapján)
-    Indexer-->>API: Visszaadott torrent találatok listája
-    API->>Resolver: Fájlok vizsgálata a torrenten belül
-    Note over Resolver: Felismeri: [SubsPlease] One Piece - 1089.mkv == S21E01!
-    Resolver-->>API: Kiválasztott videófájl
-    API-->>User: Lejátszható Stremio stream JSON válasz
-    User->>Engine: Közvetlen videófolyam indítása (P2P várakozás nélkül)
-```
+- **Eredmény**: A lejátszó nem a 2 GB-os menüt játssza le, hanem a valódi epizódot.
+- **Különkiadás esetén**: Ha a felhasználó a Specials (0. évad) fület választja, a szűrő engedélyezi az Extrák mappát, és feloldja a benne lévő `OAD1` vagy `Special` részeket.
 
 ---
 

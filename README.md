@@ -33,21 +33,51 @@
 
 ## 💬 Torrent Feliratok Kezelése és Streaming (`feature/torrent-subtitles` branch)
 
-Ez a branch a **torrentben található külső feliratok automatikus felderítését, a videókhoz való illesztését, közvetlen streamelését, valamint valós idejű WebVTT konverzióját** valósítja meg Stremio és Nuvio kliensek számára.
-
-### 🚀 Új funkciók összefoglalása
-1. **Torrent feliratok felderítése és illesztése**: `.srt`, `.ass`, `.sub`, `.vtt` fájlok automatikus észlelése, nyelvi címkézés és illesztés a videóhoz.
-2. **Közvetlen felirat streaming HTTP Range támogatással**: `/api/{token}/subtitles/...` végpont darabolt, pufferelésmentes kiszolgálással.
-3. **Valós idejű ASS/SSA -> WebVTT konverzió**: On-the-fly konverter, amely eltávolítja a formázási címkéket, és WebVTT formátumot biztosít a böngészők és Nuvio számára.
-4. **Stremio & Nuvio Subtitles API**: A `subtitles` erőforrás regisztrálása a manifestben és átadása a stream válaszban.
+Ez a branch a **torrentben található külső feliratok automatikus felderítését, a videókhoz való intelligens illesztését, közvetlen streamelését, valamint valós idejű WebVTT konverzióját** valósítja meg Stremio és Nuvio kliensek számára.
 
 ---
 
-## 🔄 Hogyan működik a gyakorlatban? (End-to-End Workflow & Példák)
+### 🚀 Új funkciók listája ebben a branch-ben
 
-### 🎬 Gyakorlati példa 1: *Noragami Aragoto* S02E03 (Felirat feloldás és valós idejű WebVTT konverzió)
+#### 1. Torrentben található feliratok felderítése és nyelvi osztályozása
+- **Támogatott formátumok**: `.srt`, `.ass`, `.sub`, `.vtt` kiterjesztésű fájlok automatikus észlelése a letöltött vagy streamelt torrentekben (`is_subtitle`).
+- **Nyelvfelismerés (`detect_subtitle_language`)**:
+  - Felismeri a fájlnévben szereplő nyelvkódokat (pl. magyar: `.hun.`, `.hu.`, `[HunSub]`; angol: `.eng.`, `.en.`, `[EngSub]`).
+  - Érzékeli a kényszerített feliratokat (`Hungarian (Forced)`).
+  - Alapértelmezett magyar címkézés: Ha a fájlnévben nincs külön nyelvi utalás (pl. `01.ass` vagy `01.srt`), a hazai trackerek jellegéből adódóan automatikusan magyar feliratként jelöli meg (`Hungarian (Torrent)`).
 
-Az anime pakkokban a feliratok gyakran külső `.ass` (Advanced SubStation Alpha) fájlokban vannak (pl. `Subs/Noragami Aragoto - 03.ass`), amit sok kliens (pl. Nuvio beépített böngészős lejátszója) közvetlenül nem tud lejátszani.
+#### 2. Intelligens felirat-illesztés több fájlos pakkoknál (`resolve_subtitles`)
+- **Egyedi videófájl**: Ha a torrentben csak egyetlen videó van (film vagy egyetlen epizód), az összes elérhető feliratfájlt automatikusan hozzárendeli a streamhez.
+- **Sorozatpakkok (Season Packs)**: Több videófájlt tartalmazó pakkok esetén a feliratokat pontosan a kiválasztott videóhoz illeszti:
+  - Fájlnév törzs (stem) egyezés alapján (pl. `Sorozat_01.mkv` -> `Sorozat_01.hun.srt`).
+  - Epizódszám és évad alapján (pl. `Subs/01.srt` vagy `Subs/Sorozat - S02E01.srt` a 2. évad 1. részéhez).
+- **Extrák szűrése**: Kizárja az `Extras` és `Menü` mappákban található feliratokat, így azok nem keverednek a valódi epizódok feliratai közé.
+
+#### 3. Felirat Streaming végpont & HTTP Range támogatás
+- **Dedikált végpont**: `/api/{user_id}/subtitles/{token}/{filename}`
+- **HTTP Range támogatás (`206 Partial Content`)**: A végpont támogatja a darabolt letöltést, így a modern lejátszók (pl. ExoPlayer, VLC, Stremio Web) azonnal, akadozás nélkül képesek beolvasni a feliratot közvetlenül a P2P darabokból.
+- **Biztonságos URL kódolás**: A felirat URL-ek a `quote()` függvénnyel kódolódnak, így a szóközöket, ékezeteket és szögletes zárójeleket (`[Group] Title - 01 [1080p].ass`) tartalmazó fájlnevek is hibátlanul elérhetőek.
+
+#### 4. Valós idejű ASS/SSA -> WebVTT konverter (`ass_to_vtt`)
+- Az anime és nemzetközi release-ek jelentős része `.ass` (Advanced SubStation Alpha) felirattal érkezik, amelyet a beépített böngészős lejátszók (pl. Nuvio) és okostévék natívan nem tudnak közvetlenül megjeleníteni.
+- A beépített konverter a felirat lekérésekor menet közben, a memóriában alakítja át az ASS szkriptet tiszta **WebVTT** formátumra:
+  - Eltávolítja a pozicionáló és stíluscímkéket (`\pos(...)`, `\c&H...`, `\b1`, `\i1`).
+  - Átalakítja az időbélyegeket WebVTT formátumra (`00:01:23.450 --> 00:01:27.890`).
+  - Megtartja a szöveget és a sortöréseket (`\N` -> `\n`).
+- A szerver minden `.ass` felirathoz automatikusan felkínálja a virtuális `.vtt` változatot is a lejátszók számára.
+
+#### 5. Stremio & Nuvio Subtitles API integráció
+- **Manifest erőforrás regisztráció**: A Stremio manifestben deklarálásra került a `subtitles` erőforrás (`ShortManifestResource.SUBTITLES`).
+- **Közvetlen Stremio felirat végpont**: `/subtitles/{media_type}/{stream_id}.json` végpont biztosítása.
+- **Stream válasz szintű továbbítás**: A Stremio és Nuvio stream válaszban a `subtitles` tömb közvetlenül tartalmazza a torrent feliratait, így az azonnal megjelenik a lejátszó feliratválasztójában.
+
+---
+
+## 🔄 Hogyan működik a gyakorlatban? (Példák és folyamatábrák)
+
+### 🎬 1. Normál eset: Film vagy sorozatpakk külső `.srt` felirattal
+
+Amikor egy torrentben a videó mellett külön mappa vagy fájl formájában `.srt` feliratok találhatók:
 
 ```mermaid
 sequenceDiagram
@@ -56,55 +86,44 @@ sequenceDiagram
     participant API as StremioRouter (/stream)
     participant Resolver as StreamFileResolver (resolve_subtitles)
     participant SubRouter as SubtitlesRouter (/api/.../subtitles)
-    participant Converter as ass_to_vtt Konverter
 
-    Player->>API: Epizód lekérése: Noragami Aragoto S02E03
-    API->>Resolver: Videófájl és hozzá tartozó feliratok feloldása
-    Note over Resolver: Torrent fájlokban megtalálja: "Noragami Aragoto - 03.ass"
-    Resolver-->>API: Felirat hozzárendelve: ID=sub1, Lang="hun", URL="/subtitles/.../03.ass"
-    API-->>Player: Stream válasz subtitles listával (eredeti .ass és .vtt változat)
-    
-    Player->>SubRouter: Felirat lekérése: GET /subtitles/.../03.ass.vtt (Range: bytes=0-)
-    SubRouter->>SubRouter: Torrent darabok olvasása P2P memóriából
-    SubRouter->>Converter: ass_to_vtt(nyers_ass_adat)
-    Note over Converter: Eltávolítja a pozicionáló tageket {\pos(..)}, {\c&H..}<br/>Időzítés átalakítása: 00:01:23.450 --> 00:01:27.890
-    Converter-->>SubRouter: Tiszta WebVTT formátum
-    SubRouter-->>Player: HTTP 206 Partial Content (WebVTT formátumban)
-    Note over Player: A felirat azonnal megjelenik a videón szinkronban!
+    Player->>API: Epizód indítása (pl. S01E02)
+    API->>Resolver: Videófájl és feliratok párosítása a torrenten belül
+    Note over Resolver: Megtalálja: "Subs/02_hun.srt" == 2. epizód felirata!
+    Resolver-->>API: Hozzárendelt felirat: ID=sub1, Nyelv="hun", Label="Hungarian (Torrent)"
+    API-->>Player: Stream JSON válasz a subtitles listával
+    Player->>SubRouter: Felirat lekérése: GET /subtitles/.../02_hun.srt
+    SubRouter-->>Player: HTTP 200 / 206 (tiszta SRT tartalom)
+    Note over Player: A magyar felirat azonnal megjelenik a videón!
 ```
-
-#### A feliratfolyamat lépésről lépésre:
-1. **Felirat felderítése a torrentben**: A `StreamFileResolver.resolve_subtitles()` megvizsgálja a torrent fájllistáját. Kiszűri a videófájlhoz tartozó feliratot (epizódszám és fájlnév-stem egyezés alapján: `Noragami Aragoto - 03.ass`), miközben a menük és extrák mappák feliratait elveti.
-2. **Nyelvfelismerés**: A `detect_subtitle_language()` felismeri a nyelvet (`hun` / `Hungarian (Torrent)`).
-3. **Dupla felirat elérhetőség a kliensnek**: A szerver mind a natív `.ass` formátumot, mind a virtuális `.vtt` kiterjesztést felkínálja a lejátszónak a stream JSON válaszban.
-4. **Valós idejű konverzió lekéréskor**: Amikor a lejátszó a WebVTT változatot kéri, az `ass_to_vtt()` a memóriában feldolgozza a párbeszédeket, átalakítja az időbélyegeket, és a `SubtitlesRouter` HTTP Range fejlécekkel darabokban elküldi a lejátszónak.
 
 ---
 
-### 🎬 Gyakorlati példa 2: *One Piece* (Anime abszolút epizódszámozás feloldása)
-
-A `main` branch-ben bevezetett alap anime feloldási logika működése a Wano arc 1089. részén keresztül:
+### 🎬 2. Kivételes eset (Edge Case): Stílusos `.ass` felirat valós idejű WebVTT konverzióval
+**Példa:** *Noragami Aragoto* S02E03, ahol a torrentben külső `.ass` felirat van (`Noragami Aragoto - 03.ass`), amit a Nuvio böngészős lejátszója nem tud közvetlenül renderelni.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Felhasználó (Stremio / Nuvio)
+    actor Player as Lejátszó (Stremio / Nuvio)
     participant API as StremioRouter (/stream)
-    participant TVDB as TvdbResolver (Metaadatok)
-    participant Indexer as Tracker Kereső (nCore, stb.)
-    participant Resolver as StreamFileResolver (Fájlillesztés)
-    participant Engine as BitTorrent Streaming Engine
+    participant Resolver as StreamFileResolver
+    participant SubRouter as SubtitlesRouter (/api/.../subtitles)
+    participant Converter as ass_to_vtt Konverter
 
-    User->>API: Lekérés: kitsu:12:1089 vagy series:tt0388629:21:1
-    API->>TVDB: Metaadat és alternatív számozás lekérése
-    TVDB-->>API: IMDb: tt0388629, Évad: 21, Rész: 1, Alt. epizódok: [1089]
-    API->>Indexer: Keresés trackereken (IMDb ID és cím alapján)
-    Indexer-->>API: Visszaadott torrent találatok listája
-    API->>Resolver: Fájlok vizsgálata a torrenten belül
-    Note over Resolver: Felismeri: [SubsPlease] One Piece - 1089.mkv == S21E01!
-    Resolver-->>API: Kiválasztott videófájl és feliratok
-    API-->>User: Lejátszható Stremio stream JSON válasz
-    User->>Engine: Közvetlen videófolyam indítása (P2P várakozás nélkül)
+    Player->>API: Epizód lekérése: Noragami Aragoto S02E03
+    API->>Resolver: Videó és feliratok feloldása
+    Note over Resolver: Torrentben megtalálja: "Noragami Aragoto - 03.ass"
+    Resolver-->>API: Felirat hozzárendelve (mind az eredeti .ass, mind a .vtt linkkel)
+    API-->>Player: Stream válasz a felirat linkekkel
+    
+    Player->>SubRouter: WebVTT kérése: GET /subtitles/.../03.ass.vtt (Range: bytes=0-)
+    SubRouter->>SubRouter: Nyers ASS adat kiolvasása a torrent darabjaiból
+    SubRouter->>Converter: ass_to_vtt(nyers_ass_adat)
+    Note over Converter: Eltávolítja: {\pos(..)}, {\c&H..}, {\b1}<br/>Időzítés átalakítása: 00:01:23.450 --> 00:01:27.890
+    Converter-->>SubRouter: Tiszta WebVTT formátum
+    SubRouter-->>Player: HTTP 206 Partial Content (WebVTT formátumban)
+    Note over Player: A felirat szinkronban és formázási hibák nélkül megjelenik!
 ```
 
 ---

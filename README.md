@@ -28,38 +28,55 @@
 > - **Eredeti GitHub repository:** [https://github.com/s4pp1/stremhu-source](https://github.com/s4pp1/stremhu-source)
 > - **Hivatalos weboldal & dokumentáció:** [https://stremhu.app](https://stremhu.app)
 > - **Hivatalos Docker Hub:** [s4pp1/stremhu-source](https://hub.docker.com/r/s4pp1/stremhu-source)
->
-> A jelenlegi fork célja az anime, TVDB, Kitsu támogatás és fejlett feloldási logikák biztosítása a Stremio, Nuvio és Kodi felhasználók számára.
 
 ---
 
-## 🌸 Anime, TheTVDB & Kitsu támogatás (`main` branch)
+## 💬 Torrent Feliratok Kezelése és Streaming (`feature/torrent-subtitles` branch)
 
-Ez a kiadás kiterjeszti a StremHU Source működését teljes körű anime és alternatív metaadat-kezeléssel, megoldva az anime rajongók legnagyobb problémáját: az anime címek, évadok és az abszolút vs. relatív epizódszámozások közötti eltéréseket a magyar és nemzetközi trackereken.
+Ez a branch a **torrentben található külső feliratok automatikus felderítését, a videókhoz való illesztését, közvetlen streamelését, valamint valós idejű WebVTT konverzióját** valósítja meg Stremio és Nuvio kliensek számára.
 
-### 🌟 Főbb új funkciók és működés
+### 🚀 Új funkciók részletesen
 
-#### 1. Kitsu és TheTVDB azonosítók natív kezelése
-- **Kitsu Stream ID-k**: `kitsu:{kitsu_id}:{episode}` formátumú kérések natív támogatása (pl. Nuvio, Stremio Anime Kitsu addonok).
-  - Lekéri a Kitsu API-ból az anime kanonikus és alternatív címeit, valamint a valódi évadszámot.
-- **TheTVDB Stream ID-k**: `tvdb:{tvdb_id}:{season}:{episode}` formátumú kérések automatikus feloldása és leképezése IMDb azonosítóra.
-- **Anime-Kitsu leképezési adatbázis**:
-  - Automatikusan feloldja a Kitsu bejegyzéseket a hivatalos IMDb ID-ra és kiszámítja a globális abszolút epizódszámokat (pl. *Attack on Titan Season 3 Ep 2* -> IMDb `tt2560140`, Abszolút Epizód: `39`).
+#### 1. Torrentben található feliratok felderítése és illesztése
+- **Támogatott formátumok**: `.srt`, `.ass`, `.sub`, `.vtt` kiterjesztésű feliratfájlok automatikus érzékelése a letöltött vagy streamelt torrentekben (`is_subtitle`).
+- **Nyelv- és típusfelismerés (`detect_subtitle_language`)**:
+  - Automatikusan felismeri a feliratfájl nevéből a nyelvet (pl. magyar: `.hun.`, `.hu.`, `[HunSub]`; angol: `.eng.`, `.en.`, `[EngSub]`; egyéb nyelvek).
+  - Érzékeli a kényszerített feliratokat (`Hungarian (Forced)`).
+  - Ha nincs külön nyelvi jelölés a fájl nevében (pl. `01.ass`), a magyar trackerek jellegéből adódóan alapértelmezetten magyar feliratként jelöli meg (`Hungarian (Torrent)`).
+- **Intelligens felirat-illesztés több fájlos pakkoknál (`resolve_subtitles`)**:
+  - **Egyedi film / epizód**: Ha a torrentben csak egyetlen videófájl van, a torrent összes feliratát automatikusan hozzárendeli a videóhoz.
+  - **Sorozatpakkok (Season Packs)**: Több videófájlt tartalmazó pakkok esetén a feliratokat intelligensen illeszti az éppen lejátszott videóhoz:
+    - Fájlnév törzs (stem) egyezés alapján (pl. `Noragami_01.mkv` -> `Noragami_01.hun.ass`).
+    - Epizódszám és évad alapján (pl. `Subs/01.ass` vagy `Subs/Noragami Aragoto - 01.ass` a 2. évad 1. részéhez).
+  - **Extrák szűrése**: Megakadályozza, hogy az `Extras` mappában lévő menü- vagy bónuszfeliratok bekeveredjenek a valódi epizódokhoz.
 
-#### 2. Alternatív IMDb azonosítók párhuzamos lekérdezése (Aliasing)
-- Bizonyos klasszikus és hosszú sorozatok (különösen animék) több külön IMDb bejegyzéssel is futnak a magyar torrent trackereken.
-  - **Példa**: *Dragon Ball Z* esetén a trackereken megtalálható az eredeti 1989-es bejegyzés (`tt0121220`) és az 1996-os nemzetközi bejegyzés (`tt0214341`) is.
-  - A rendszer felismeri az ilyen kapcsolatokat, és párhuzamosan lekéri az összes alternatív IMDb azonosító forrásait a trackerekről, majd a seederszám és minőség szerint egyesíti és rangsorolja a találatokat.
+#### 2. Felirat Streaming végpont & HTTP Range támogatás
+- **Új felirat végpont**: `/api/{user_id}/subtitles/{token}/{filename}`
+- **HTTP Range támogatás**: A végpont támogatja a `Range` és `If-Range` fejléceket (`206 Partial Content`), így a kliensek (pl. Stremio, Nuvio, ExoPlayer, VLC) darabokban, akadozásmentesen és gyorsan képesek betölteni a feliratokat közvetlenül a torrentből.
+- **URL kódolás javítás**: A felirat URL-ek a `quote()` függvénnyel vannak kódolva, így a szóközöket, ékezeteket és speciális karaktereket (pl. `[AnimeRG] Noragami - 01 [1080p].ass`) tartalmazó fájlnevek is hibátlanul elérhetőek.
 
-#### 3. Intelligens Anime Fájlfeloldó (`StreamFileResolver` & `SeriesParser`)
-- **Abszolút számozású animék támogatása**: Ha a torrentben a fájlok folyamatos sorszámozással vannak ellátva (pl. `One Piece - 1089.mkv`), a rendszer a Wano arc évad/epizód kérését (pl. S21E01) automatikusan hozzáilleszti az abszolút sorszámhoz (`1089`).
-- **Több évados pakkok és szezongyűjtemények**:
-  - Helyesen kezeli a `Season 1`, `S01-S03`, `S01-S09 BDRip`, vagy számozott mappa-struktúrákat (pl. `01. Noragami`, `02. Noragami Aragoto`).
-  - **Relatív prioritás későbbi évadoknál**: Megakadályozza, hogy a 2. évad mappájában lévő `13.mkv` fájlt tévesen a 2. évad 1. részének higgye pusztán az abszolút epizód indexelés miatt.
+#### 3. Valós idejű ASS/SSA -> WebVTT konverter (`ass_to_vtt`)
+- Az anime torrent kiadások döntő többsége stílusos `.ass` (Advanced SubStation Alpha) felirattal készül, amit a böngészők, okostévék és natív HTML5 videólejátszók közvetlenül nem képesek megjeleníteni.
+- A beépített konverter a felirat lekérésekor menet közben, a memóriában alakítja át az ASS szkriptet tiszta **WebVTT** formátumra:
+  - Eltávolítja a formázási és pozicionálási parancsokat (`\pos(...)`, `\c&H...`, `\b1`, `\i1`).
+  - Átkonvertálja az időbélyegeket WebVTT formátumra (`00:01:23.450 --> 00:01:27.890`).
+  - Megtartja a szöveget és a sortöréseket (`\N` -> `\n`).
+- A rendszer minden `.ass` felirathoz automatikusan generál egy `.vtt` kiterjesztésű változatot is, így a kliens a natív feliratot és a kompatibilis WebVTT feliratot is választhatja.
 
-#### 4. Párhuzamosított metaadat-feloldás és gyorsítótárazás
-- Aszinkron, szálbiztos és memóriakorlátos (bounded) cache védi a szervert a túlterheléstől.
-- **Negatív gyorsítótár védelem**: átmeneti hálózati kimaradás vagy timeout esetén a rendszer nem gyorsítótáraz hibás üres választ, így a következő lekérés azonnal megkísérli az újrapróbálkozást.
+#### 4. Stremio & Nuvio Subtitles API integráció
+- **Manifest erőforrás regisztráció**: A Stremio manifestben deklarálásra került a `subtitles` erőforrás (`ShortManifestResource.SUBTITLES`).
+- **Közvetlen Stremio felirat végpont**:
+  - `/subtitles/{media_type}/{stream_id}.json` végpont, amely lekéri és kiszolgálja a feliratokat.
+- **Stream szintű felirat továbbítás**: A Stremio és Nuvio stream válaszban a `subtitles` listában közvetlenül szerepelnek a torrent feliratai, így a lejátszás elindításakor azonnal kiválaszthatóak és bekapcsolhatóak a beépített lejátszóban.
+
+---
+
+## 🌸 Előzmények: Anime, TheTVDB & Kitsu támogatás (a `main` branch-ből)
+
+Ez a kiadás magában foglalja a `main` branch-ben elérhető összes anime fejlesztést:
+- **Kitsu & TVDB azonosítók kezelése**: `kitsu:{id}:{ep}` és `tvdb:{id}:{season}:{ep}` formátumok.
+- **Alternatív IMDb ID-k párhuzamos lekérdezése**: Pl. Dragon Ball Z 1989 (`tt0121220`) és 1996 (`tt0214341`) egyidejű feloldása.
+- **Intelligens fájlfeloldó**: Abszolút epizódszámok és több évados gyűjtemények (pakkok) pontos illesztése.
 
 ---
 

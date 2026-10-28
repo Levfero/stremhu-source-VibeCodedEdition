@@ -104,6 +104,11 @@ A Stremio és Nuvio a videó indításakor a `/subtitles/{media_type}/{stream_id
 4. **Ha a lejátszott streamnek nincs saját felirata:** tartalékként a többi stream magyar feliratait adja vissza.
 5. A streamek belső feliratlistáján (`stream.subtitles`) is érvényesül ez: a felirat nélküli streamek megkapják a fallback feliratot, így közvetlen Nuvio lejátszásnál is azonnal elérhető.
 
+##### E. Teljesítmény-optimalizációk (Performance & Caching)
+- **In-flight deduplikáció és rövid távú Stream Cache (`StremioService.get_streams`):** Amikor a Stremio párhuzamosan hívja meg a `/stream` és `/subtitles` végpontokat, az egyidejű kérések egyetlen közös `asyncio.Task`-ra várnak (`_ongoing_stream_tasks`), az eredmény pedig 60 másodpercig memóriában gyorsítótárazódik (`_stream_cache`). Így az nCore keresés és torrent-feldolgozás csak egyszer fut le, a lejátszáskor érkező `/subtitles/{extra}` kérés pedig ~0 ms alatt válaszol.
+- **`TorrentInfo` memória-gyorsítótár (`_TORRENT_INFO_CACHE`):** Az SQLite-ból betöltött `.torrent` binárisok `libtorrent.torrent_info` és Pydantic fájllista-építése `info_hash` alapján memóriában cache-elt, így nem kell minden kérésnél újra bencode-olni és felépíteni több száz fájlos csomagokat.
+- **Rövidzáras (Short-circuit) felirat-illesztés és `@lru_cache`:** A `resolve_subtitles` először gyors string-prefix egyezést vizsgál, és csak tényleges névegyezés esetén hívja meg a költséges `SeriesParser`-t; a `clean_torrent_name` pedig `@lru_cache` gyorsítótárat kapott, kiküszöbölve a több száz feliratot tartalmazó (pl. Netflix VARYG) pakkok felesleges regex-terhelését.
+
 ---
 
 ### 🔄 Folyamatábrák

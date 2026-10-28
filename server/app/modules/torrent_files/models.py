@@ -11,6 +11,16 @@ from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrents.models import TorrentModel
 
+_MAX_TORRENT_INFO_CACHE = 2000
+_TORRENT_INFO_CACHE: dict[str, TorrentInfo] = {}
+
+
+def _cache_torrent_info(info: TorrentInfo) -> None:
+    if len(_TORRENT_INFO_CACHE) >= _MAX_TORRENT_INFO_CACHE:
+        for k in list(_TORRENT_INFO_CACHE.keys())[:500]:
+            _TORRENT_INFO_CACHE.pop(k, None)
+    _TORRENT_INFO_CACHE[info.info_hash] = info
+
 
 class TorrentFileModel(Base):
     __tablename__ = "torrent_files"
@@ -60,12 +70,17 @@ class TorrentFileModel(Base):
     def validate_torrent_bytes(self, _: str, value: bytes) -> bytes:
         self._cached_info = self._torrent_info(value)
         self.info_hash = self._cached_info.info_hash
+        _cache_torrent_info(self._cached_info)
         return value
 
     @property
     def info(self) -> TorrentInfo:
         if self._cached_info is None:
-            self._cached_info = self._torrent_info(self.torrent_bytes)
+            if self.info_hash and self.info_hash in _TORRENT_INFO_CACHE:
+                self._cached_info = _TORRENT_INFO_CACHE[self.info_hash]
+            else:
+                self._cached_info = self._torrent_info(self.torrent_bytes)
+                _cache_torrent_info(self._cached_info)
         return self._cached_info
 
     def _torrent_info(self, torrent: bytes | libtorrent.torrent_info) -> TorrentInfo:

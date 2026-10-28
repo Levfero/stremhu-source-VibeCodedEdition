@@ -274,3 +274,76 @@ def test_manifest_includes_subtitles_resource():
 
     assert ShortManifestResource.SUBTITLES in manifest.resources
     assert "subtitles" in [r.value for r in manifest.resources]
+
+
+@pytest.mark.anyio
+async def test_get_streams_and_subtitles_caching_deduplication():
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from app.modules.stremio.schemas import ImdbStreamId
+    from app.modules.stremio.tvdb_resolver import TvdbResolver
+
+    mock_settings = MagicMock()
+    mock_settings.get_app_url.return_value = "http://test-app.com"
+
+    dummy_indexer_def = IndexerDefinitionModel(
+        id="ncore", name="ncore", url="https://ncore.pro", details_path=""
+    )
+    dummy_indexer_account = IndexerAccountModel(
+        indexer_id="ncore", username="test", password="pwd"
+    )
+    dummy_indexer_account.indexer_definition = dummy_indexer_def
+
+    sub = TorrentStreamSubtitle(
+        id="sub1",
+        file_name="01.vtt",
+        file_index=1,
+        file_size=50000,
+        url="http://test-app.com/api/key/subtitles/token/01.vtt",
+        lang="hun",
+        label="Hungarian",
+    )
+    t_stream = TorrentStream(
+        indexer_account=dummy_indexer_account,
+        torrent_id="1",
+        info_hash="hash_cache_test",
+        torrent_name="Test Movie",
+        file_name="Test.Movie.1080p.mkv",
+        file_size=1000000,
+        file_index=0,
+        play_url="http://test-app.com/api/key/stream/token",
+        attributes=[dummy_indexer_def],
+        subtitles=[sub],
+        is_persisted_torrent=False,
+    )
+
+    mock_torrent_streams = AsyncMock()
+    mock_torrent_streams.find_by_imdb.return_value = ([t_stream], [])
+
+    mock_tvdb_resolver = AsyncMock(spec=TvdbResolver)
+    mock_tvdb_resolver.get_alternate_imdb_ids.return_value = []
+
+    service = StremioService(
+        torrent_streams_service=mock_torrent_streams,
+        settings_service=mock_settings,
+        tvdb_resolver_service=mock_tvdb_resolver,
+    )
+    user = UserModel(id="cache-test-user", username="test")
+    parsed_id = ImdbStreamId(imdb_id="tt8888888", series_info=None)
+
+    # Párhuzamos /stream és /subtitles kérés + utólagos /subtitles lejátszási kérés
+    streams_res, subs_res = await asyncio.gather(
+        service.get_streams(user, parsed_id),
+        service.get_subtitles(user, parsed_id),
+    )
+    subs_after_play = await service.get_subtitles(
+        user, parsed_id, extra="videoSize=1000000"
+    )
+
+    assert len(streams_res) == 1
+    assert len(subs_res) == 1
+    assert len(subs_after_play) == 1
+    # Az nCore / find_by_imdb keresés mindössze 1-szer futhatott le a 3 kérés ellenére!
+    assert mock_torrent_streams.find_by_imdb.await_count == 1
+

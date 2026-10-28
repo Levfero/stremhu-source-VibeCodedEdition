@@ -1,5 +1,6 @@
-import re
 from collections import defaultdict
+from functools import lru_cache
+import re
 from typing import TypeAlias
 
 from app.modules.media_attributes.models import MediaAttributeModel
@@ -70,6 +71,7 @@ def parse_torrent_name(
     return matched_attributes
 
 
+@lru_cache(maxsize=4096)
 def clean_torrent_name(name: str) -> str:
     name_cleaned = normalize_torrent_name(name)
     all_pref_ids = list(_GROUPED_ATTRIBUTES.keys())

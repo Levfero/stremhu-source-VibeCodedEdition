@@ -21,11 +21,12 @@ def is_video(filename: str) -> bool:
     return bool(content_type and content_type.startswith("video/"))
 
 
+SAMPLE_REGEX = re.compile(r"(^sample|sample$|sample-|-sample-|-sample|\bmen[uü]\b)")
+
+
 def is_sample(name: str) -> bool:
-    base = re.sub(r"\.[^.]+$", "", name.lower())
-    return bool(
-        re.search(r"(^sample|sample$|sample-|-sample-|-sample|\bmen[uü]\b)", base)
-    )
+    base = name.rsplit(".", 1)[0].lower()
+    return bool(SAMPLE_REGEX.search(base))
 
 
 def is_sample_or_trash(name: str) -> bool:
@@ -73,19 +74,23 @@ def is_extra_file(filename: str) -> bool:
     return bool(EXTRA_FILE_REGEX.search(filename))
 
 
+HUN_LANG_PATTERN = re.compile(
+    r"(?:\b|[._\-\[])(?:hun|hu|hungarian|magyar|hunsub)(?:\b|[._\-\]])"
+)
+
 FOREIGN_LANG_PATTERNS = [
-    (r"(?:\b|[._\-\[])(?:eng|english|engsub)(?:\b|[._\-\]])|[._\-\[]en[._\-\]]", "eng", "English"),
-    (r"(?:\b|[._\-\[])(?:ger|german|deutsch)(?:\b|[._\-\]])|[._\-\[]de[._\-\]]", "ger", "German"),
-    (r"(?:\b|[._\-\[])(?:fre|fra|french|francais)(?:\b|[._\-\]])|[._\-\[]fr[._\-\]]", "fre", "French"),
-    (r"(?:\b|[._\-\[])(?:spa|spanish|espanol)(?:\b|[._\-\]])|[._\-\[]es[._\-\]]", "spa", "Spanish"),
-    (r"(?:\b|[._\-\[])(?:ita|italian|italiano)(?:\b|[._\-\]])|[._\-\[]it[._\-\]]", "ita", "Italian"),
-    (r"(?:\b|[._\-\[])(?:rus|russian)(?:\b|[._\-\]])|[._\-\[]ru[._\-\]]", "rus", "Russian"),
-    (r"(?:\b|[._\-\[])(?:jpn|jap|japanese)(?:\b|[._\-\]])|[._\-\[]ja[._\-\]]", "jpn", "Japanese"),
-    (r"(?:\b|[._\-\[])(?:por|portuguese)(?:\b|[._\-\]])|[._\-\[]pt[._\-\]]", "por", "Portuguese"),
-    (r"(?:\b|[._\-\[])(?:pol|polish)(?:\b|[._\-\]])|[._\-\[]pl[._\-\]]", "pol", "Polish"),
-    (r"(?:\b|[._\-\[])(?:cze|ces|czech)(?:\b|[._\-\]])|[._\-\[]cz[._\-\]]", "cze", "Czech"),
-    (r"(?:\b|[._\-\[])(?:chi|zho|chinese)(?:\b|[._\-\]])|[._\-\[]zh[._\-\]]", "chi", "Chinese"),
-    (r"(?:\b|[._\-\[])(?:rom|romanian)(?:\b|[._\-\]])|[._\-\[]ro[._\-\]]", "rom", "Romanian"),
+    (re.compile(r"(?:\b|[._\-\[])(?:eng|english|engsub)(?:\b|[._\-\]])|[._\-\[]en[._\-\]]"), "eng", "English"),
+    (re.compile(r"(?:\b|[._\-\[])(?:ger|german|deutsch)(?:\b|[._\-\]])|[._\-\[]de[._\-\]]"), "ger", "German"),
+    (re.compile(r"(?:\b|[._\-\[])(?:fre|fra|french|francais)(?:\b|[._\-\]])|[._\-\[]fr[._\-\]]"), "fre", "French"),
+    (re.compile(r"(?:\b|[._\-\[])(?:spa|spanish|espanol)(?:\b|[._\-\]])|[._\-\[]es[._\-\]]"), "spa", "Spanish"),
+    (re.compile(r"(?:\b|[._\-\[])(?:ita|italian|italiano)(?:\b|[._\-\]])|[._\-\[]it[._\-\]]"), "ita", "Italian"),
+    (re.compile(r"(?:\b|[._\-\[])(?:rus|russian)(?:\b|[._\-\]])|[._\-\[]ru[._\-\]]"), "rus", "Russian"),
+    (re.compile(r"(?:\b|[._\-\[])(?:jpn|jap|japanese)(?:\b|[._\-\]])|[._\-\[]ja[._\-\]]"), "jpn", "Japanese"),
+    (re.compile(r"(?:\b|[._\-\[])(?:por|portuguese)(?:\b|[._\-\]])|[._\-\[]pt[._\-\]]"), "por", "Portuguese"),
+    (re.compile(r"(?:\b|[._\-\[])(?:pol|polish)(?:\b|[._\-\]])|[._\-\[]pl[._\-\]]"), "pol", "Polish"),
+    (re.compile(r"(?:\b|[._\-\[])(?:cze|ces|czech)(?:\b|[._\-\]])|[._\-\[]cz[._\-\]]"), "cze", "Czech"),
+    (re.compile(r"(?:\b|[._\-\[])(?:chi|zho|chinese)(?:\b|[._\-\]])|[._\-\[]zh[._\-\]]"), "chi", "Chinese"),
+    (re.compile(r"(?:\b|[._\-\[])(?:rom|romanian)(?:\b|[._\-\]])|[._\-\[]ro[._\-\]]"), "rom", "Romanian"),
 ]
 
 
@@ -98,16 +103,14 @@ def detect_subtitle_language(filename: str, path: str = "") -> tuple[str, str]:
     is_forced = "forced" in text
 
     # Hungarian
-    if re.search(
-        r"(?:\b|[._\-\[])(?:hun|hu|hungarian|magyar|hunsub)(?:\b|[._\-\]])", text
-    ):
+    if HUN_LANG_PATTERN.search(text):
         if is_forced:
             return "hun", "Hungarian (Forced)"
         return "hun", "Hungarian"
 
     # Foreign languages
     for pattern, code, name in FOREIGN_LANG_PATTERNS:
-        if re.search(pattern, text):
+        if pattern.search(text):
             if is_forced:
                 return code, f"{name} (Forced)"
             return code, name

@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from urllib.parse import unquote
 
 from app.common.logger import logger
@@ -30,6 +31,11 @@ from app.modules.stremio.schemas import (
 from app.modules.stremio.tvdb_resolver import TvdbResolver, tvdb_resolver
 from app.modules.torrent_streams.service import TorrentStreamsService
 from app.modules.users.models import UserModel
+
+_STREAM_CACHE_TTL_SECONDS = 60.0
+_MAX_STREAM_CACHE_ENTRIES = 500
+_stream_cache: dict[str, tuple[float, list[StremioStream]]] = {}
+_ongoing_stream_tasks: dict[str, asyncio.Task[list[StremioStream]]] = {}
 
 
 class StremioService:
@@ -109,7 +115,38 @@ class StremioService:
         user: UserModel,
         parsed_id: StreamId,
     ) -> list[StremioStream]:
-        """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
+        """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből (rövid távú gyorsítótárral és in-flight deduplikációval)."""
+        cache_key = f"{user.id}:{parsed_id.model_dump_json()}"
+        now = time.monotonic()
+
+        cached = _stream_cache.get(cache_key)
+        if cached is not None:
+            ts, cached_streams = cached
+            if now - ts < _STREAM_CACHE_TTL_SECONDS:
+                return cached_streams
+            _stream_cache.pop(cache_key, None)
+
+        if cache_key in _ongoing_stream_tasks:
+            return await _ongoing_stream_tasks[cache_key]
+
+        task = asyncio.create_task(self._get_streams_uncached(user, parsed_id))
+        _ongoing_stream_tasks[cache_key] = task
+        try:
+            streams = await task
+            if streams and any(s.url is not None for s in streams):
+                if len(_stream_cache) >= _MAX_STREAM_CACHE_ENTRIES:
+                    for k in list(_stream_cache.keys())[:100]:
+                        _stream_cache.pop(k, None)
+                _stream_cache[cache_key] = (time.monotonic(), streams)
+            return streams
+        finally:
+            _ongoing_stream_tasks.pop(cache_key, None)
+
+    async def _get_streams_uncached(
+        self,
+        user: UserModel,
+        parsed_id: StreamId,
+    ) -> list[StremioStream]:
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
         if isinstance(parsed_id, TorrentStreamId):
             torrent_streams = await self._torrent_streams_service.find_by_torrent_id(

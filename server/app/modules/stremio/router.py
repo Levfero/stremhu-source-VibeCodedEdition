@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, status
 from fastapi.responses import RedirectResponse
 
+from app.common.logger import logger
 from app.modules.auth.dependencies import ApiKeyGuard
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.dependencies import (
@@ -66,6 +67,7 @@ async def streams(
     stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
     user: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> StremioStreams:
+    logger.info(f"[StremioRouter] Stream kérés érkezett: {media_type=}, {parsed_id=}")
     streams = await stremio_service.get_streams(user, parsed_id)
     return StremioStreams(streams=streams)
 

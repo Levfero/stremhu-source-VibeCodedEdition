@@ -199,7 +199,9 @@ def test_anime_series_parser_cases():
 
 def test_anime_stream_file_resolver_matching():
     from app.common.torrent_info import TorrentFileInfo, TorrentInfo
-    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+    from app.modules.torrent_streams.utils.stream_file_resolver import (
+        StreamFileResolver,
+    )
 
     def make_file(name: str, index: int) -> TorrentFileInfo:
         return TorrentFileInfo(
@@ -268,6 +270,7 @@ def test_anime_stream_file_resolver_matching():
 @pytest.mark.anyio
 async def test_find_by_imdb_fallback_to_title_search():
     from unittest.mock import MagicMock
+
     from app.modules.preferences.service import PreferencesService
     from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 
@@ -275,7 +278,10 @@ async def test_find_by_imdb_fallback_to_title_search():
     # IMDb keresésre 0 találat
     mock_provider.find_by_imdb_id.return_value = ([], [])
     # Név szerinti keresésre van találat
-    mock_provider.find_by_query.return_value = ([], [])
+    mock_source = MagicMock()
+    mock_source.indexer_torrent.indexer_account.indexer_id = "ncore"
+    mock_source.indexer_torrent.torrent_id = "1"
+    mock_provider.find_by_query.return_value = ([mock_source], [])
 
     mock_settings = AsyncMock(spec=SettingsService)
     mock_settings.get_app_url.return_value = "http://localhost:7070"
@@ -309,7 +315,9 @@ async def test_find_by_imdb_fallback_to_title_search():
 def test_one_piece_series_parser_and_resolver():
     from app.common.torrent_info import TorrentFileInfo, TorrentInfo
     from app.modules.torrent_streams.utils.series_parser import SeriesParser
-    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+    from app.modules.torrent_streams.utils.stream_file_resolver import (
+        StreamFileResolver,
+    )
 
     # 1. SeriesParser generikus tesztek
     p1 = SeriesParser("[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv")
@@ -657,6 +665,224 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     assert streams[0].seeders == 304
     assert streams[1].torrent_id == "t1"
     assert streams[1].seeders == 14
+
+
+def test_parse_stream_id_tmdb():
+    from app.modules.stremio.enums import StreamIdType
+    from app.modules.stremio.schemas import TmdbStreamId
+    from app.modules.stremio.utils import parse_stream_id
+
+    # Movie
+    res_movie = parse_stream_id("tmdb:273867")
+    assert isinstance(res_movie, TmdbStreamId)
+    assert res_movie.type == StreamIdType.TMDB
+    assert res_movie.tmdb_id == "273867"
+    assert res_movie.series_info is None
+
+    # Series
+    res_series = parse_stream_id("tmdb:273867:1:3")
+    assert isinstance(res_series, TmdbStreamId)
+    assert res_series.type == StreamIdType.TMDB
+    assert res_series.tmdb_id == "273867"
+    assert res_series.series_info is not None
+    assert res_series.series_info.season == 1
+    assert res_series.series_info.episode == 3
+
+
+def test_indexer_definition_torrent_boolean_imdb_id():
+    from app.modules.indexer_definitions.schemas.internal import (
+        IndexerDefinitionTorrent,
+    )
+
+    t = IndexerDefinitionTorrent(
+        torrent_id="12345",
+        download_url="https://ncore.pro/torrents.php?action=download&id=12345",
+        imdb_id=False,  # type: ignore
+        seeders=10,
+    )
+    assert t.imdb_id is None
+
+    t2 = IndexerDefinitionTorrent(
+        torrent_id="12345",
+        download_url="https://ncore.pro/torrents.php?action=download&id=12345",
+        imdb_id="tt1234567",
+        seeders=10,
+    )
+    assert t2.imdb_id == "tt1234567"
+
+
+@pytest.mark.anyio
+async def test_find_by_imdb_hungarian_show_title_queries():
+    from unittest.mock import MagicMock
+
+    from app.modules.preferences.service import PreferencesService
+    from app.modules.torrent_source_provider.service import (
+        TorrentSourceProviderService,
+    )
+
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+    mock_provider.find_by_imdb_id.return_value = ([], [])
+
+    queried_terms: list[str] = []
+
+    async def fake_find_by_query(q):
+        queried_terms.append(q)
+        if q == "visszavago":
+            mock_source = MagicMock()
+            mock_source.indexer_torrent.indexer_account.indexer_id = "ncore"
+            mock_source.indexer_torrent.torrent_id = "99"
+            return [mock_source], []
+        return [], []
+
+    mock_provider.find_by_query.side_effect = fake_find_by_query
+
+    mock_settings = AsyncMock(spec=SettingsService)
+    mock_settings.get_app_url.return_value = "http://localhost:7070"
+
+    mock_preferences = MagicMock(spec=PreferencesService)
+    mock_preferences.get_list.return_value = []
+
+    mock_torrents = MagicMock()
+    mock_torrents.get_torrents.return_value = []
+
+    service = TorrentStreamsService(
+        db=AsyncMock(),
+        torrent_source_provider_service=mock_provider,
+        torrents_service=mock_torrents,
+        settings_service=mock_settings,
+        preferences_service=mock_preferences,
+    )
+
+    user = UserModel(id="user1", username="test", enable_smart_filter=False)
+    await service.find_by_imdb(
+        user=user,
+        imdb_id="tt50140701",
+        series=SeriesInfo(season=1, episode=1),
+        fallback_title="A visszavágó - kapj el, ha tudsz!",
+    )
+
+    assert queried_terms == ["A visszavágó", "A visszavago", "visszavago"]
+
+
+@pytest.mark.anyio
+async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
+    from unittest.mock import MagicMock
+
+    from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+    from app.modules.indexer_accounts.models import IndexerAccountModel
+    from app.modules.indexer_definitions.models import IndexerDefinitionModel
+    from app.modules.preferences.service import PreferencesService
+    from app.modules.torrent_source_provider.service import (
+        TorrentSourceProviderService,
+    )
+
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+
+    dummy_indexer_def = IndexerDefinitionModel(
+        id="ncore", name="ncore", url="https://ncore.pro", details_path=""
+    )
+    dummy_indexer_account = IndexerAccountModel(
+        indexer_id="ncore", username="test", password="pwd"
+    )
+    dummy_indexer_account.indexer_definition = dummy_indexer_def
+
+    t3_info = TorrentInfo(
+        info_hash="hash3",
+        name="A.visszavago.Kapj.el.ha.tudsz.S01E03.HUN.WEB-DL.1080p.mkv",
+        size=1000000,
+        piece_size=1000000,
+        files=[
+            TorrentFileInfo(
+                index=0,
+                name="A.visszavago.Kapj.el.ha.tudsz.S01E03.HUN.WEB-DL.1080p.mkv",
+                path="A.visszavago.Kapj.el.ha.tudsz.S01E03.HUN.WEB-DL.1080p.mkv",
+                size=1000000,
+                offset=0,
+                start_piece_index=0,
+                end_piece_index=0,
+                is_video=True,
+            )
+        ],
+    )
+    mock_src_ep3 = MagicMock()
+    mock_src_ep3.indexer_torrent.indexer_account = dummy_indexer_account
+    mock_src_ep3.indexer_torrent.torrent_id = "300"
+    mock_src_ep3.indexer_torrent.imdb_id = "tt50140701"
+    mock_src_ep3.indexer_torrent.seeders = 10
+    mock_src_ep3.indexer_torrent.media_attributes = []
+    mock_src_ep3.torrent_file.info = t3_info
+    mock_src_ep3.torrent_file.torrent_id = "300"
+    mock_src_ep3.torrent_file.info_hash = "hash3"
+
+    mock_provider.find_by_imdb_id.return_value = ([mock_src_ep3], [])
+
+    t1_info = TorrentInfo(
+        info_hash="hash1",
+        name="A.visszavago.Kapj.el.ha.tudsz.S01E01.HUN.WEB-DL.1080p.mkv",
+        size=1000000,
+        piece_size=1000000,
+        files=[
+            TorrentFileInfo(
+                index=0,
+                name="A.visszavago.Kapj.el.ha.tudsz.S01E01.HUN.WEB-DL.1080p.mkv",
+                path="A.visszavago.Kapj.el.ha.tudsz.S01E01.HUN.WEB-DL.1080p.mkv",
+                size=1000000,
+                offset=0,
+                start_piece_index=0,
+                end_piece_index=0,
+                is_video=True,
+            )
+        ],
+    )
+    mock_src_ep1 = MagicMock()
+    mock_src_ep1.indexer_torrent.indexer_account = dummy_indexer_account
+    mock_src_ep1.indexer_torrent.torrent_id = "100"
+    mock_src_ep1.indexer_torrent.imdb_id = None
+    mock_src_ep1.indexer_torrent.seeders = 20
+    mock_src_ep1.indexer_torrent.media_attributes = []
+    mock_src_ep1.torrent_file.info = t1_info
+    mock_src_ep1.torrent_file.torrent_id = "100"
+    mock_src_ep1.torrent_file.info_hash = "hash1"
+
+    searched_queries = []
+
+    async def fake_query(q):
+        searched_queries.append(q)
+        return [mock_src_ep1], []
+
+    mock_provider.find_by_query.side_effect = fake_query
+
+    mock_settings = AsyncMock(spec=SettingsService)
+    mock_settings.get_app_url.return_value = "http://localhost:7070"
+
+    mock_preferences = MagicMock(spec=PreferencesService)
+    mock_preferences.get_list.return_value = []
+
+    mock_torrents = MagicMock()
+    mock_torrents.get_torrents.return_value = []
+
+    service = TorrentStreamsService(
+        db=AsyncMock(),
+        torrent_source_provider_service=mock_provider,
+        torrents_service=mock_torrents,
+        settings_service=mock_settings,
+        preferences_service=mock_preferences,
+    )
+
+    user = UserModel(id="user1", username="test", enable_smart_filter=False)
+    streams, errors = await service.find_by_imdb(
+        user=user,
+        imdb_id="tt50140701",
+        series=SeriesInfo(season=1, episode=1),
+        fallback_title=None,
+    )
+
+    mock_provider.find_by_imdb_id.assert_awaited_once_with("tt50140701")
+    assert "A visszavago Kapj el ha tudsz" in searched_queries
+    assert len(streams) == 1
+    assert streams[0].torrent_id == "100"
+    assert "S01E01" in streams[0].file_name
+
 
 
 

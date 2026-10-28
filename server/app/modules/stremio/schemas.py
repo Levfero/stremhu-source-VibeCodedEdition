@@ -495,7 +495,14 @@ class KitsuStreamId(BaseModel):
     series_info: SeriesInfo | None = None
 
 
-StreamId = ImdbStreamId | TorrentStreamId | TvdbStreamId | KitsuStreamId
+class TmdbStreamId(BaseModel):
+    type: StreamIdType = StreamIdType.TMDB
+    tmdb_id: str
+    series_info: SeriesInfo | None = None
+
+
+StreamId = ImdbStreamId | TorrentStreamId | TvdbStreamId | KitsuStreamId | TmdbStreamId
+
 
 
 class ParsedCatalogId(BaseModel):

@@ -1,5 +1,6 @@
 import asyncio
-
+import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 
 import humanize
@@ -19,6 +20,14 @@ from app.modules.torrent_streams.schemas import (
 from app.modules.torrents.schemas.internal import TorrentWithRelay
 from app.modules.torrents.service import TorrentsService
 from app.modules.users.models import UserModel
+
+
+def strip_accents(text: str) -> str:
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 class TorrentStreamsService:
@@ -44,18 +53,25 @@ class TorrentStreamsService:
         fallback_title: str | Callable[[], Awaitable[str | None]] | None = None,
         alternate_imdb_ids: list[str] | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
-        ids_to_search = [imdb_id]
+        ids_to_search: list[str] = []
+        if imdb_id and imdb_id.startswith("tt"):
+            ids_to_search.append(imdb_id)
         if alternate_imdb_ids:
             for alt_id in alternate_imdb_ids:
-                if alt_id and alt_id not in ids_to_search:
+                if alt_id and alt_id.startswith("tt") and alt_id not in ids_to_search:
                     ids_to_search.append(alt_id)
+
+        torrent_sources = []
+        indexer_errors = []
 
         if len(ids_to_search) == 1:
             (
                 torrent_sources,
                 indexer_errors,
-            ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
-        else:
+            ) = await self._torrent_source_provider_service.find_by_imdb_id(
+                ids_to_search[0]
+            )
+        elif len(ids_to_search) > 1:
             results = await asyncio.gather(
                 *[
                     self._torrent_source_provider_service.find_by_imdb_id(i)
@@ -63,8 +79,6 @@ class TorrentStreamsService:
                 ],
                 return_exceptions=True,
             )
-            torrent_sources = []
-            indexer_errors = []
             seen_source_ids: set[tuple[str, str]] = set()
             for res in results:
                 if isinstance(res, tuple):
@@ -78,26 +92,6 @@ class TorrentStreamsService:
                         if s_key not in seen_source_ids:
                             seen_source_ids.add(s_key)
                             torrent_sources.append(s)
-
-        if not torrent_sources and fallback_title:
-            try:
-                actual_title = (
-                    await fallback_title() if callable(fallback_title) else fallback_title
-                )
-            except Exception as e:
-                logger.warning(
-                    f"[TorrentStreamsService] Hiba történt a fallback cím lekérése közben ({imdb_id}): {e}"
-                )
-                actual_title = None
-
-            if actual_title:
-                cleaned_title = actual_title.split(":")[0].strip()
-                (
-                    fallback_sources,
-                    fallback_errors,
-                ) = await self._torrent_source_provider_service.find_by_query(cleaned_title)
-                torrent_sources = fallback_sources
-                indexer_errors.extend(fallback_errors)
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
 
@@ -114,6 +108,112 @@ class TorrentStreamsService:
 
             if torrent_stream:
                 torrent_streams.append(torrent_stream)
+
+        # Ha nem sikerült lejátszható streamet találni az adott epizódhoz/filmhez,
+        # másodlagos név szerinti keresést hajtunk végre
+        if not torrent_streams and (
+            fallback_title
+            or torrent_sources
+            or (imdb_id and not imdb_id.startswith("tt"))
+        ):
+            actual_title: str | None = None
+            if fallback_title:
+                try:
+                    actual_title = (
+                        await fallback_title()
+                        if callable(fallback_title)
+                        else fallback_title
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[TorrentStreamsService] Hiba történt a fallback cím lekérése közben ({imdb_id}): {e}"
+                    )
+                    actual_title = None
+
+            # Ha a fallback_title nem adott eredményt, de voltak források (pl. más epizódok), kinyerjük a címet a torrent nevéből
+            if not actual_title and torrent_sources:
+                for src in torrent_sources:
+                    name_candidate = (
+                        src.torrent_file.info.name
+                        if src.torrent_file and src.torrent_file.info
+                        else None
+                    )
+                    if name_candidate:
+                        title_part = re.split(
+                            r"\b(?:s\d{1,2}\s*e\d{1,2}|s\d{1,2}|e\d{1,2}|season|\d{1,2}\.?(?:evad|évad)|19\d\d|20\d\d|720p|1080p|2160p|4k|uhd)\b",
+                            name_candidate,
+                            flags=re.IGNORECASE,
+                        )[0]
+                        extracted = re.sub(r"[._\-–—]+", " ", title_part).strip()
+                        if extracted and len(extracted) >= 3:
+                            actual_title = extracted
+                            break
+
+            if not actual_title and imdb_id and not imdb_id.startswith("tt"):
+                actual_title = imdb_id
+
+            if actual_title:
+                candidate_queries: list[str] = []
+                # 1. Alap tisztított cím (alcím vagy kettőspont/kötőjel/gondolatjel levágása)
+                base_clean = re.split(r"[:\-\–—]", actual_title)[0].strip()
+                if base_clean:
+                    candidate_queries.append(base_clean)
+
+                # 2. Ékezetmentesített változat (magyar torrent trackereken szinte kizárólag ékezet nélküli címkék szerepelnek)
+                unaccented = strip_accents(base_clean).strip()
+                if unaccented and unaccented not in candidate_queries:
+                    candidate_queries.append(unaccented)
+
+                # 3. Névelő nélküli változat ("A ", "Az ", "The ")
+                no_article = re.sub(
+                    r"^(?:A|Az|The)\s+", "", unaccented, flags=re.IGNORECASE
+                ).strip()
+                if no_article and no_article not in candidate_queries:
+                    candidate_queries.append(no_article)
+
+                # 4. Ha több szóból áll, az első 2 szó és az első szó
+                words = no_article.split()
+                if len(words) > 1:
+                    first_two = " ".join(words[:2])
+                    if first_two and first_two not in candidate_queries:
+                        candidate_queries.append(first_two)
+                    if len(words[0]) >= 4 and words[0] not in candidate_queries:
+                        candidate_queries.append(words[0])
+
+                # 5. Teljes ékezetmentesített cím (ha különbözik)
+                full_unaccented = strip_accents(actual_title).strip()
+                if full_unaccented and full_unaccented not in candidate_queries:
+                    candidate_queries.append(full_unaccented)
+
+                logger.info(
+                    f"[TorrentStreamsService] Másodlagos név szerinti keresés indul ({actual_title}) jelöltek: {candidate_queries}"
+                )
+
+                for q in candidate_queries:
+                    (
+                        fallback_sources,
+                        fallback_errors,
+                    ) = await self._torrent_source_provider_service.find_by_query(q)
+                    indexer_errors.extend(fallback_errors)
+                    if fallback_sources:
+                        resolved_streams: list[TorrentStream] = []
+                        for s in fallback_sources:
+                            stream = TorrentStream.from_imdb_id(
+                                indexer_torrent=s.indexer_torrent,
+                                torrent_file=s.torrent_file,
+                                series=series,
+                                app_url=app_url,
+                                user=user,
+                            )
+                            if stream:
+                                resolved_streams.append(stream)
+
+                        torrent_streams = resolved_streams
+                        logger.info(
+                            f"[TorrentStreamsService] Másodlagos keresés forrásokat talált '{q}' lekérdezéssel: {len(fallback_sources)} forrás, {len(resolved_streams)} stream."
+                        )
+                        break
+
 
         filtered_torrent_streams = self._filter_torrent_streams(torrent_streams, user)
         sorted_torrent_streams = self._sort_torrent_streams(

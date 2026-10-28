@@ -1,6 +1,7 @@
+import re
 from collections import defaultdict
-from collections.abc import Callable
 from urllib.parse import quote
+
 import httpx
 
 from app.common.keyed_lock import KeyedLock
@@ -314,8 +315,11 @@ class TvdbResolver:
 
     async def get_title_by_imdb(self, imdb_id: str) -> str | None:
         """Lekéri a média címét IMDb ID alapján Cinemeta API-n keresztül (másodlagos kereséshez)."""
-        if not imdb_id or not imdb_id.startswith("tt"):
+        if not imdb_id:
             return None
+        if not imdb_id.startswith("tt"):
+            # Ha nem 'tt' azonosító (pl. közvetlenül átadott cím vagy slug), használjuk címként
+            return imdb_id
         cache_key = f"title_{imdb_id}"
         if cache_key in self._cache:
             val = self._cache[cache_key]
@@ -335,6 +339,138 @@ class TvdbResolver:
             except Exception:
                 pass
         return None
+
+    async def resolve_tmdb(
+        self, tmdb_id: str, is_series: bool = False
+    ) -> tuple[str | None, str | None]:
+        """
+        TMDB azonosító feloldása (imdb_id, title) párra.
+        Amennyiben elérhető IMDb ID, azt adja vissza. Ha nincs IMDb ID (pl. hazai reality / magyar műsorok),
+        akkor a cím alapján történő másodlagos kereséshez biztosítja a címet.
+        """
+        if not tmdb_id:
+            return None, None
+
+        clean_id = tmdb_id.strip()
+        cache_key = f"tmdb_{clean_id}_{is_series}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, tuple):
+                return cached
+
+        async with self._lock(cache_key):
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if isinstance(cached, tuple):
+                    return cached
+
+            # 1. Próbálkozás: TMDB API, ha be van állítva API kulcs
+            if config.tmdb_api_key:
+                endpoints = (
+                    [
+                        (
+                            "tv",
+                            f"https://api.themoviedb.org/3/tv/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                        (
+                            "movie",
+                            f"https://api.themoviedb.org/3/movie/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                    ]
+                    if is_series
+                    else [
+                        (
+                            "movie",
+                            f"https://api.themoviedb.org/3/movie/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                        (
+                            "tv",
+                            f"https://api.themoviedb.org/3/tv/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                    ]
+                )
+                client = self._get_client()
+                for _, url in endpoints:
+                    try:
+                        resp = await client.get(url, timeout=5.0)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            ext_imdb = data.get("external_ids", {}).get("imdb_id")
+                            ext_imdb_clean = (
+                                ext_imdb
+                                if isinstance(ext_imdb, str) and ext_imdb.startswith("tt")
+                                else None
+                            )
+                            title = (
+                                data.get("name")
+                                or data.get("title")
+                                or data.get("original_name")
+                                or data.get("original_title")
+                            )
+                            if ext_imdb_clean or title:
+                                res = (ext_imdb_clean, str(title) if title else None)
+                                self._set_cache(cache_key, res)
+                                return res
+                    except Exception as e:
+                        logger.debug(f"[TvdbResolver] TMDB API hiba ({clean_id}): {e}")
+
+            # 2. Próbálkozás: Publikus TMDB oldal lekérése és elemzése (API kulcs nélkül is működik!)
+            client = self._get_client()
+            url_types = ["tv", "movie"] if is_series else ["movie", "tv"]
+            for u_type in url_types:
+                url = f"https://www.themoviedb.org/{u_type}/{clean_id}"
+                try:
+                    resp = await client.get(
+                        url,
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StremHU/1.0",
+                            "Accept-Language": "hu-HU,hu;q=0.9,en;q=0.8",
+                        },
+                        timeout=5.0,
+                    )
+                    if resp.status_code == 200:
+                        text = resp.text
+                        # IMDb keresése a weboldalban
+                        imdb_match = re.search(
+                            r'href=["\']https?://(?:www\.)?imdb\.com/title/(tt\d+)', text
+                        )
+                        found_imdb = imdb_match.group(1) if imdb_match else None
+
+                        # Cím kinyerése og:title-ből vagy schema.org-ból
+                        og_match = re.search(
+                            r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']',
+                            text,
+                            re.I,
+                        )
+                        found_title = None
+                        if og_match:
+                            found_title = og_match.group(1).strip()
+                        else:
+                            # Próbáljuk a <title> taget
+                            title_tag = re.search(r"<title>(.*?)<\/title>", text, re.I)
+                            if title_tag:
+                                clean_t = (
+                                    title_tag.group(1)
+                                    .split("—")[0]
+                                    .split("&#8212;")[0]
+                                    .strip()
+                                )
+                                clean_t = re.sub(r"\s*\([^)]*\)$", "", clean_t).strip()
+                                if clean_t:
+                                    found_title = clean_t
+
+                        if found_imdb or found_title:
+                            res = (found_imdb, found_title)
+                            self._set_cache(cache_key, res)
+                            return res
+                except Exception as e:
+                    logger.debug(
+                        f"[TvdbResolver] TMDB web scraping hiba ({clean_id}, {u_type}): {e}"
+                    )
+
+            res = (None, None)
+            self._set_cache(cache_key, res)
+            return res
 
     async def get_episode_mappings(
         self,

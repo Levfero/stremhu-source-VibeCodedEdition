@@ -9,6 +9,7 @@ from app.modules.stremio.schemas import (
     ParsedCatalogId,
     ParsedExtra,
     StreamId,
+    TmdbStreamId,
     TorrentStreamId,
     TvdbStreamId,
 )
@@ -129,6 +130,50 @@ def parse_stream_id(value: str) -> StreamId:
             type=StreamIdType.KITSU,
             kitsu_id=kitsu_id,
             episode=episode,
+            series_info=series_info,
+        )
+
+    if value.startswith("tmdb"):
+        if value.startswith("tmdb:"):
+            tmdb_val = value[5:]
+        elif value.startswith("tmdb_"):
+            tmdb_val = value[5:]
+        else:
+            tmdb_val = value[4:]
+
+        parts = tmdb_val.split(":")
+        tmdb_id = parts[0]
+
+        if not tmdb_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Érvénytelen TMDB stream azonosító formátum.",
+            )
+
+        season: int | None = None
+        if len(parts) > 1 and parts[1]:
+            try:
+                season = int(parts[1])
+            except ValueError:
+                season = None
+
+        episode: int | None = None
+        if len(parts) > 2 and parts[2]:
+            try:
+                episode = int(parts[2])
+            except ValueError:
+                episode = None
+
+        series_info: SeriesInfo | None = None
+        if season is not None and episode is not None:
+            series_info = SeriesInfo(
+                season=season,
+                episode=episode,
+            )
+
+        return TmdbStreamId(
+            type=StreamIdType.TMDB,
+            tmdb_id=tmdb_id,
             series_info=series_info,
         )
 

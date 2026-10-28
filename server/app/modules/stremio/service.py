@@ -1,5 +1,6 @@
 import asyncio
 import re
+from urllib.parse import unquote
 
 from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
@@ -232,6 +233,15 @@ class StremioService:
             for torrent_stream in torrent_streams
         ]
 
+        # Ha valamelyik stream saját torrentjéhez nincs felirat, tartalékként használjuk a többi stream feliratát
+        fallback_subtitles = next(
+            (s.subtitles for s in stremio_streams if s.subtitles), None
+        )
+        if fallback_subtitles:
+            for s in stremio_streams:
+                if not s.subtitles:
+                    s.subtitles = fallback_subtitles
+
         for error in errors:
             stremio_streams.append(
                 StremioStream(
@@ -243,13 +253,93 @@ class StremioService:
 
         return stremio_streams
 
+    def _parse_extra_params(
+        self,
+        extra: str | None = None,
+        query_params: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        params: dict[str, str] = {}
+        if extra:
+            decoded_extra = unquote(extra)
+            for part in decoded_extra.split("&"):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    params[k.strip()] = v.strip()
+        if query_params:
+            params.update(query_params)
+        return params
+
+    def _find_played_stream(
+        self,
+        streams: list[StremioStream],
+        extra: str | None = None,
+        query_params: dict[str, str] | None = None,
+    ) -> StremioStream | None:
+        params = self._parse_extra_params(extra=extra, query_params=query_params)
+        if not params:
+            return None
+
+        video_size_str = params.get("videoSize") or params.get("video_size")
+        video_size = (
+            int(video_size_str)
+            if video_size_str and video_size_str.isdigit()
+            else None
+        )
+        filename = params.get("filename")
+
+        # 1. Egyezés pontos videoSize alapján
+        if video_size is not None:
+            for s in streams:
+                if s.behavior_hints and s.behavior_hints.video_size == video_size:
+                    return s
+
+        # 2. Egyezés filename alapján
+        if filename:
+            filename_lower = filename.lower()
+            for s in streams:
+                if s.behavior_hints and s.behavior_hints.filename:
+                    if s.behavior_hints.filename.lower() == filename_lower:
+                        return s
+                clean_desc = s.description.replace("📁", "").strip().lower()
+                if clean_desc and (
+                    clean_desc == filename_lower
+                    or filename_lower in clean_desc
+                    or clean_desc in filename_lower
+                ):
+                    return s
+
+        return None
+
     async def get_subtitles(
         self,
         user: UserModel,
         parsed_id: StreamId,
+        extra: str | None = None,
+        query_params: dict[str, str] | None = None,
     ) -> list[StremioSubtitle]:
-        """Lekéri a feliratokat az adott médiához a feloldott streamek alapján."""
+        """Lekéri a feliratokat az adott médiához.
+        Elsősorban a lejátszott videó torrentjéből származó feliratot adja vissza,
+        ha ahhoz nincs felirat, akkor más streamek feliratait fallback-ként.
+        """
         streams = await self.get_streams(user, parsed_id)
+        if not streams:
+            return []
+
+        # Próbáljuk beazonosítani a lejátszott streamet
+        played_stream = self._find_played_stream(
+            streams, extra=extra, query_params=query_params
+        )
+
+        if played_stream:
+            if played_stream.subtitles:
+                return played_stream.subtitles
+            # Ha a lejátszott streamhez nincs felirat, fallback a többire
+            for s in streams:
+                if s != played_stream and s.subtitles:
+                    return s.subtitles
+
+        # Ha nem sikerült egyértelműen beazonosítani a streamet,
+        # visszaadjuk a feliratokat deduplikálva
         all_subs: list[StremioSubtitle] = []
         seen_urls: set[str] = set()
         for s in streams:

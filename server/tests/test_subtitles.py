@@ -1,12 +1,14 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentFileInfo, TorrentInfo
 from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.stream.utils.subtitles import ass_to_vtt
 from app.modules.stremio.enums import ShortManifestResource
-from app.modules.stremio.schemas import StremioStream
+from app.modules.stremio.schemas import StremioStream, StremioSubtitle
 from app.modules.stremio.service import StremioService
 from app.modules.torrent_streams.schemas import TorrentStream, TorrentStreamSubtitle
 from app.modules.torrent_streams.utils.resolver_helpers import (
@@ -61,6 +63,109 @@ def test_detect_subtitle_language():
         "Hungarian (Forced)",
     )
     assert detect_subtitle_language("01.ass") == ("hun", "Hungarian (Torrent)")
+    assert detect_subtitle_language("Noragami.fre.srt")[0] == "fre"
+    assert detect_subtitle_language("Noragami.spa.srt")[0] == "spa"
+    assert detect_subtitle_language("Noragami.ita.srt")[0] == "ita"
+    assert detect_subtitle_language("Noragami.rus.srt")[0] == "rus"
+    # Ismeretlen / nyelvjelölés nélküli feliratok alapértelmezetten magyarként kezelendők
+    assert detect_subtitle_language("subtitles.srt")[0] == "hun"
+    assert detect_subtitle_language("ep01.ass")[0] == "hun"
+    assert detect_subtitle_language("Noragami - 01.ass")[0] == "hun"
+    assert detect_subtitle_language("Kaland es Mas - 01.srt")[0] == "hun"
+    assert detect_subtitle_language("Film de jo - 01.srt")[0] == "hun"
+    assert detect_subtitle_language("ep01.en.srt")[0] == "eng"
+    assert detect_subtitle_language("ep01.de.srt")[0] == "ger"
+
+
+def test_resolve_subtitles_ignores_other_episodes_in_packs():
+    # Két rész egy pakkban és mindkettőhöz felirat
+    v1 = make_file("Attack on Titan/Attack on Titan - HunSub - 01 [1080p].mkv", 0)
+    v2 = make_file("Attack on Titan/Attack on Titan - HunSub - 02 [1080p].mkv", 1)
+    s1 = make_file("Attack on Titan/Attack on Titan - 01.ass", 2, is_video=False)
+    s2 = make_file("Attack on Titan/Attack on Titan - 02.ass", 3, is_video=False)
+
+    t_info = TorrentInfo(
+        info_hash="hash_aot",
+        name="Attack on Titan [1080p]",
+        size=4000,
+        piece_size=1000,
+        files=[v1, v2, s1, s2],
+    )
+
+    resolver_ep1 = StreamFileResolver(t_info, series=SeriesInfo(season=1, episode=1))
+    resolved_subs_ep1 = resolver_ep1.resolve_subtitles(v1)
+    assert len(resolved_subs_ep1) == 1
+    assert resolved_subs_ep1[0].name == "Attack on Titan - 01.ass"
+
+    resolver_ep2 = StreamFileResolver(t_info, series=SeriesInfo(season=1, episode=2))
+    resolved_subs_ep2 = resolver_ep2.resolve_subtitles(v2)
+    assert len(resolved_subs_ep2) == 1
+    assert resolved_subs_ep2[0].name == "Attack on Titan - 02.ass"
+
+
+@pytest.mark.anyio
+async def test_get_subtitles_played_stream_matching_and_fallback():
+    mock_settings = MagicMock()
+    mock_settings.get_app_url.return_value = "http://test-app.com"
+    mock_torrent_streams = MagicMock()
+
+    service = StremioService(
+        torrent_streams_service=mock_torrent_streams,
+        settings_service=mock_settings,
+    )
+    user = UserModel(id="test-user", username="test")
+
+    sub_t1 = StremioSubtitle(
+        id="t1-sub",
+        url="http://test-app.com/sub/t1.vtt",
+        lang="hun",
+        label="Hungarian",
+    )
+
+    from app.modules.stremio.schemas import BehaviorHints, ImdbStreamId
+    # Stream 1 felirattal
+    stream1 = StremioStream(
+        name="1080p",
+        description="📁 video1.mkv",
+        url="http://test-app.com/video1.mkv",
+        subtitles=[sub_t1],
+        behavior_hints=BehaviorHints(filename="video1.mkv", video_size=500000),
+    )
+    # Stream 2 saját felirat nélkül
+    stream2 = StremioStream(
+        name="720p",
+        description="📁 video2.mkv",
+        url="http://test-app.com/video2.mkv",
+        subtitles=None,
+        behavior_hints=BehaviorHints(filename="video2.mkv", video_size=300000),
+    )
+
+    # MagicMock for async get_streams
+    async def mock_get_streams(*args, **kwargs):
+        return [stream1, stream2]
+
+    service.get_streams = mock_get_streams
+
+    parsed_id = ImdbStreamId(imdb_id="tt123456", season=1, episode=1)
+
+    # 1. Ha a video1-et játsszuk le: a saját feliratát adja vissza
+    subs1 = await service.get_subtitles(
+        user=user,
+        parsed_id=parsed_id,
+        extra="filename=video1.mkv&videoSize=500000",
+    )
+    assert len(subs1) == 1
+    assert subs1[0].id == "t1-sub"
+
+    # 2. Ha a video2-t játsszuk le (amiben nincs felirat): fallback a video1 feliratára
+    subs2 = await service.get_subtitles(
+        user=user,
+        parsed_id=parsed_id,
+        extra="filename=video2.mkv&videoSize=300000",
+    )
+    assert len(subs2) == 1
+    assert subs2[0].id == "t1-sub"
+
 
 
 def test_resolve_subtitles_for_series():

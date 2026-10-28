@@ -353,6 +353,18 @@ class StreamFileResolver:
 
         # 2/a. Név/stem egyezés (pl. video.mkv -> video.ass, video.hun.ass, video [HunSub].ass)
         for sub in subtitle_files:
+            # Ha van célzott epizód, és a felirat neve kifejezetten más epizódot jelöl, kihagyjuk
+            if self.series and self.series.episode is not None:
+                _, sub_episodes = SeriesParser(sub.name).parse()
+                if sub_episodes:
+                    target_eps = set(self.target_episodes)
+                    is_ep_match = any(e in target_eps for e in sub_episodes) or (
+                        bool(self.alt_episodes_set)
+                        and any(e in self.alt_episodes_set for e in sub_episodes)
+                    )
+                    if not is_ep_match:
+                        continue
+
             sub_stem = sub.name.rsplit(".", 1)[0].lower()
             clean_sub_stem = re.sub(
                 r"[\._\-\[]\s*(?:hun|hu|hungarian|magyar|eng|en|english|forced|hunsub|engsub)\b.*$",
@@ -370,7 +382,7 @@ class StreamFileResolver:
                 matched.append(sub)
 
         if matched:
-            return matched
+            return self._deduplicate_subtitles(matched)
 
         # 2/b. Epizódszám szerinti egyezés sorozatoknál (pl. Subs/01.ass vagy Subs/Noragami - 01.ass)
         if self.series and self.series.episode is not None:
@@ -416,5 +428,15 @@ class StreamFileResolver:
                     else:
                         matched.append(sub)
 
-        return matched
+        return self._deduplicate_subtitles(matched)
+
+    @staticmethod
+    def _deduplicate_subtitles(subtitles: list[TorrentFileInfo]) -> list[TorrentFileInfo]:
+        deduped: list[TorrentFileInfo] = []
+        seen: set[int] = set()
+        for f in subtitles:
+            if f.index not in seen:
+                seen.add(f.index)
+                deduped.append(f)
+        return deduped
 

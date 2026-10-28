@@ -90,6 +90,11 @@ class TorrentStream(BaseModel):
             matched_subs = StreamFileResolver(torrent_file.info).resolve_subtitles(file)
             subtitles: list[TorrentStreamSubtitle] = []
             for sub_file in matched_subs:
+                lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
+                # Csak magyar feliratokat támogatunk
+                if lang != "hun":
+                    continue
+
                 sub_stream_token = generate_stream_token(
                     StreamToken(
                         indexer_id=indexer_id,
@@ -98,12 +103,21 @@ class TorrentStream(BaseModel):
                         playback_id=playback_id,
                     )
                 )
-                lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
-                encoded_name = quote(sub_file.name)
+
+                # Univerzális feliratformátum: az ASS/SSA feliratokat VTT-re alakítva szolgáltatjuk ki,
+                # így egyetlen, univerzálisan lejátszható feliratpéldány jelenik meg Nuvioban és Stremioban
+                ext = Path(sub_file.name).suffix.lower()
+                target_name = (
+                    Path(sub_file.name).stem + ".vtt"
+                    if ext in (".ass", ".ssa")
+                    else sub_file.name
+                )
+                encoded_name = quote(target_name)
+
                 subtitles.append(
                     TorrentStreamSubtitle(
                         id=f"{torrent_file.torrent_id}-{sub_file.index}",
-                        file_name=sub_file.name,
+                        file_name=target_name,
                         file_index=sub_file.index,
                         file_size=sub_file.size,
                         url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_name}",
@@ -111,22 +125,6 @@ class TorrentStream(BaseModel):
                         label=label,
                     )
                 )
-                ext = Path(sub_file.name).suffix.lower()
-                if ext in (".ass", ".ssa"):
-                    vtt_name = Path(sub_file.name).stem + ".vtt"
-                    encoded_vtt = quote(vtt_name)
-                    vtt_label = f"{label} (VTT)" if label else "Hungarian (VTT)"
-                    subtitles.append(
-                        TorrentStreamSubtitle(
-                            id=f"{torrent_file.torrent_id}-{sub_file.index}-vtt",
-                            file_name=vtt_name,
-                            file_index=sub_file.index,
-                            file_size=sub_file.size,
-                            url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_vtt}",
-                            lang=lang,
-                            label=vtt_label,
-                        )
-                    )
 
             torrent_streams.append(
                 cls(
@@ -225,6 +223,11 @@ class TorrentStream(BaseModel):
         matched_subs = resolver.resolve_subtitles(torrent_file_info)
         subtitles: list[TorrentStreamSubtitle] = []
         for sub_file in matched_subs:
+            lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
+            # Csak magyar feliratokat támogatunk
+            if lang != "hun":
+                continue
+
             sub_stream_token = generate_stream_token(
                 StreamToken(
                     indexer_id=indexer_id,
@@ -235,12 +238,21 @@ class TorrentStream(BaseModel):
                     series_info=series,
                 )
             )
-            lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
-            encoded_name = quote(sub_file.name)
+
+            # Univerzális feliratformátum: az ASS/SSA feliratokat VTT-re alakítva szolgáltatjuk ki,
+            # így egyetlen, univerzálisan lejátszható feliratpéldány jelenik meg Nuvioban és Stremioban
+            ext = Path(sub_file.name).suffix.lower()
+            target_name = (
+                Path(sub_file.name).stem + ".vtt"
+                if ext in (".ass", ".ssa")
+                else sub_file.name
+            )
+            encoded_name = quote(target_name)
+
             subtitles.append(
                 TorrentStreamSubtitle(
                     id=f"{torrent_id}-{sub_file.index}",
-                    file_name=sub_file.name,
+                    file_name=target_name,
                     file_index=sub_file.index,
                     file_size=sub_file.size,
                     url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_name}",
@@ -248,22 +260,6 @@ class TorrentStream(BaseModel):
                     label=label,
                 )
             )
-            ext = Path(sub_file.name).suffix.lower()
-            if ext in (".ass", ".ssa"):
-                vtt_name = Path(sub_file.name).stem + ".vtt"
-                encoded_vtt = quote(vtt_name)
-                vtt_label = f"{label} (VTT)" if label else "Hungarian (VTT)"
-                subtitles.append(
-                    TorrentStreamSubtitle(
-                        id=f"{torrent_id}-{sub_file.index}-vtt",
-                        file_name=vtt_name,
-                        file_index=sub_file.index,
-                        file_size=sub_file.size,
-                        url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_vtt}",
-                        lang=lang,
-                        label=vtt_label,
-                    )
-                )
 
         stream_token = generate_stream_token(
             StreamToken(

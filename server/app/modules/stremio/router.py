@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from fastapi.responses import RedirectResponse
 
 from app.modules.auth.dependencies import ApiKeyGuard
@@ -82,13 +82,19 @@ async def streams(
     response_model_exclude_none=True,
 )
 async def subtitles(
+    request: Request,
     media_type: Annotated[MediaType, Path(..., description="A média típusa")],
     parsed_id: Annotated[StreamId, Depends(get_parsed_stream_id)],
     stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
     user: Annotated[UserModel, Depends(ApiKeyGuard())],
     extra: str | None = None,
 ) -> StremioSubtitles:
-    stremio_subs = await stremio_service.get_subtitles(user, parsed_id)
+    stremio_subs = await stremio_service.get_subtitles(
+        user=user,
+        parsed_id=parsed_id,
+        extra=extra,
+        query_params=dict(request.query_params),
+    )
     return StremioSubtitles(subtitles=stremio_subs)
 
 

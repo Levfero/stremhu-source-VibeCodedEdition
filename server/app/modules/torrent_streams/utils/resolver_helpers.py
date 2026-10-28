@@ -73,31 +73,47 @@ def is_extra_file(filename: str) -> bool:
     return bool(EXTRA_FILE_REGEX.search(filename))
 
 
+FOREIGN_LANG_PATTERNS = [
+    (r"(?:\b|[._\-\[])(?:eng|english|engsub)(?:\b|[._\-\]])|[._\-\[]en[._\-\]]", "eng", "English"),
+    (r"(?:\b|[._\-\[])(?:ger|german|deutsch)(?:\b|[._\-\]])|[._\-\[]de[._\-\]]", "ger", "German"),
+    (r"(?:\b|[._\-\[])(?:fre|fra|french|francais)(?:\b|[._\-\]])|[._\-\[]fr[._\-\]]", "fre", "French"),
+    (r"(?:\b|[._\-\[])(?:spa|spanish|espanol)(?:\b|[._\-\]])|[._\-\[]es[._\-\]]", "spa", "Spanish"),
+    (r"(?:\b|[._\-\[])(?:ita|italian|italiano)(?:\b|[._\-\]])|[._\-\[]it[._\-\]]", "ita", "Italian"),
+    (r"(?:\b|[._\-\[])(?:rus|russian)(?:\b|[._\-\]])|[._\-\[]ru[._\-\]]", "rus", "Russian"),
+    (r"(?:\b|[._\-\[])(?:jpn|jap|japanese)(?:\b|[._\-\]])|[._\-\[]ja[._\-\]]", "jpn", "Japanese"),
+    (r"(?:\b|[._\-\[])(?:por|portuguese)(?:\b|[._\-\]])|[._\-\[]pt[._\-\]]", "por", "Portuguese"),
+    (r"(?:\b|[._\-\[])(?:pol|polish)(?:\b|[._\-\]])|[._\-\[]pl[._\-\]]", "pol", "Polish"),
+    (r"(?:\b|[._\-\[])(?:cze|ces|czech)(?:\b|[._\-\]])|[._\-\[]cz[._\-\]]", "cze", "Czech"),
+    (r"(?:\b|[._\-\[])(?:chi|zho|chinese)(?:\b|[._\-\]])|[._\-\[]zh[._\-\]]", "chi", "Chinese"),
+    (r"(?:\b|[._\-\[])(?:rom|romanian)(?:\b|[._\-\]])|[._\-\[]ro[._\-\]]", "rom", "Romanian"),
+]
+
+
 def detect_subtitle_language(filename: str, path: str = "") -> tuple[str, str]:
     """
     Detects language code (ISO 639-2) and readable label from subtitle file name and path.
     Defaults to Hungarian ('hun', 'Hungarian (Torrent)') in context of Hungarian trackers/anime.
     """
     text = f"{path}/{filename}".lower()
+    is_forced = "forced" in text
 
     # Hungarian
     if re.search(
         r"(?:\b|[._\-\[])(?:hun|hu|hungarian|magyar|hunsub)(?:\b|[._\-\]])", text
     ):
-        if "forced" in text:
+        if is_forced:
             return "hun", "Hungarian (Forced)"
         return "hun", "Hungarian"
 
-    # English
-    if re.search(r"(?:\b|[._\-\[])(?:eng|en|english|engsub)(?:\b|[._\-\]])", text):
-        if "forced" in text:
-            return "eng", "English (Forced)"
-        return "eng", "English"
-
-    # German
-    if re.search(r"(?:\b|[._\-\[])(?:ger|de|german|deutsch)(?:\b|[._\-\]])", text):
-        return "ger", "German"
+    # Foreign languages
+    for pattern, code, name in FOREIGN_LANG_PATTERNS:
+        if re.search(pattern, text):
+            if is_forced:
+                return code, f"{name} (Forced)"
+            return code, name
 
     # Default to Hungarian for stremhu-source
+    if is_forced:
+        return "hun", "Hungarian (Torrent) (Forced)"
     return "hun", "Hungarian (Torrent)"
 

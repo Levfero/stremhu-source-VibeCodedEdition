@@ -28,38 +28,53 @@
 > - **Eredeti GitHub repository:** [https://github.com/s4pp1/stremhu-source](https://github.com/s4pp1/stremhu-source)
 > - **Hivatalos weboldal & dokumentáció:** [https://stremhu.app](https://stremhu.app)
 > - **Hivatalos Docker Hub:** [s4pp1/stremhu-source](https://hub.docker.com/r/s4pp1/stremhu-source)
->
-> A jelenlegi fork célja az anime, TVDB, Kitsu támogatás és fejlett feloldási logikák biztosítása a Stremio, Nuvio és Kodi felhasználók számára.
 
 ---
 
-## 🌸 Anime, TheTVDB & Kitsu támogatás (`main` branch)
+## 🔍 Keresési és Szűrési Továbbfejlesztések (`feature/search-filter-tmdb-tvdb` branch)
 
-Ez a kiadás kiterjeszti a StremHU Source működését teljes körű anime és alternatív metaadat-kezeléssel, megoldva az anime rajongók legnagyobb problémáját: az anime címek, évadok és az abszolút vs. relatív epizódszámozások közötti eltéréseket a magyar és nemzetközi trackereken.
+Ez a branch a **TMDB azonosítók kezelését**, a **másodlagos többjelöltes szöveges fallback keresést**, az **nCore hibajavítást**, valamint az **Extrák és Különkiadások intelligens szűrését** valósítja meg.
 
-### 🌟 Főbb új funkciók és működés
+### 🚀 Új funkciók részletesen
 
-#### 1. Kitsu és TheTVDB azonosítók natív kezelése
-- **Kitsu Stream ID-k**: `kitsu:{kitsu_id}:{episode}` formátumú kérések natív támogatása (pl. Nuvio, Stremio Anime Kitsu addonok).
-  - Lekéri a Kitsu API-ból az anime kanonikus és alternatív címeit, valamint a valódi évadszámot.
-- **TheTVDB Stream ID-k**: `tvdb:{tvdb_id}:{season}:{episode}` formátumú kérések automatikus feloldása és leképezése IMDb azonosítóra.
-- **Anime-Kitsu leképezési adatbázis**:
-  - Automatikusan feloldja a Kitsu bejegyzéseket a hivatalos IMDb ID-ra és kiszámítja a globális abszolút epizódszámokat (pl. *Attack on Titan Season 3 Ep 2* -> IMDb `tt2560140`, Abszolút Epizód: `39`).
+#### 1. TMDB Stream ID támogatás (TheMovieDb)
+- **Kliens támogatás**: Kifejezetten a Stremio, Nuvio és modern kiegészítők által küldött TMDB azonosítók kezelésére:
+  - Filmek: `tmdb:{tmdb_id}` (pl. `tmdb:273867`)
+  - Sorozatok: `tmdb:{tmdb_id}:{season}:{episode}` (pl. `tmdb:273867:1:3`)
+- **API feloldás (`TvdbResolver.resolve_tmdb`)**:
+  - Automatikusan lekérdezi a TheMovieDb API-t (`api.themoviedb.org/3/movie/...` vagy `/tv/...`), hogy megtalálja a tartalomhoz tartozó hivatalos IMDb azonosítót és a kanonikus címet.
+  - Ha az adott epizódhoz nincs IMDb ID rendelve, a lekérdezett címmel azonnal átadja a vezérlést a másodlagos szöveges keresőnek.
+- **Stremio Series Search Manifest**: A Stremio katalógus keresésben engedélyezve lett a sorozatok keresése TMDB előtaggal is.
 
-#### 2. Alternatív IMDb azonosítók párhuzamos lekérdezése (Aliasing)
-- Bizonyos klasszikus és hosszú sorozatok (különösen animék) több külön IMDb bejegyzéssel is futnak a magyar torrent trackereken.
-  - **Példa**: *Dragon Ball Z* esetén a trackereken megtalálható az eredeti 1989-es bejegyzés (`tt0121220`) és az 1996-os nemzetközi bejegyzés (`tt0214341`) is.
-  - A rendszer felismeri az ilyen kapcsolatokat, és párhuzamosan lekéri az összes alternatív IMDb azonosító forrásait a trackerekről, majd a seederszám és minőség szerint egyesíti és rangsorolja a találatokat.
+#### 2. Többjelöltes másodlagos szöveges keresés (Fallback Title Search)
+A magyar torrent trackereken számos tartalom nem rendelkezik IMDb azonosítóval (különösen hazai tévéműsorok, vetélkedők, dokumentumfilmek), vagy az IMDb ID alapján kapott torrentek között hiányzik az adott epizód.
+- **Működése**:
+  1. **Alap tisztított cím**: Alcímek, kettőspontok és gondolatjelek levágása (pl. *"A visszavágó - kapj el, ha tudsz!"* -> *"A visszavágó"*).
+  2. **Ékezetmentesítés**: A hazai trackerek 99%-ban ékezetmentes címkékkel töltik fel a fájlokat, ezért automatikusan generálódik az ékezet nélküli lekérdezés (`A visszavago`).
+  3. **Névelők eltávolítása**: Eltávolítja a kezdő névelőket (*A*, *Az*, *The*), így a trackerek szigorú keresője azonnal megtalálja a tartalmat (`visszavago`).
+  4. **Kulcsszavas keresés**: Több szóból álló címeknél az első két szóval, illetve az első önálló szóval is kísérletet tesz.
+  5. **Címkinyerés meglévő torrentekből**: Ha egy sorozat másik évadának torrentje már megérkezett a trackerről, a rendszer kinyeri a tiszta sorozatcímet a torrent nevéből és azzal indít célzott keresést az elmaradt epizódra.
 
-#### 3. Intelligens Anime Fájlfeloldó (`StreamFileResolver` & `SeriesParser`)
-- **Abszolút számozású animék támogatása**: Ha a torrentben a fájlok folyamatos sorszámozással vannak ellátva (pl. `One Piece - 1089.mkv`), a rendszer a Wano arc évad/epizód kérését (pl. S21E01) automatikusan hozzáilleszti az abszolút sorszámhoz (`1089`).
-- **Több évados pakkok és szezongyűjtemények**:
-  - Helyesen kezeli a `Season 1`, `S01-S03`, `S01-S09 BDRip`, vagy számozott mappa-struktúrákat (pl. `01. Noragami`, `02. Noragami Aragoto`).
-  - **Relatív prioritás későbbi évadoknál**: Megakadályozza, hogy a 2. évad mappájában lévő `13.mkv` fájlt tévesen a 2. évad 1. részének higgye pusztán az abszolút epizód indexelés miatt.
+#### 3. nCore Scraping & Boolean IMDb ID validációs javítás
+- Az nCore trackeren, ha egy feltöltéshez nem csatoltak IMDb linket, az oldal adatstruktúrája `false` logikai értéket ad vissza szöveg vagy `None` helyett.
+- A modellbe és az nCore scraperbe épített `sanitize_imdb_id` validátor ezt automatikusan `None`-ra tisztítja, megelőzve a Pydantic `ValidationError` miatti 500-as szerverhibákat.
 
-#### 4. Párhuzamosított metaadat-feloldás és gyorsítótárazás
-- Aszinkron, szálbiztos és memóriakorlátos (bounded) cache védi a szervert a túlterheléstől.
-- **Negatív gyorsítótár védelem**: átmeneti hálózati kimaradás vagy timeout esetén a rendszer nem gyorsítótáraz hibás üres választ, így a következő lekérés azonnal megkísérli az újrapróbálkozást.
+#### 4. Extrák, Menük és Különkiadások (Specials) szűrése
+- **Extrák és menük kizárása normál évadoknál**:
+  - Automatikusan kiszűri a `00. Extrák`, `Extras`, `Specials`, `BD Menü`, `DVD Menu`, `Borítók`, `NCED`, `NCOP` és hasonló bónusz mappákat és fájlokat normál évadok feloldásakor.
+  - Megakadályozza, hogy a lejátszó véletlenül egy BD menüt vagy extra videót válasszon ki a tényleges epizód helyett.
+- **Különkiadások (0. évad) natív támogatása**:
+  - Ha a felhasználó kifejezetten a Különkiadásokat (Season 0) kéri (pl. Nuvio Specials fül), a feloldó belép az Extrák mappákba.
+  - A `SeriesParser` felismeri az `OAD`, `OVA`, `SP`, `Special` jelöléseket (pl. `[ReinForce] Noragami OAD1 (DVDRip).mkv` -> Season 0 Episode 1).
+
+---
+
+## 🌸 Előzmények: Anime, TheTVDB & Kitsu támogatás (a `main` branch-ből)
+
+Ez a kiadás magában foglalja a `main` branch-ben elérhető összes anime fejlesztést:
+- **Kitsu & TVDB azonosítók kezelése**: `kitsu:{id}:{ep}` és `tvdb:{id}:{season}:{ep}` formátumok.
+- **Alternatív IMDb ID-k párhuzamos lekérdezése**: Pl. Dragon Ball Z 1989 (`tt0121220`) és 1996 (`tt0214341`) egyidejű feloldása.
+- **Intelligens fájlfeloldó**: Abszolút epizódszámok és több évados gyűjtemények (pakkok) pontos illesztése.
 
 ---
 

@@ -1,4 +1,6 @@
 import uuid
+from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -12,9 +14,28 @@ from app.modules.media_attributes.parser import parse_torrent_name
 from app.modules.stream.schemas import StreamToken
 from app.modules.stream.utils.stream_token import generate_stream_token
 from app.modules.torrent_files.models import TorrentFileModel
-from app.modules.torrent_streams.utils.resolver_helpers import is_sample_or_trash
+from app.modules.torrent_streams.utils.resolver_helpers import (
+    detect_subtitle_language,
+    is_sample_or_trash,
+)
 from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
 from app.modules.users.models import UserModel
+
+
+class TorrentStreamSubtitle(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    id: str
+    file_name: str
+    file_index: int
+    file_size: int
+    url: str
+    lang: str
+    label: str | None = None
+
 
 
 class TorrentStream(BaseModel):
@@ -34,6 +55,7 @@ class TorrentStream(BaseModel):
     play_url: str
     seeders: int | None = None
     attributes: list[MediaAttributeModel | IndexerDefinitionModel] = []
+    subtitles: list[TorrentStreamSubtitle] | None = None
     is_persisted_torrent: bool
 
     @classmethod
@@ -55,14 +77,56 @@ class TorrentStream(BaseModel):
             if is_sample_or_trash(file.name):
                 continue
 
+            playback_id = str(uuid.uuid4())
             stream_token = generate_stream_token(
                 StreamToken(
                     indexer_id=indexer_id,
                     torrent_id=torrent_file.torrent_id,
                     file_index=file.index,
-                    playback_id=str(uuid.uuid4()),
+                    playback_id=playback_id,
                 )
             )
+
+            matched_subs = StreamFileResolver(torrent_file.info).resolve_subtitles(file)
+            subtitles: list[TorrentStreamSubtitle] = []
+            for sub_file in matched_subs:
+                sub_stream_token = generate_stream_token(
+                    StreamToken(
+                        indexer_id=indexer_id,
+                        torrent_id=torrent_file.torrent_id,
+                        file_index=sub_file.index,
+                        playback_id=playback_id,
+                    )
+                )
+                lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
+                encoded_name = quote(sub_file.name)
+                subtitles.append(
+                    TorrentStreamSubtitle(
+                        id=f"{torrent_file.torrent_id}-{sub_file.index}",
+                        file_name=sub_file.name,
+                        file_index=sub_file.index,
+                        file_size=sub_file.size,
+                        url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_name}",
+                        lang=lang,
+                        label=label,
+                    )
+                )
+                ext = Path(sub_file.name).suffix.lower()
+                if ext in (".ass", ".ssa"):
+                    vtt_name = Path(sub_file.name).stem + ".vtt"
+                    encoded_vtt = quote(vtt_name)
+                    vtt_label = f"{label} (VTT)" if label else "Hungarian (VTT)"
+                    subtitles.append(
+                        TorrentStreamSubtitle(
+                            id=f"{torrent_file.torrent_id}-{sub_file.index}-vtt",
+                            file_name=vtt_name,
+                            file_index=sub_file.index,
+                            file_size=sub_file.size,
+                            url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_vtt}",
+                            lang=lang,
+                            label=vtt_label,
+                        )
+                    )
 
             torrent_streams.append(
                 cls(
@@ -76,6 +140,7 @@ class TorrentStream(BaseModel):
                     play_url=f"{app_url}/api/{user.api_key}/stream/{stream_token}",
                     seeders=indexer_torrent.seeders,
                     attributes=[],
+                    subtitles=subtitles if subtitles else None,
                     is_persisted_torrent=False,
                 )
             )
@@ -157,6 +222,49 @@ class TorrentStream(BaseModel):
         file_index = torrent_file_info.index
         playback_id = str(uuid.uuid4())
 
+        matched_subs = resolver.resolve_subtitles(torrent_file_info)
+        subtitles: list[TorrentStreamSubtitle] = []
+        for sub_file in matched_subs:
+            sub_stream_token = generate_stream_token(
+                StreamToken(
+                    indexer_id=indexer_id,
+                    torrent_id=torrent_id,
+                    file_index=sub_file.index,
+                    playback_id=playback_id,
+                    imdb_id=indexer_torrent.imdb_id,
+                    series_info=series,
+                )
+            )
+            lang, label = detect_subtitle_language(sub_file.name, sub_file.path)
+            encoded_name = quote(sub_file.name)
+            subtitles.append(
+                TorrentStreamSubtitle(
+                    id=f"{torrent_id}-{sub_file.index}",
+                    file_name=sub_file.name,
+                    file_index=sub_file.index,
+                    file_size=sub_file.size,
+                    url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_name}",
+                    lang=lang,
+                    label=label,
+                )
+            )
+            ext = Path(sub_file.name).suffix.lower()
+            if ext in (".ass", ".ssa"):
+                vtt_name = Path(sub_file.name).stem + ".vtt"
+                encoded_vtt = quote(vtt_name)
+                vtt_label = f"{label} (VTT)" if label else "Hungarian (VTT)"
+                subtitles.append(
+                    TorrentStreamSubtitle(
+                        id=f"{torrent_id}-{sub_file.index}-vtt",
+                        file_name=vtt_name,
+                        file_index=sub_file.index,
+                        file_size=sub_file.size,
+                        url=f"{app_url}/api/{user.api_key}/subtitles/{sub_stream_token}/{encoded_vtt}",
+                        lang=lang,
+                        label=vtt_label,
+                    )
+                )
+
         stream_token = generate_stream_token(
             StreamToken(
                 indexer_id=indexer_id,
@@ -182,5 +290,6 @@ class TorrentStream(BaseModel):
             file_size=torrent_file_info.size,
             file_index=file_index,
             play_url=f"{app_url}/api/{user.api_key}/stream/{stream_token}",
+            subtitles=subtitles if subtitles else None,
             is_persisted_torrent=False,
         )

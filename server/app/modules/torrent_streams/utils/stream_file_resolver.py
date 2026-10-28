@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from app.common.schemas.internal import SeriesInfo
-from app.common.torrent_info import TorrentFileInfo, TorrentInfo
-from app.modules.torrent_streams.utils.resolver_helpers import is_sample_or_trash
+from app.common.torrent_info import (
+    TorrentFileInfo,
+    TorrentInfo,
+    is_subtitle_file,
+)
+from app.modules.torrent_streams.utils.resolver_helpers import (
+    is_extra_file,
+    is_extra_folder,
+    is_sample,
+    is_sample_or_trash,
+)
 from app.modules.torrent_streams.utils.series_parser import SeriesParser
 
 
@@ -296,3 +306,115 @@ class StreamFileResolver:
             return self._get_largest_video_file(exact_matches)
 
         return None
+
+    def resolve_subtitles(
+        self,
+        target_video_file: TorrentFileInfo,
+    ) -> list[TorrentFileInfo]:
+        """
+        Feloldja a megadott videófájlhoz tartozó feliratfájlokat a torrentből.
+        """
+        subtitle_files = [
+            f
+            for f in self.torrent_info.files
+            if is_subtitle_file(f.name) and not is_sample(f.name)
+        ]
+        if not subtitle_files:
+            return []
+
+        # Ha normál évadot keresünk (nem a 0. évadot), kiszűrjük az extrák mappában lévő feliratokat
+        if 0 not in self.target_seasons:
+            subtitle_files = [
+                f
+                for f in subtitle_files
+                if not any(is_extra_folder(part) for part in f.path.split("/")[:-1])
+                and not is_extra_file(f.name)
+            ]
+
+        # 1. eset: Ha a torrentben csak 1 videófájl van (film vagy egyetlen epizód)
+        video_files = [
+            f
+            for f in self.torrent_info.files
+            if f.is_video and not is_sample_or_trash(f.name)
+        ]
+        if len(video_files) <= 1:
+            return subtitle_files
+
+        # 2. eset: Több fájlos torrent (pakk) - a feliratokat a konkrét videófájlhoz illesztjük
+        video_stem = target_video_file.name.rsplit(".", 1)[0].lower()
+        clean_video_stem = re.sub(
+            r"[\._\-\[]\s*(?:hun|hu|hungarian|magyar|eng|en|english|forced|hunsub|engsub)\b.*$",
+            "",
+            video_stem,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        matched: list[TorrentFileInfo] = []
+
+        # 2/a. Név/stem egyezés (pl. video.mkv -> video.ass, video.hun.ass, video [HunSub].ass)
+        for sub in subtitle_files:
+            sub_stem = sub.name.rsplit(".", 1)[0].lower()
+            clean_sub_stem = re.sub(
+                r"[\._\-\[]\s*(?:hun|hu|hungarian|magyar|eng|en|english|forced|hunsub|engsub)\b.*$",
+                "",
+                sub_stem,
+                flags=re.IGNORECASE,
+            ).strip()
+
+            if clean_sub_stem == clean_video_stem or sub_stem == video_stem:
+                matched.append(sub)
+            elif clean_video_stem and (
+                sub_stem.startswith(clean_video_stem)
+                or clean_sub_stem.startswith(clean_video_stem)
+            ):
+                matched.append(sub)
+
+        if matched:
+            return matched
+
+        # 2/b. Epizódszám szerinti egyezés sorozatoknál (pl. Subs/01.ass vagy Subs/Noragami - 01.ass)
+        if self.series and self.series.episode is not None:
+            target_eps = set(self.target_episodes)
+            target_seas = set(self.target_seasons)
+
+            for sub in subtitle_files:
+                sub_parts = sub.path.split("/")[:-1]
+                sub_folder_season = None
+                for part in sub_parts:
+                    p_seas, _ = SeriesParser(part).parse(allow_standalone_episode=False)
+                    if p_seas and len(p_seas) == 1:
+                        sub_folder_season = p_seas[0]
+                        break
+
+                if (
+                    sub_folder_season is not None
+                    and sub_folder_season not in target_seas
+                ):
+                    continue
+
+                sub_seasons, sub_episodes = SeriesParser(sub.name).parse(
+                    context_seasons=[sub_folder_season]
+                    if sub_folder_season
+                    else list(target_seas)
+                )
+                if not sub_episodes:
+                    continue
+
+                is_ep_match = any(e in target_eps for e in sub_episodes)
+                if self.alt_episodes_set and any(
+                    e in self.alt_episodes_set for e in sub_episodes
+                ):
+                    is_ep_match = True
+
+                if is_ep_match:
+                    if sub_seasons:
+                        if any(s in target_seas for s in sub_seasons):
+                            matched.append(sub)
+                    elif sub_folder_season is not None:
+                        if sub_folder_season in target_seas:
+                            matched.append(sub)
+                    else:
+                        matched.append(sub)
+
+        return matched
+

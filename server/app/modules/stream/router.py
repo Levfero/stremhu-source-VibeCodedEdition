@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Annotated
 
 import content_types
@@ -29,10 +30,16 @@ from app.modules.stream.dependencies import (
     get_parsed_stream_token,
 )
 from app.modules.stream.schemas import StreamToken
+from app.modules.stream.utils.subtitles import ass_to_vtt
 
 router = APIRouter(
     prefix="/{api_key}/stream",
     tags=["Stream"],
+)
+
+subtitles_router = APIRouter(
+    prefix="/{api_key}/subtitles",
+    tags=["Subtitles"],
 )
 
 
@@ -136,6 +143,138 @@ async def stream(
             headers=headers,
         )
     )
+
+
+@subtitles_router.get("/{stream_token}")
+@subtitles_router.get("/{stream_token}/{filename}")
+@subtitles_router.head("/{stream_token}")
+@subtitles_router.head("/{stream_token}/{filename}")
+async def stream_subtitle(
+    request: Request,
+    api_key: str,
+    stream_token: Annotated[StreamToken, Depends(get_parsed_stream_token)],
+    filename: str | None = None,
+    range_header: Annotated[str | None, Header(alias="Range")] = None,
+) -> Response:
+    with isolated_db_session() as local_db:
+        auth_service = create_auth_service(local_db)
+        user = await asyncio.to_thread(
+            auth_service.verify_api_key,
+            api_key=api_key,
+        )
+
+        stream_service = create_stream_service(local_db)
+
+        parsed_range_header, file = await stream_service.prepare_for_stream(
+            range_header=range_header,
+            indexer_id=stream_token.indexer_id,
+            torrent_id=stream_token.torrent_id,
+            file_index=stream_token.file_index,
+        )
+
+    req_ext = (
+        Path(filename).suffix.lower() if filename else Path(file.name).suffix.lower()
+    )
+    file_ext = Path(file.name).suffix.lower()
+
+    convert_to_vtt = req_ext == ".vtt" and file_ext in (".ass", ".ssa")
+
+    if convert_to_vtt:
+        media_type = "text/vtt; charset=utf-8"
+        disp_name = Path(file.name).stem + ".vtt"
+    elif file_ext in (".ass", ".ssa"):
+        media_type = "text/x-ssa; charset=utf-8"
+        disp_name = file.name
+    elif file_ext == ".vtt":
+        media_type = "text/vtt; charset=utf-8"
+        disp_name = file.name
+    elif file_ext == ".srt":
+        media_type = "text/plain; charset=utf-8"
+        disp_name = file.name
+    else:
+        media_type = (
+            content_types.get_content_type(file.name) or "text/plain; charset=utf-8"
+        )
+        disp_name = file.name
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*",
+        "Content-Disposition": f'inline; filename="{disp_name}"',
+    }
+
+    if convert_to_vtt:
+        if request.method == "HEAD":
+            return _apply_capitalized_headers(
+                Response(
+                    status_code=200,
+                    headers=headers,
+                    media_type=media_type,
+                )
+            )
+
+        iterator = await file.stream(
+            playback_id=stream_token.playback_id,
+            user_id=user.id,
+            request=request,
+            stream_start_byte=0,
+            stream_end_byte=file.size - 1,
+        )
+        chunks = []
+        async for chunk in iterator:
+            chunks.append(chunk)
+        raw_bytes = b"".join(chunks)
+        content_text = raw_bytes.decode("utf-8-sig", errors="replace")
+        vtt_output = ass_to_vtt(content_text)
+        vtt_bytes = vtt_output.encode("utf-8")
+        headers["Content-Length"] = str(len(vtt_bytes))
+        return _apply_capitalized_headers(
+            Response(
+                content=vtt_bytes,
+                status_code=200,
+                headers=headers,
+                media_type=media_type,
+            )
+        )
+
+    if range_header is None:
+        status_code = 200
+        headers["Content-Length"] = str(file.size)
+    else:
+        status_code = 206
+        headers["Content-Length"] = str(parsed_range_header.content_length)
+        headers["Content-Range"] = (
+            f"bytes {parsed_range_header.start_byte}-{parsed_range_header.end_byte}/{file.size}"
+        )
+
+    if request.method == "HEAD":
+        return _apply_capitalized_headers(
+            Response(
+                status_code=status_code,
+                headers=headers,
+                media_type=media_type,
+            )
+        )
+
+    iterator = await file.stream(
+        playback_id=stream_token.playback_id,
+        user_id=user.id,
+        request=request,
+        stream_start_byte=parsed_range_header.start_byte,
+        stream_end_byte=parsed_range_header.end_byte,
+    )
+
+    return _apply_capitalized_headers(
+        StreamingResponse(
+            content=iterator,
+            media_type=media_type,
+            status_code=status_code,
+            headers=headers,
+        )
+    )
+
 
 
 def _apply_capitalized_headers(response: Response) -> Response:

@@ -22,6 +22,7 @@ from app.modules.stremio.schemas import (
     ManifestExtra,
     StreamId,
     StremioStream,
+    StremioSubtitle,
     TorrentStreamId,
     TvdbStreamId,
 )
@@ -81,6 +82,7 @@ class StremioService:
                 ShortManifestResource.STREAM,
                 ShortManifestResource.CATALOG,
                 ShortManifestResource.META,
+                ShortManifestResource.SUBTITLES,
             ],
             types=[ContentType.MOVIE, ContentType.SERIES, ContentType.ANIME],
             id_prefixes=[
@@ -240,3 +242,21 @@ class StremioService:
             )
 
         return stremio_streams
+
+    async def get_subtitles(
+        self,
+        user: UserModel,
+        parsed_id: StreamId,
+    ) -> list[StremioSubtitle]:
+        """Lekéri a feliratokat az adott médiához a feloldott streamek alapján."""
+        streams = await self.get_streams(user, parsed_id)
+        all_subs: list[StremioSubtitle] = []
+        seen_urls: set[str] = set()
+        for s in streams:
+            if s.subtitles:
+                for sub in s.subtitles:
+                    if sub.url not in seen_urls:
+                        seen_urls.add(sub.url)
+                        all_subs.append(sub)
+        return all_subs
+

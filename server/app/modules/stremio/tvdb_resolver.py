@@ -1,6 +1,6 @@
 from collections import defaultdict
-from collections.abc import Callable
 from urllib.parse import quote
+
 import httpx
 
 from app.common.keyed_lock import KeyedLock

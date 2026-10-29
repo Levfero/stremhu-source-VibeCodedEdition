@@ -16,8 +16,10 @@ import { SEED_OPTIONS } from '@/shared/constants'
 import { useAppForm } from '@/shared/contexts/form-context'
 import { assertExists, parseApiError } from '@/shared/lib/utils'
 import { getMe, useUpdateMe } from '@/shared/queries/me'
+import { Switch } from '@/shared/components/ui/switch'
 import {
   enableSmartFilterSchema,
+  enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceIdSchema,
   smartFilterLimitSchema,
   torrentSeedSchema,
@@ -26,6 +28,7 @@ import {
 export const validatorSchema = z.object({
   torrentSeed: torrentSeedSchema,
   enableSmartFilter: enableSmartFilterSchema,
+  enableStreamDeduplication: enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceId: smartFilterGroupingPreferenceIdSchema,
   smartFilterLimit: smartFilterLimitSchema,
 })
@@ -42,6 +45,7 @@ export function OtherPreferences() {
     defaultValues: {
       torrentSeed: me.torrentSeed,
       enableSmartFilter: me.enableSmartFilter,
+      enableStreamDeduplication: me.enableStreamDeduplication ?? true,
       smartFilterGroupingPreferenceId: me.smartFilterGroupingPreferenceId,
       smartFilterLimit: me.smartFilterLimit,
     },
@@ -116,6 +120,34 @@ export function OtherPreferences() {
                     </div>
                   ))}
                 </RadioGroup>
+              )}
+            </form.Field>
+          </CardContent>
+        </Card>
+
+        <Card className="break-inside-avoid mb-4">
+          <CardHeader>
+            <CardTitle>Találatok összevonása</CardTitle>
+            <CardDescription>
+              Több tracker (pl. nCore, HunTorrent, Majomparádé) azonos
+              tartalmú release-einek intelligens összevonása egyetlen
+              találattá, összesített seederekkel.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form.Field name="enableStreamDeduplication">
+              {(field) => (
+                <Label
+                  htmlFor={field.name}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
+                  <Switch
+                    id={field.name}
+                    checked={field.state.value ?? true}
+                    onCheckedChange={field.handleChange}
+                  />
+                  <span>Több-trackeres találatok összevonása</span>
+                </Label>
               )}
             </form.Field>
           </CardContent>

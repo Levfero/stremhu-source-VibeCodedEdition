@@ -61,6 +61,7 @@ class UsersService:
             api_key=str(uuid.uuid4()),
             torrent_seed=payload.torrent_seed,
             enable_smart_filter=payload.enable_smart_filter,
+            enable_stream_deduplication=payload.enable_stream_deduplication,
         )
 
         return self._users_repository.create(user)

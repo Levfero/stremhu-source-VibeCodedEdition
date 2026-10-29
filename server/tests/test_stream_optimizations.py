@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.media_attributes.models import MediaAttributeModel
@@ -394,3 +396,78 @@ def test_japanese_language_attribute_detection():
     )
     stremio_stream = StremioStream.from_imdb_torrent_stream(stream)
     assert "🇯🇵 Jap" in stremio_stream.description
+
+
+@pytest.mark.anyio
+async def test_user_stream_deduplication_toggle():
+    from unittest.mock import AsyncMock, patch
+
+    from app.modules.users.models import UserModel
+
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+    huntorrent_acc = _create_mock_indexer("huntorrent", "HunTorrent")
+
+    stream1 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="hash_dedup_1",
+        seeders=40,
+        torrent_name="Matrix.1999.1080p",
+        attributes=[],
+        file_name="matrix.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/1",
+    )
+    stream2 = TorrentStream(
+        indexer_account=huntorrent_acc,
+        torrent_id="t2",
+        info_hash="hash_dedup_1",
+        seeders=30,
+        torrent_name="Matrix.1999.1080p",
+        attributes=[],
+        file_name="matrix.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/2",
+    )
+
+    mock_provider = AsyncMock()
+    mock_src1 = MagicMock()
+    mock_src2 = MagicMock()
+    mock_provider.find_by_imdb_id.return_value = ([mock_src1, mock_src2], [])
+
+    mock_settings = AsyncMock()
+    mock_settings.get_app_url.return_value = "http://localhost:7070"
+
+    mock_torrents = MagicMock()
+    mock_torrents.get_torrents.return_value = []
+
+    service = TorrentStreamsService(
+        db=AsyncMock(),
+        torrent_source_provider_service=mock_provider,
+        torrents_service=mock_torrents,
+        settings_service=mock_settings,
+        preferences_service=MagicMock(),
+    )
+
+    # 1. Bekapcsolt deduplikáció esetén (alapértelmezett): 1 darab összevont stream
+    with patch.object(TorrentStream, "from_imdb_id", side_effect=[stream1, stream2]):
+        user_enabled = UserModel(
+            id="u1", username="test1", enable_smart_filter=False, enable_stream_deduplication=True
+        )
+        user_enabled.preference_definitions = []
+        streams, _ = await service.find_by_imdb(user=user_enabled, imdb_id="tt0133093")
+        assert len(streams) == 1
+        assert streams[0].combined_seeders == 70
+
+    # 2. Kikapcsolt deduplikáció esetén: mindkét stream külön megjelenik
+    with patch.object(TorrentStream, "from_imdb_id", side_effect=[stream1, stream2]):
+        user_disabled = UserModel(
+            id="u2", username="test2", enable_smart_filter=False, enable_stream_deduplication=False
+        )
+        user_disabled.preference_definitions = []
+        streams_disabled, _ = await service.find_by_imdb(user=user_disabled, imdb_id="tt0133093")
+        assert len(streams_disabled) == 2
+        assert streams_disabled[0].info_hash == "hash_dedup_1"
+        assert streams_disabled[1].info_hash == "hash_dedup_1"

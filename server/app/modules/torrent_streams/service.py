@@ -244,9 +244,12 @@ class TorrentStreamsService:
         sorted_torrent_streams = self._sort_torrent_streams(
             filtered_torrent_streams, user
         )
-        deduplicated_torrent_streams = self._deduplicate_torrent_streams(
-            sorted_torrent_streams
-        )
+        if getattr(user, "enable_stream_deduplication", True):
+            deduplicated_torrent_streams = self._deduplicate_torrent_streams(
+                sorted_torrent_streams
+            )
+        else:
+            deduplicated_torrent_streams = sorted_torrent_streams
 
         if user.enable_smart_filter:
             limit = user.smart_filter_limit
@@ -536,17 +539,15 @@ class TorrentStreamsService:
             if q and len(q) >= 2 and q not in candidates:
                 candidates.append(q)
 
-        # 1. Sorozat esetén a célzott évados lekérdezések élveznek prioritást (pl. "Stranger Things S04")
+        # 1. Sorozat esetén az elsődleges évados lekérdezés élvez prioritást (pl. "Stranger Things S04")
         if series and series.season is not None:
             s_num = series.season
             for title_cand in (no_article, unaccented, base_clean):
                 if title_cand:
                     add_candidate(f"{title_cand} S{s_num:02d}")
-                    if series.episode is not None:
-                        add_candidate(f"{title_cand} S{s_num:02d}E{series.episode:02d}")
-                    add_candidate(f"{title_cand} {s_num}.evad")
 
         # 2. Alap cím változatlanul (ahogy a Cinemeta/TMDB/torrent neve adta)
+        # Ha egy anime (pl. One Piece) nem rendelkezik S01 jelöléssel, azonnal megtalálja a 2. hívásra
         add_candidate(base_clean)
 
         # 3. Ékezetmentesített változat
@@ -555,7 +556,16 @@ class TorrentStreamsService:
         # 4. Névelő nélküli változat ("A ", "Az ", "The ")
         add_candidate(no_article)
 
-        # 5. Ha több szóból áll, az első 2 szó és az első szó
+        # 5. További sorozatos változatok (specifikus epizód és magyar évad)
+        if series and series.season is not None:
+            s_num = series.season
+            for title_cand in (no_article, unaccented, base_clean):
+                if title_cand:
+                    if series.episode is not None:
+                        add_candidate(f"{title_cand} S{s_num:02d}E{series.episode:02d}")
+                    add_candidate(f"{title_cand} {s_num}.evad")
+
+        # 6. Ha több szóból áll, az első 2 szó és az első szó
         words = no_article.split()
         if len(words) > 1:
             add_candidate(" ".join(words[:2]))

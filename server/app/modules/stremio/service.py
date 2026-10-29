@@ -129,7 +129,8 @@ class StremioService:
     ) -> list[StremioStream]:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
         use_cache = type(self._torrent_streams_service) is TorrentStreamsService
-        cache_key = f"{user.id}:{parsed_id.model_dump_json()}"
+        dedup_val = getattr(user, "enable_stream_deduplication", True)
+        cache_key = f"{user.id}:{dedup_val}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
         if use_cache:
             now = time.monotonic()
             cached = _stream_cache.get(cache_key)

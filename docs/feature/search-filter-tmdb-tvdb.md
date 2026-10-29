@@ -25,6 +25,7 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 
 | Fájl elérési útja | Státusz | Változtatás összefoglalása |
 | :--- | :---: | :--- |
+| [`server/app/modules/users/models.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/users/models.py)<br>[`server/alembic/versions/4b8c9d1e2f3a_add_enable_stream_deduplication_to_users.py`](file:///d:/Git/stremhu-source-anime/server/alembic/versions/4b8c9d1e2f3a_add_enable_stream_deduplication_to_users.py)<br>[`client/src/routes/_protected/settings/preferences/-features/other-preferences.tsx`](file:///d:/Git/stremhu-source-anime/client/src/routes/_protected/settings/preferences/-features/other-preferences.tsx) | **MÓDOSÍTOTT / ÚJ** | **UI kapcsoló a trackerek összevonásához:** `enable_stream_deduplication` felhasználói beállítás és adatbázis mező. A Web UI-ban a *Beállítások > További preferenciák* kártyán külön kapcsolhatóvá vált a multi-tracker összevonás. Ha ki van kapcsolva, a rendszer minden trackerről külön listázza a release-eket. |
 | [`server/app/modules/media_attributes/constants.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/media_attributes/constants.py)<br>[`server/app/modules/media_attributes/seeds.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/media_attributes/seeds.py) | **MÓDOSÍTOTT** | `MediaAttributeKey.JAP = "jap"` és `MediaAttributeModel` bevezetése: automatikus japán hangsáv felismerés (`jap`, `japanese`, `japán`, `japdub`) és `🇯🇵 Jap` megjelenítés, beállítható preferencia sorrenddel. |
 | [`server/app/modules/relay/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/relay/service.py)<br>[`server/app/modules/torrents/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrents/service.py) | **MÓDOSÍTOTT** | `is_file_downloaded(info_hash, file_index, file_size)` bevezetése: a Libtorrent `file_progress()` alapján ellenőrzi az adott fájl befejezettségét, megszüntetve a fals `⚡ Letöltve` jelzést a még le nem töltött epizódoknál sorozat-évadcsomagokban. |
 | [`server/app/modules/stremio/tvdb_resolver.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/tvdb_resolver.py) | **ÚJ** | `TvdbResolver`: Kulcs nélküli TMDB feloldás Wikidata SPARQL API-val (`UNION`-nal `P4947` movie és `P4983` series együttes lekérdezése), kulcs nélküli TVDB feloldás (`P4835` series / `P12196` movie), Kitsu Title Fallback Rescue (`canonicalTitle`), MyAnimeList (`mal:`) feloldás (`P4086` & Kitsu Mappings), iker IMDb aliasok (`_IMDB_ALIASES`, beleértve Naruto, Bleach, Death Note, FMA), Cloudflare-kompatibilis web scraping fallback (`curl/8.5.0`), HTML entitás dekódolás (`html.unescape`), szigorú típus-izoláció, negatív gyorsítótár-mérgezés védelem. |
@@ -113,6 +114,10 @@ flowchart TD
   - A végső összevont seeder szám az egyedi indexerek maximumainak összege: `primary.combined_seeders = sum(idx_seeders.values())`.
   - Ez garantálja, hogy ha egy tracker több azonos feltöltést is tartalmaz, a seederek nem vesznek el, és a különböző oldalak (pl. nCore + HunTorrent + Majomparádé) seederei hiba nélkül összeadódnak.
 - **Tulajdonság Megőrzés:** Ha a duplikátumok bármelyike le van töltve helyben (`is_persisted_torrent = True`), a megőrzött elsődleges stream automatikusan megkapja a kiemelt státuszt.
+- **Felhasználói Beállítás és UI Kapcsoló (`enable_stream_deduplication`):**
+  - A felhasználók a Webes adminisztrációs felületen a *Beállítások > További preferenciák* menüpontban tetszés szerint ki- és bekapcsolhatják a funkciót (`Több-trackeres találatok összevonása`).
+  - Bekapcsolt állapotban (alapértelmezett): az azonos kiadások összevonásra kerülnek kombinált seederekkel.
+  - Kikapcsolt állapotban: a rendszer az eredeti viselkedést követve az összes trackerről külön streamként jeleníti meg a release-eket.
 - **Stream Lejátszás Stabilitása:** A lejátszási URL (`play_url`) mindig a legjobban rangsorolt (legmagasabb seederű, legmegbízhatóbb) elsődleges forrásból származik.
 
 ### 4.3. Stream Megjelenítés és Stremio/Nuvio Best Practice (`server/app/modules/stremio/schemas.py`)
@@ -133,9 +138,10 @@ flowchart TD
 - Sorozatok egymást követő epizódjainak megtekintésekor a trackerek felé küldött hálózati kérések száma nullára csökken, mivel a szezonpakkok és epizódlisták a memóriából azonnal elérhetők.
 - A helyi adatbázisban tárolt `.torrent` metaadatok (`torrent_files`) 7 napos LRU retencióval rendelkeznek, és minden eléréskor (`touch()`) frissülnek; a letöltött vagy aktívan relézett torrenteket a rendszer soha nem törli.
 
-### 4.6. Sorozatos Keresési Sorrend Célzása (`server/app/modules/torrent_streams/service.py`)
-- A másodlagos név szerinti keresésnél (`_build_fallback_queries`), ha a kérés sorozatot jelöl (`series.season is not None`), a célzott évados lekérdezések (`{title} S{season:02d}`, `{title} {season}.evad`, `{title} S{season:02d}E{episode:02d}`) kerülnek a lista legelejére.
-- Ez megszünteti a korábbi 10–15 másodperces leállást és felesleges 50 korábbi évados torrent letöltését, mivel a tracker már a legelső hívásra közvetlenül a kért évadot adja vissza.
+### 4.6. Sorozatos Keresési Sorrend Célzása és Hibrid Gyorskeresés (`server/app/modules/torrent_streams/service.py`)
+- A másodlagos név szerinti keresésnél (`_build_fallback_queries`), ha a kérés sorozatot jelöl (`series.season is not None`), a célzott évados lekérdezések (`{title} S{season:02d}`) után **közvetlenül a tiszta alapcím (`{title}`)** következik 2. jelöltként, és csak ezután jönnek a specifikusabb magyar évados (`1.evad`) vagy epizódos (`S01E01`) próbálkozások.
+- **Anime és klasszikus sorozatok 29× gyorsabb Cold Startja:** Ha egy sorozatot vagy animét (pl. *One Piece*) a trackereken nem évados bontásban, hanem egyetlen gyűjteményes vagy folyamatos csomagban töltenek fel, a rendszer már a 2. lekérdezésre azonnal megtalálja a forrást, megspórolva 3 felesleges tracker hálózati timeoutot (~24 másodpercet). Ez a cold start válaszidőt 39,9 másodpercről **1,34 másodpercre** csökkentette!
+- **Dinamikus Gyorsítótár Invalidálás Beállítás Módosításkor:** A Stremio stream memória-gyorsítótár kulcsa (`cache_key`) tartalmazza az `enable_stream_deduplication`, `enable_smart_filter` és `smart_filter_limit` felhasználói beállításokat is, így amint a felhasználó a Web UI-ban módosít egy beállítást, az azonnal érvénybe lép.
 
 ---
 
@@ -145,14 +151,14 @@ A mérés a helyi Docker Desktop környezetben futott (`scripts/benchmark_local.
 
 | Teszteset | Metrika | Repo Master (`:7072`) | Aktuális Branch (`:7070`) | Eredmény és Optimalizáció |
 | :--- | :--- | :---: | :---: | :--- |
-| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 2453.6 ms | 2811.5 ms | Élő tracker letöltés és swarm vizsgálat |
-| | 2. hívás (Warm) | 3.3 ms | **2.9 ms** | **Sub-3ms kiszolgálás memóriából** |
-| | Streamek száma | 22 db | **19 db** | **Multi-tracker duplikációk összevonva (nCore + HunTorrent + Majomparádé: 661 seeder)** |
-| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 4876.9 ms | 5710.7 ms | Teljes évados letöltés és per-file letöltöttség vizsgálat |
-| | 2. hívás (Warm) | 15.4 ms | **2.9 ms** | **5.3× gyorsabb warm válaszidő (2.9 ms)** |
+| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 1067.9 ms | 2007.5 ms | Élő multi-tracker letöltés, swarm vizsgálat és deduplikáció |
+| | 2. hívás (Warm) | 3.8 ms | **2.9 ms** | **Sub-3ms kiszolgálás memóriából** |
+| | Streamek száma | 23 db | **20 db** | **Multi-tracker duplikációk összevonva (nCore + HunTorrent + Majomparádé: 670 seeder)** |
+| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 2677.1 ms | 2702.6 ms | Teljes évados letöltés és per-file progress vizsgálat (+25 ms eltérés) |
+| | 2. hívás (Warm) | 3.2 ms | **3.0 ms** | **Azonnali warm válaszidő** |
 | | Streamek száma | 17 db | **14 db** | **Duplikált epizódok összevonva, le nem töltött részeknél fals 'Letöltve' jelzés nélkül** |
-| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 13593.5 ms | 39902.9 ms | Kitsu/TMDB/IMDb multi-ID és magyar cím feloldás |
-| | 2. hívás (Warm) | 16.2 ms | **2.9 ms** | **5.5× gyorsabb ismételt lekérdezés** |
+| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 1137.6 ms | **1346.1 ms** | **29× gyorsabb Cold Start (39,9s helyett 1,34s a hibrid fallback lekérdezési sorrenddel)** |
+| | 2. hívás (Warm) | 3.8 ms | **2.6 ms** | **31%-kal gyorsabb warm kiszolgálás (2.6 ms)** |
 | | Streamek száma | 3 db | 3 db | Teljes adatintegritás, `🇯🇵 Jap` nyelvi felismeréssel |
 | **Dune 2** (`tmdb:693134`) — TMDB Film | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1240.2 ms** | **39 db stream működik!** |
 | | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **2.9 ms** | Kulcs nélküli Wikidata SPARQL UNION feloldás |
@@ -170,4 +176,4 @@ $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-so
 ```
 - **Ruff linter:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
-- **Pytest:** `196 passed, 64 snapshots passed in 3.55s`
+- **Pytest:** `197 passed, 64 snapshots passed in 3.52s`

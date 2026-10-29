@@ -45,7 +45,7 @@ _IMDB_ALIASES: dict[str, list[str]] = {
 
 class TvdbResolver:
     def __init__(self):
-        self._cache: dict[str, str | tuple | None] = {}
+        self._cache: dict[str, str | tuple | list | None] = {}
         # Teljes sorozat szintű gyorsítótár: imdb_id -> {(season, episode): (alt_eps, alt_seasons)}
         self._series_epmap: dict[str, dict[tuple[int, int], tuple[list[int], list[int]]]] = {}
         # Cinemeta kumulatív évad-epizódszám gyorsítótár: imdb_id -> {season: episode_count}
@@ -72,7 +72,7 @@ class TvdbResolver:
             await self._client.aclose()
             self._client = None
 
-    def _set_cache(self, key: str, value: str | tuple | None) -> None:
+    def _set_cache(self, key: str, value: str | tuple | list | None) -> None:
         if len(self._cache) >= _MAX_CACHE_ENTRIES:
             # Régi bejegyzések törlése (egyszerű memóriavédelem hetekig tartó futás esetére)
             keys_to_remove = list(self._cache.keys())[:1000]

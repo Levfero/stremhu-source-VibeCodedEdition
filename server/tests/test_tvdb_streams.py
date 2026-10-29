@@ -726,12 +726,10 @@ def test_relay_tighter_piece_deadlines():
     torrent = object.__new__(Torrent)
     torrent.info_hash = "deadbeef"
     torrent.piece_size = 1000
-    torrent.pieces_count = 20
     torrent.prefetch_piece_count = 5
     torrent.critical_piece_count = 2
     torrent.torrent_handle = mock_handle
     torrent.files = {}
-    torrent.download_full_torrent = False
 
     file_info = TorrentFileInfo(
         index=0,

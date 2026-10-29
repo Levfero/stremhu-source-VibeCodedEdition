@@ -258,6 +258,7 @@ class IndexersService:
         ) -> list[IndexerTorrent]:
             cache_key = (indexer_account.indexer_id, imdb_id)
             now = time.monotonic()
+            indexer_definition_torrents: list[Any] | None = None
             cached = _imdb_tracker_cache.get(cache_key)
             if cached is not None:
                 ts, cached_def_torrents = cached
@@ -265,9 +266,8 @@ class IndexersService:
                     indexer_definition_torrents = cached_def_torrents
                 else:
                     _imdb_tracker_cache.pop(cache_key, None)
-                    cached = None
 
-            if cached is None:
+            if indexer_definition_torrents is None:
                 indexer_definition = self._indexer_definitions_service.get_by_id(
                     indexer_account.indexer_id
                 )

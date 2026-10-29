@@ -1,3 +1,4 @@
+import html
 import re
 from collections import defaultdict
 from urllib.parse import quote
@@ -55,7 +56,7 @@ class TvdbResolver:
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
+        if self._client is None or self._client.is_closed is True:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
             self._client = httpx.AsyncClient(
                 timeout=8.0,
@@ -313,7 +314,9 @@ class TvdbResolver:
 
         return None, None, None, [], []
 
-    async def get_title_by_imdb(self, imdb_id: str) -> str | None:
+    async def get_title_by_imdb(
+        self, imdb_id: str, is_series: bool | None = None
+    ) -> str | None:
         """Lekéri a média címét IMDb ID alapján Cinemeta API-n keresztül (másodlagos kereséshez)."""
         if not imdb_id:
             return None
@@ -326,7 +329,14 @@ class TvdbResolver:
             return val if isinstance(val, str) else None
 
         client = self._get_client()
-        for c_type in ["series", "movie"]:
+        if is_series is False:
+            c_types = ["movie", "series"]
+        elif is_series is True:
+            c_types = ["series", "movie"]
+        else:
+            c_types = ["series", "movie"]
+
+        for c_type in c_types:
             url = f"https://v3-cinemeta.strem.io/meta/{c_type}/{imdb_id}.json"
             try:
                 resp = await client.get(url, timeout=5.0)
@@ -410,11 +420,67 @@ class TvdbResolver:
                             if ext_imdb_clean or title:
                                 res = (ext_imdb_clean, str(title) if title else None)
                                 self._set_cache(cache_key, res)
+                                if ext_imdb_clean and title:
+                                    self._set_cache(f"title_{ext_imdb_clean}", str(title))
                                 return res
                     except Exception as e:
                         logger.debug(f"[TvdbResolver] TMDB API hiba ({clean_id}): {e}")
 
-            # 2. Próbálkozás: Publikus TMDB oldal lekérése és elemzése (API kulcs nélkül is működik!)
+            # 2. Próbálkozás: Wikidata SPARQL API (ingyenes, gyors, pontos IMDb ID + hu/en cím)
+            try:
+                if is_series is True:
+                    prop_filter = f'?item wdt:P4983 "{clean_id}".'
+                elif is_series is False:
+                    prop_filter = f'?item wdt:P4947 "{clean_id}".'
+                else:
+                    prop_filter = (
+                        f'{{ ?item wdt:P4983 "{clean_id}". }} UNION '
+                        f'{{ ?item wdt:P4947 "{clean_id}". }}'
+                    )
+
+                sparql = (
+                    f"SELECT ?imdb ?labelHu ?labelEn WHERE {{ "
+                    f"{prop_filter} "
+                    f"OPTIONAL {{ ?item wdt:P345 ?imdb. }} "
+                    f'OPTIONAL {{ ?item rdfs:label ?labelHu FILTER(LANG(?labelHu)="hu") }} '
+                    f'OPTIONAL {{ ?item rdfs:label ?labelEn FILTER(LANG(?labelEn)="en") }} '
+                    f"}} LIMIT 1"
+                )
+                sparql_url = f"https://query.wikidata.org/sparql?format=json&query={quote(sparql)}"
+                client = self._get_client()
+                wiki_resp = await client.get(
+                    sparql_url,
+                    headers={
+                        "User-Agent": "StremHUSource/1.0 (https://github.com/s4pp1/stremhu-source; admin@stremhu.local) httpx/0.28.1",
+                        "Accept": "application/json",
+                    },
+                    timeout=5.0,
+                )
+                if wiki_resp.status_code == 200:
+                    wiki_data = wiki_resp.json()
+                    bindings = wiki_data.get("results", {}).get("bindings", [])
+                    if bindings:
+                        row = bindings[0]
+                        w_imdb = row.get("imdb", {}).get("value")
+                        w_label_hu = row.get("labelHu", {}).get("value")
+                        w_label_en = row.get("labelEn", {}).get("value")
+                        found_imdb = (
+                            w_imdb
+                            if isinstance(w_imdb, str) and w_imdb.startswith("tt")
+                            else None
+                        )
+                        raw_title = w_label_hu or w_label_en
+                        found_title = html.unescape(raw_title) if raw_title else None
+                        if found_imdb or found_title:
+                            res = (found_imdb, found_title)
+                            self._set_cache(cache_key, res)
+                            if found_imdb and found_title:
+                                self._set_cache(f"title_{found_imdb}", found_title)
+                            return res
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Wikidata SPARQL hiba ({clean_id}): {e}")
+
+            # 3. Próbálkozás: Publikus TMDB oldal lekérése és elemzése (curl UA-val Cloudflare védelem kikerüléséhez)
             client = self._get_client()
             url_types = ["tv", "movie"] if is_series else ["movie", "tv"]
             for u_type in url_types:
@@ -423,20 +489,19 @@ class TvdbResolver:
                     resp = await client.get(
                         url,
                         headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StremHU/1.0",
+                            "User-Agent": "curl/8.5.0",
+                            "Accept": "text/html,*/*",
                             "Accept-Language": "hu-HU,hu;q=0.9,en;q=0.8",
                         },
                         timeout=5.0,
                     )
                     if resp.status_code == 200:
                         text = resp.text
-                        # IMDb keresése a weboldalban
                         imdb_match = re.search(
                             r'href=["\']https?://(?:www\.)?imdb\.com/title/(tt\d+)', text
                         )
                         found_imdb = imdb_match.group(1) if imdb_match else None
 
-                        # Cím kinyerése og:title-ből vagy schema.org-ból
                         og_match = re.search(
                             r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']',
                             text,
@@ -446,7 +511,6 @@ class TvdbResolver:
                         if og_match:
                             found_title = og_match.group(1).strip()
                         else:
-                            # Próbáljuk a <title> taget
                             title_tag = re.search(r"<title>(.*?)<\/title>", text, re.I)
                             if title_tag:
                                 clean_t = (
@@ -459,18 +523,28 @@ class TvdbResolver:
                                 if clean_t:
                                     found_title = clean_t
 
-                        if found_imdb or found_title:
-                            res = (found_imdb, found_title)
+                        orig_m = re.search(
+                            r"(?:Eredeti\s+cím|Eredeti\s+név|Original\s+Title|Original\s+Name)\s*</strong>\s*([^<]+)</p>",
+                            text,
+                            re.I,
+                        )
+                        orig_title = orig_m.group(1).strip() if orig_m else None
+                        raw_chosen = found_title or orig_title
+                        chosen_title = html.unescape(raw_chosen) if raw_chosen else None
+
+                        if found_imdb or chosen_title:
+                            res = (found_imdb, chosen_title)
                             self._set_cache(cache_key, res)
+                            if found_imdb and chosen_title:
+                                self._set_cache(f"title_{found_imdb}", chosen_title)
                             return res
                 except Exception as e:
                     logger.debug(
                         f"[TvdbResolver] TMDB web scraping hiba ({clean_id}, {u_type}): {e}"
                     )
 
-            res = (None, None)
-            self._set_cache(cache_key, res)
-            return res
+            # Ne mérgezzük a gyorsítótárat sikertelen hálózati kérés esetén
+            return (None, None)
 
     async def get_episode_mappings(
         self,

@@ -398,13 +398,14 @@ class MetaPreview(BaseMeta):
     def from_torrent_file(
         cls,
         torrent_file: TorrentFileModel,
+        content_type: ContentType = ContentType.MOVIE,
     ) -> MetaPreview:
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
-            type=ContentType.MOVIE,
+            type=content_type,
             name=torrent_file.info.name,
         )
 
@@ -426,13 +427,14 @@ class MetaDetail(BaseMeta):
     def from_torrent_file(
         cls,
         torrent_file: TorrentFileModel,
+        content_type: ContentType = ContentType.MOVIE,
     ) -> MetaDetail:
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
-            type=ContentType.MOVIE,
+            type=content_type,
             name=torrent_file.info.name,
         )
 

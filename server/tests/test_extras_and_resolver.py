@@ -1,5 +1,14 @@
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+from app.modules.stremio.catalogs_service import StremioCatalogsService
+from app.modules.stremio.constants import SEARCH_ID
+from app.modules.stremio.enums import MediaType
+from app.modules.stremio.schemas import ParsedExtra
+from app.modules.stremio.tvdb_resolver import TvdbResolver
 from app.modules.torrent_streams.utils.resolver_helpers import (
     is_extra_file,
     is_extra_folder,
@@ -149,3 +158,90 @@ def test_noragami_bdbox_real_structure():
     v_s0e1 = r_s0e1.resolve()
     assert v_s0e1 is not None
     assert v_s0e1.name == "[ReinForce] Noragami OAD1 (DVDRip).mkv"
+
+
+
+@pytest.mark.anyio
+async def test_resolve_tmdb_wikidata_mock():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": {
+            "bindings": [
+                {
+                    "imdb": {"value": "tt15239678"},
+                    "labelHu": {"value": "Dűne: Második rész"},
+                    "labelEn": {"value": "Dune: Part Two"},
+                }
+            ]
+        }
+    }
+    mock_client.get.return_value = mock_resp
+    resolver._client = mock_client
+
+    imdb_id, title = await resolver.resolve_tmdb("693134", is_series=False)
+    assert imdb_id == "tt15239678"
+    assert title == "Dűne: Második rész"
+    assert resolver._cache.get("title_tt15239678") == "Dűne: Második rész"
+
+
+@pytest.mark.anyio
+async def test_resolve_tmdb_web_scraping_fallback():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+
+    # Wikidata returns 404 or empty
+    mock_wiki_resp = MagicMock()
+    mock_wiki_resp.status_code = 404
+
+    # Web returns HTML
+    mock_web_resp = MagicMock()
+    mock_web_resp.status_code = 200
+    mock_web_resp.text = (
+        '<html><head><meta property="og:title" content="A visszavágó - Kapj el, ha tudsz!" /></head>'
+        '<body><p><strong>Eredeti cím</strong> A visszavágó</p></body></html>'
+    )
+
+    async def fake_get(url, **kwargs):
+        if "wikidata.org" in url:
+            return mock_wiki_resp
+        return mock_web_resp
+
+    mock_client.get.side_effect = fake_get
+    resolver._client = mock_client
+
+    imdb_id, title = await resolver.resolve_tmdb("999999", is_series=True)
+    assert imdb_id is None
+    assert title == "A visszavágó - Kapj el, ha tudsz!"
+
+
+@pytest.mark.anyio
+async def test_stremio_catalog_service_supports_series():
+    mock_torrent_files = MagicMock()
+    mock_provider = AsyncMock()
+    mock_isolated = MagicMock()
+
+    service = StremioCatalogsService(
+        torrent_files_service=mock_torrent_files,
+        torrent_source_provider_service=mock_provider,
+        isolated_torrent_files_service=mock_isolated,
+    )
+
+    # Series search with t-12345
+    mock_source = MagicMock()
+    mock_source.torrent_file.indexer_id = "ncore"
+    mock_source.torrent_file.torrent_id = "12345"
+    mock_source.torrent_file.info.name = "Test Series S01"
+    mock_provider.find_by_torrent_id.return_value = ([mock_source], [])
+
+    res = await service.get_catalog(
+        media_type=MediaType.SERIES,
+        catalog_id=SEARCH_ID,
+        extra=ParsedExtra(search="t-12345"),
+    )
+    assert len(res.metas) == 1
+    assert res.metas[0].id == "stremhu-source:ncore:12345"
+

@@ -122,12 +122,13 @@ async def meta(
     ],
     _: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> MetaResponse:
-    if media_type != MediaType.MOVIE or parsed_id is None:
+    if media_type not in (MediaType.MOVIE, MediaType.SERIES) or parsed_id is None:
         return MetaResponse(meta={})
 
     result = await stremio_catalogs_service.get_meta(
         indexer_id=parsed_id.indexer_id,
         torrent_id=parsed_id.torrent_id,
+        media_type=media_type,
     )
 
     if not result:

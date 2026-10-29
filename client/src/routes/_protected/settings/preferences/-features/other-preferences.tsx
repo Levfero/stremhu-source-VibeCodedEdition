@@ -12,11 +12,11 @@ import {
 } from '@/shared/components/ui/card'
 import { Label } from '@/shared/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group'
+import { Switch } from '@/shared/components/ui/switch'
 import { SEED_OPTIONS } from '@/shared/constants'
 import { useAppForm } from '@/shared/contexts/form-context'
 import { assertExists, parseApiError } from '@/shared/lib/utils'
 import { getMe, useUpdateMe } from '@/shared/queries/me'
-import { Switch } from '@/shared/components/ui/switch'
 import {
   enableSmartFilterSchema,
   enableStreamDeduplicationSchema,
@@ -45,7 +45,7 @@ export function OtherPreferences() {
     defaultValues: {
       torrentSeed: me.torrentSeed,
       enableSmartFilter: me.enableSmartFilter,
-      enableStreamDeduplication: me.enableStreamDeduplication ?? true,
+      enableStreamDeduplication: me.enableStreamDeduplication,
       smartFilterGroupingPreferenceId: me.smartFilterGroupingPreferenceId,
       smartFilterLimit: me.smartFilterLimit,
     },
@@ -129,9 +129,9 @@ export function OtherPreferences() {
           <CardHeader>
             <CardTitle>Találatok összevonása</CardTitle>
             <CardDescription>
-              Több tracker (pl. nCore, HunTorrent, Majomparádé) azonos
-              tartalmú release-einek intelligens összevonása egyetlen
-              találattá, összesített seederekkel.
+              Több tracker (pl. nCore, HunTorrent, Majomparádé) azonos tartalmú
+              release-einek intelligens összevonása egyetlen találattá,
+              összesített seederekkel.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -143,7 +143,7 @@ export function OtherPreferences() {
                 >
                   <Switch
                     id={field.name}
-                    checked={field.state.value ?? true}
+                    checked={field.state.value}
                     onCheckedChange={field.handleChange}
                   />
                   <span>Több-trackeres találatok összevonása</span>

@@ -819,124 +819,151 @@ class TvdbResolver:
 
         client = self._get_client()
 
-        # 1. Próbálkozás: Anime Kitsu API az IMDb ID vagy ismert aliasok alapján
-        candidate_imdb_ids = [imdb_id]
-        if imdb_id in _IMDB_ALIASES:
+        # Ha az azonosító ismert anime az _IMDB_ALIASES szótárban, akkor az Anime-Kitsu az elsődleges forrás
+        is_known_anime = imdb_id in _IMDB_ALIASES
+
+        if is_known_anime:
+            # 1. Anime Kitsu API az IMDb ID vagy ismert aliasok alapján
+            candidate_imdb_ids = [imdb_id]
             for alt in _IMDB_ALIASES[imdb_id]:
                 if alt not in candidate_imdb_ids:
                     candidate_imdb_ids.append(alt)
 
-        for c_imdb in candidate_imdb_ids:
-            if c_imdb in self._series_epmap:
-                if (season, episode) in self._series_epmap[c_imdb]:
-                    res = self._series_epmap[c_imdb][(season, episode)]
-                    self._set_cache(cache_key, res)
-                    return res
-
-            kitsu_url = f"https://anime-kitsu.strem.fun/meta/series/{c_imdb}.json"
-            try:
-                resp = await client.get(kitsu_url, timeout=6.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    meta = data.get("meta", {})
-                    if meta.get("name"):
-                        self._set_cache(f"title_{c_imdb}", meta["name"])
-                    # Ha az Anime-Kitsu közvetlenül ismeri ezt az IMDb ID-t, akkor ez már a kanonikus
-                    # Anime-Kitsu IMDb azonosító, nincs szükség felesleges dinamikus Kitsu keresésre.
-                    self._set_cache(f"alt_imdb_{c_imdb}", [])
-                    videos = meta.get("videos", [])
-
-                    # Sorozat-szintű index felépítése a jövőbeli epizód-lekérdezésekhez
-                    if c_imdb not in self._series_epmap:
-                        if len(self._series_epmap) >= _MAX_SERIES_CACHE:
-                            for old_k in list(self._series_epmap.keys())[:200]:
-                                self._series_epmap.pop(old_k, None)
-                        self._series_epmap[c_imdb] = {}
-
-                    for v in videos:
-                        v_s = v.get("imdbSeason") or v.get("season")
-                        v_e = v.get("imdbEpisode") or v.get("episode")
-                        v_abs = v.get("absoluteEpisode") or v.get("kitsuEpisode")
-
-                        if v_s is not None and v_e is not None:
-                            entry_alt_eps: set[int] = set()
-                            entry_alt_seasons: set[int] = set()
-                            if v_abs and v_abs != v_e:
-                                entry_alt_eps.add(v_abs)
-                            k_ep = v.get("kitsuEpisode")
-                            if k_ep and k_ep != v_e:
-                                entry_alt_eps.add(k_ep)
-                            if v_s == 1 and v_e > 20 and v_abs == v_e:
-                                orig_s = v.get("season")
-                                if orig_s and orig_s != 1:
-                                    entry_alt_seasons.add(orig_s)
-
-                            existing = self._series_epmap[c_imdb].get((v_s, v_e), ([], []))
-                            merged_eps = sorted(list(set(existing[0]) | entry_alt_eps))
-                            merged_seasons = sorted(list(set(existing[1]) | entry_alt_seasons))
-                            self._series_epmap[c_imdb][(v_s, v_e)] = (merged_eps, merged_seasons)
-
+            for c_imdb in candidate_imdb_ids:
+                if c_imdb in self._series_epmap:
                     if (season, episode) in self._series_epmap[c_imdb]:
                         res = self._series_epmap[c_imdb][(season, episode)]
-                        if res[0] or res[1]:
-                            self._set_cache(cache_key, res)
-                            return res
-            except Exception as e:
-                logger.debug(f"[TvdbResolver] Anime Kitsu epmap lekérési hiba ({c_imdb}): {e}")
+                        self._set_cache(cache_key, res)
+                        return res
 
-        # 2. Próbálkozás: Cinemeta kumulatív számítás, ha nincs közvetlen Kitsu alternatíva
-        if not alt_eps:
-            s_counts = self._cinemeta_counts.get(imdb_id)
-            if s_counts is None:
-                cinemeta_url = f"https://v3-cinemeta.strem.io/meta/series/{imdb_id}.json"
+                kitsu_url = f"https://anime-kitsu.strem.fun/meta/series/{c_imdb}.json"
                 try:
-                    resp = await client.get(cinemeta_url, timeout=6.0)
+                    resp = await client.get(kitsu_url, timeout=6.0)
                     if resp.status_code == 200:
                         data = resp.json()
                         meta = data.get("meta", {})
                         if meta.get("name"):
-                            self._set_cache(f"title_{imdb_id}", meta["name"])
-                        genres = [str(g).lower() for g in (meta.get("genres") or [])]
-                        if genres and "anime" not in genres and "animation" not in genres:
-                            # Élőszereplős sorozat esetén nem kell a Kitsu API-t hívni iker IMDb ID-ért
-                            self._set_cache(f"alt_imdb_{imdb_id}", [])
-                        vids = [
-                            v for v in meta.get("videos", [])
-                            if v.get("season", 0) > 0
-                        ]
-                        s_counts = defaultdict(int)
-                        for v in vids:
-                            s_counts[v.get("season")] += 1
-                        if len(self._cinemeta_counts) >= _MAX_SERIES_CACHE:
-                            for old_k in list(self._cinemeta_counts.keys())[:200]:
-                                self._cinemeta_counts.pop(old_k, None)
-                        self._cinemeta_counts[imdb_id] = s_counts
-                except Exception as e:
-                    logger.debug(f"[TvdbResolver] Cinemeta epmap lekérési hiba ({imdb_id}): {e}")
+                            self._set_cache(f"title_{c_imdb}", meta["name"])
+                        self._set_cache(f"alt_imdb_{c_imdb}", [])
+                        videos = meta.get("videos", [])
 
-            if s_counts and len(s_counts) > 1:
-                if season in s_counts:
-                    cum = sum(s_counts[s] for s in range(1, season))
-                    calc_abs = cum + episode
-                    if calc_abs != episode:
-                        alt_eps.add(calc_abs)
-                elif season == 1 and episode > 20:
-                    cum = 0
-                    for s_num in sorted(s_counts.keys()):
-                        if cum < episode <= cum + s_counts[s_num]:
-                            alt_seasons.add(s_num)
-                            alt_eps.add(episode - cum)
-                            break
-                        cum += s_counts[s_num]
+                        if c_imdb not in self._series_epmap:
+                            if len(self._series_epmap) >= _MAX_SERIES_CACHE:
+                                for old_k in list(self._series_epmap.keys())[:200]:
+                                    self._series_epmap.pop(old_k, None)
+                            self._series_epmap[c_imdb] = {}
+
+                        for v in videos:
+                            v_s = v.get("imdbSeason") or v.get("season")
+                            v_e = v.get("imdbEpisode") or v.get("episode")
+                            v_abs = v.get("absoluteEpisode") or v.get("kitsuEpisode")
+
+                            if v_s is not None and v_e is not None:
+                                entry_alt_eps: set[int] = set()
+                                entry_alt_seasons: set[int] = set()
+                                if v_abs and v_abs != v_e:
+                                    entry_alt_eps.add(v_abs)
+                                k_ep = v.get("kitsuEpisode")
+                                if k_ep and k_ep != v_e:
+                                    entry_alt_eps.add(k_ep)
+                                if v_s == 1 and v_e > 20 and v_abs == v_e:
+                                    orig_s = v.get("season")
+                                    if orig_s and orig_s != 1:
+                                        entry_alt_seasons.add(orig_s)
+
+                                existing = self._series_epmap[c_imdb].get((v_s, v_e), ([], []))
+                                merged_eps = sorted(list(set(existing[0]) | entry_alt_eps))
+                                merged_seasons = sorted(list(set(existing[1]) | entry_alt_seasons))
+                                self._series_epmap[c_imdb][(v_s, v_e)] = (merged_eps, merged_seasons)
+
+                        if (season, episode) in self._series_epmap[c_imdb]:
+                            res = self._series_epmap[c_imdb][(season, episode)]
+                            if res[0] or res[1]:
+                                self._set_cache(cache_key, res)
+                                return res
+                except Exception as e:
+                    logger.debug(f"[TvdbResolver] Anime Kitsu epmap lekérési hiba ({c_imdb}): {e}")
+
+        # 2. Cinemeta kumulatív számítás (nyugati sorozatoknál azonnal ez fut le 404-es Kitsu probe nélkül!)
+        is_animation = False
+        s_counts = self._cinemeta_counts.get(imdb_id)
+        if s_counts is None:
+            cinemeta_url = f"https://v3-cinemeta.strem.io/meta/series/{imdb_id}.json"
+            try:
+                resp = await client.get(cinemeta_url, timeout=6.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    meta = data.get("meta", {})
+                    if meta.get("name"):
+                        self._set_cache(f"title_{imdb_id}", meta["name"])
+                    genres = [str(g).lower() for g in (meta.get("genres") or [])]
+                    is_animation = "anime" in genres or "animation" in genres
+                    if genres and not is_animation:
+                        # Élőszereplős sorozat esetén azonnal negatív gyorsítótárazzuk a Kitsu alias keresést
+                        self._set_cache(f"alt_imdb_{imdb_id}", [])
+                    vids = [
+                        v for v in meta.get("videos", [])
+                        if v.get("season", 0) > 0
+                    ]
+                    s_counts = defaultdict(int)
+                    for v in vids:
+                        s_counts[v.get("season")] += 1
+                    if len(self._cinemeta_counts) >= _MAX_SERIES_CACHE:
+                        for old_k in list(self._cinemeta_counts.keys())[:200]:
+                            self._cinemeta_counts.pop(old_k, None)
+                    self._cinemeta_counts[imdb_id] = s_counts
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Cinemeta epmap lekérési hiba ({imdb_id}): {e}")
+
+        if s_counts and len(s_counts) > 1:
+            if season in s_counts:
+                cum = sum(s_counts[s] for s in range(1, season))
+                calc_abs = cum + episode
+                if calc_abs != episode:
+                    alt_eps.add(calc_abs)
+            elif season == 1 and episode > 20:
+                cum = 0
+                for s_num in sorted(s_counts.keys()):
+                    if cum < episode <= cum + s_counts[s_num]:
+                        alt_seasons.add(s_num)
+                        alt_eps.add(episode - cum)
+                        break
+                    cum += s_counts[s_num]
+
+        # 3. Ha nem volt ismert anime, de a Cinemeta szerint animáció (és a Cinemeta nem adott eredményt),
+        # pótlólagosan megpróbáljuk az Anime-Kitsu lekérdezést
+        if not is_known_anime and is_animation and not alt_eps:
+            kitsu_url = f"https://anime-kitsu.strem.fun/meta/series/{imdb_id}.json"
+            try:
+                resp = await client.get(kitsu_url, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    meta = data.get("meta", {})
+                    videos = meta.get("videos", [])
+                    for v in videos:
+                        v_s = v.get("imdbSeason") or v.get("season")
+                        v_e = v.get("imdbEpisode") or v.get("episode")
+                        v_abs = v.get("absoluteEpisode") or v.get("kitsuEpisode")
+                        if v_s == season and v_e == episode and v_abs and v_abs != episode:
+                            alt_eps.add(v_abs)
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Fallback Anime Kitsu hiba ({imdb_id}): {e}")
 
         result = (sorted(list(alt_eps)), sorted(list(alt_seasons)))
         self._set_cache(cache_key, result)
         return result
 
-    async def get_alternate_imdb_ids(self, imdb_id: str) -> list[str]:
+    async def get_alternate_imdb_ids(
+        self,
+        imdb_id: str,
+        is_series: bool | None = None,
+        allow_dynamic_search: bool = False,
+    ) -> list[str]:
         """
         Lekéri egy médium alternatív/iker IMDb azonosítóit (pl. anime nemzetközi vs japán IMDb bejegyzések).
         Először a statikus alias szótárból olvas, majd szükség esetén dinamikusan keres a Kitsu API-n keresztül.
+        Ha allow_dynamic_search=False (alapértelmezett a stream kéréseknél), csak a statikus és a memóriában
+        lévő aliasokat adja vissza külső hálózati késleltetés nélkül (0 ms).
         """
         if not imdb_id or not imdb_id.startswith("tt"):
             return []
@@ -951,6 +978,10 @@ class TvdbResolver:
             if isinstance(cached, list):
                 return list(dict.fromkeys(static_aliases + cached))
 
+        # Ha nincs engedélyezve a dinamikus külső hálózati keresés, vagy egyértelműen filmről van szó:
+        if not allow_dynamic_search or is_series is False:
+            return list(static_aliases)
+
         async with self._lock(cache_key):
             if cache_key in self._cache:
                 cached = self._cache[cache_key]
@@ -959,7 +990,7 @@ class TvdbResolver:
 
             dynamic_aliases: list[str] = []
             try:
-                title = await self.get_title_by_imdb(imdb_id)
+                title = await self.get_title_by_imdb(imdb_id, is_series=is_series)
                 if title:
                     cleaned_title = title.split(":")[0].strip()
                     client = self._get_client()
@@ -975,8 +1006,25 @@ class TvdbResolver:
                         data = resp.json()
                         anime_list = data.get("data", [])
                         if anime_list:
-                            top_kitsu_id = anime_list[0].get("id")
-                            if top_kitsu_id:
+                            top_anime = anime_list[0]
+                            attributes = top_anime.get("attributes", {})
+                            canonical_title = (attributes.get("canonicalTitle") or "").strip().lower()
+                            en_title = (attributes.get("titles", {}).get("en") or "").strip().lower()
+                            en_jp_title = (attributes.get("titles", {}).get("en_jp") or "").strip().lower()
+
+                            search_norm = cleaned_title.lower()
+                            candidate_titles = {t for t in (canonical_title, en_title, en_jp_title) if t}
+                            title_matches = any(
+                                t == search_norm or t.startswith(search_norm + " ") or search_norm in t
+                                for t in candidate_titles
+                            )
+                            # Kizárjuk a téves alcímeket (pl. "Inception" vs "Inception: The Cobol Job")
+                            if search_norm and canonical_title and search_norm != canonical_title:
+                                if canonical_title.startswith(f"{search_norm}:"):
+                                    title_matches = False
+
+                            top_kitsu_id = top_anime.get("id")
+                            if top_kitsu_id and title_matches:
                                 ak_url = f"https://anime-kitsu.strem.fun/meta/series/kitsu:{top_kitsu_id}.json"
                                 ak_resp = await client.get(ak_url, timeout=5.0)
                                 if ak_resp.status_code == 200:

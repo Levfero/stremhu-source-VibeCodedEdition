@@ -326,9 +326,15 @@ class StremioService:
                     except Exception as e:
                         logger.debug(f"[StremioService] Epizód leképezés hiba: {e}")
 
+            is_series = series_info is not None
             if imdb_id and hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
                 try:
-                    alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
+                    # Első körben csak a statikus és gyorsítótárazott aliasokat kérjük le (0 ms késleltetés)
+                    alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(
+                        imdb_id,
+                        is_series=is_series,
+                        allow_dynamic_search=False,
+                    )
                     if isinstance(alt_res, list) and alt_res:
                         alternate_imdb_ids = alt_res
                 except Exception as e:
@@ -344,7 +350,9 @@ class StremioService:
             elif imdb_id:
 
                 def get_fallback_title():
-                    return self._tvdb_resolver.get_title_by_imdb(imdb_id)
+                    return self._tvdb_resolver.get_title_by_imdb(
+                        imdb_id, is_series=is_series
+                    )
 
                 fallback_fn = get_fallback_title
 
@@ -356,6 +364,36 @@ class StremioService:
                 alternate_imdb_ids=alternate_imdb_ids,
                 prefetch_task=prefetch_task,
             )
+
+            # Ha az elsődleges keresés 0 streamet adott, lusta fallbackként megpróbáljuk a dinamikus Kitsu alias feloldást:
+            if (
+                not torrent_streams
+                and imdb_id
+                and not alternate_imdb_ids
+                and is_series
+                and hasattr(self._tvdb_resolver, "get_alternate_imdb_ids")
+            ):
+                try:
+                    dyn_aliases = await self._tvdb_resolver.get_alternate_imdb_ids(
+                        imdb_id,
+                        is_series=True,
+                        allow_dynamic_search=True,
+                    )
+                    if isinstance(dyn_aliases, list) and dyn_aliases:
+                        torrent_streams, new_errors = (
+                            await self._torrent_streams_service.find_by_imdb(
+                                user=user,
+                                imdb_id=imdb_id,
+                                series=series_info,
+                                fallback_title=fallback_fn,
+                                alternate_imdb_ids=dyn_aliases,
+                            )
+                        )
+                        errors.extend(new_errors)
+                except Exception as e:
+                    logger.debug(
+                        f"[StremioService] Lusta dinamikus alias keresési hiba: {e}"
+                    )
         finally:
             if prefetch_task is not None and not prefetch_task.done():
                 prefetch_task.cancel()

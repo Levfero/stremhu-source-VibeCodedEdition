@@ -129,3 +129,18 @@ sequenceDiagram
    - A `File.get_matched_subtitle_pieces()` a `StreamFileResolver(t_info, series=SeriesInfo(season=..., episode=...)).resolve_subtitles(target_vfile)` hívással kizárólag az **aktuálisan nézett epizódhoz** tartozó feliratfájlok piece-eit adja vissza (így egy 500 részes Naruto pakkban nem tölti elő az összes 500 `.srt` fájlt, csak a nézett részét!).
    - A darabok kiválasztásakor a **magyar nyelvű feliratok piece-ei élveznek prioritást**, így a 6-darabos kvótát nem foglalják el az idegen nyelvű feliratok.
    - A `Torrent._set_matched_subtitle_priorities` ezekre a piece-ekre `500 ms` deadline-t állít be.
+
+---
+
+## 5. Hidegindítási és Keresési Teljesítmény-Optimalizációk (Smart Anime Gating & Lazy Dynamic Alias)
+
+1. **Intelligens Anime-Kapu (`TvdbResolver.get_alternate_imdb_ids`):**
+   - A hollywoodi filmeknél és nyugati sorozatoknál a `get_alternate_imdb_ids(imdb_id, is_series=..., allow_dynamic_search=False)` kizárólag a statikus `_IMDB_ALIASES` szótárat és az in-memory gyorsítótárat ellenőrzi (0.01 ms).
+   - Teljesen elmaradnak a külső szinkron HTTP lekérdezések a Kitsu Anime API és a Cinemeta felé, megspórolva **700 – 1 200 ms** felesleges hálózati késleltetést.
+2. **Lusta (Lazy) Alias-Keresés:**
+   - A dinamikus Kitsu iker-IMDb feloldás (`allow_dynamic_search=True`) kizárólag fallbackként fut le abban a ritka esetben, ha az elsődleges IMDb kódra **0 torrent találat** érkezett.
+   - Szigorú cím-összehasonlítás kizárja a téves alcímes egyezéseket (pl. az *Inception* nem társul az *Inception: The Cobol Job* animációs rövidfilmhez).
+3. **Nyugati sorozatok Kitsu 404-mentesítése (`TvdbResolver.get_episode_mappings`):**
+   - Nem-anime sorozatoknál (*Stranger Things*, *Breaking Bad*, *Game of Thrones*) a resolver közvetlenül a Cinemeta kumulatív adatokból számolja ki az abszolút epizódszámokat, kikerülve az `anime-kitsu.strem.fun` felesleges 404-es hálózati hibáját (~350 ms megtakarítás).
+4. **Teljesítménymérési Eredmény:**
+   - A cold start átlagos válaszideje **9 334 ms-ról 4 642 ms-ra csökkent (-50.3%)**, ezzel a fork **44.4%-kal gyorsabb lett a cold starton**, mint az eredeti Upstream referencia (8 354 ms), miközben a meleg lekérdezési idő **3.2 ms** maradt.

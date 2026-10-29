@@ -11,7 +11,6 @@ from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrents.models import TorrentModel
 
-
 _TORRENT_INFO_CACHE: dict[str, TorrentInfo] = {}
 _MAX_TORRENT_INFO_CACHE = 2000
 

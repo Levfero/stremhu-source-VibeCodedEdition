@@ -199,7 +199,9 @@ def test_anime_series_parser_cases():
 
 def test_anime_stream_file_resolver_matching():
     from app.common.torrent_info import TorrentFileInfo, TorrentInfo
-    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+    from app.modules.torrent_streams.utils.stream_file_resolver import (
+        StreamFileResolver,
+    )
 
     def make_file(name: str, index: int) -> TorrentFileInfo:
         return TorrentFileInfo(
@@ -268,6 +270,7 @@ def test_anime_stream_file_resolver_matching():
 @pytest.mark.anyio
 async def test_find_by_imdb_fallback_to_title_search():
     from unittest.mock import MagicMock
+
     from app.modules.preferences.service import PreferencesService
     from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 
@@ -309,7 +312,9 @@ async def test_find_by_imdb_fallback_to_title_search():
 def test_one_piece_series_parser_and_resolver():
     from app.common.torrent_info import TorrentFileInfo, TorrentInfo
     from app.modules.torrent_streams.utils.series_parser import SeriesParser
-    from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
+    from app.modules.torrent_streams.utils.stream_file_resolver import (
+        StreamFileResolver,
+    )
 
     # 1. SeriesParser generikus tesztek
     p1 = SeriesParser("[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv")
@@ -661,10 +666,7 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
 
 @pytest.mark.anyio
 async def test_batch_torrent_download_and_save_single_transaction():
-    from app.modules.indexers.schemas.internal import (
-        DownloadedTorrentFile,
-        IndexerTorrent,
-    )
+    from app.modules.indexers.schemas.internal import DownloadedTorrentFile
     from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 
     mock_indexers = AsyncMock()

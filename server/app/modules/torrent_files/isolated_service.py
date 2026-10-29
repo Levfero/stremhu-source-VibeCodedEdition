@@ -7,7 +7,7 @@ from app.common.database import isolated_db_session
 from app.common.logger import logger
 from app.modules.torrent_files.models import TorrentFileModel
 from app.modules.torrent_files.repository import TorrentFilesRepository
-from app.modules.torrent_files.schemas import TorrentFileIdentifier
+from app.modules.torrent_files.schemas import TorrentFileIdentifier, TorrentFilesFilter
 
 
 class IsolatedTorrentFilesService:
@@ -55,6 +55,53 @@ class IsolatedTorrentFilesService:
             )
             local_db.expunge(torrent_file)
             return torrent_file
+
+    def create_many(
+        self, items: list[tuple[str, str, bytes]]
+    ) -> list[TorrentFileModel]:
+        """Több .torrent fájlt ment el egyetlen kötegelt SQLite tranzakcióban."""
+        if not items:
+            return []
+
+        with isolated_db_session() as local_db:
+            repo = TorrentFilesRepository(local_db)
+            identifiers = [
+                TorrentFileIdentifier(indexer_id=iid, torrent_id=tid)
+                for iid, tid, _ in items
+            ]
+            existing = repo.find_list(
+                filter=TorrentFilesFilter(identifiers=identifiers)
+            )
+            existing_map: dict[tuple[str, str], TorrentFileModel] = {
+                (tf.indexer_id, tf.torrent_id): tf for tf in existing
+            }
+
+            to_insert: list[TorrentFileModel] = []
+            seen: set[tuple[str, str]] = set(existing_map.keys())
+            for iid, tid, t_bytes in items:
+                if (iid, tid) in seen:
+                    continue
+                seen.add((iid, tid))
+                try:
+                    to_insert.append(
+                        TorrentFileModel(
+                            indexer_id=iid,
+                            torrent_id=tid,
+                            torrent_bytes=t_bytes,
+                        )
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Érvénytelen torrent fájl átugorva (batch): indexer: {iid}, torrent_id: {tid} ({e})"
+                    )
+
+            if to_insert:
+                repo.create_many(to_insert)
+
+            all_models = list(existing_map.values()) + to_insert
+            for model in all_models:
+                local_db.expunge(model)
+            return all_models
 
     def _touch(
         self, identifiers: TorrentFileIdentifier | list[TorrentFileIdentifier]

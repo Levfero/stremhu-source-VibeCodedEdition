@@ -33,7 +33,7 @@
 
 ---
 
-## 🌸 Anime, TheTVDB & Kitsu támogatás (`main` branch)
+## 🌸 Anime, TheTVDB & Kitsu támogatás (`feature/anime-tvdb-kitsu-support` branch)
 
 Ez a kiadás kiterjeszti a StremHU Source működését teljes körű anime és alternatív metaadat-kezeléssel, megoldva az anime rajongók legnagyobb problémáját: az anime címek, évadok és az abszolút vs. relatív epizódszámozások közötti eltéréseket a magyar és nemzetközi trackereken.
 
@@ -57,8 +57,16 @@ Ez a kiadás kiterjeszti a StremHU Source működését teljes körű anime és 
   - Helyesen kezeli a `Season 1`, `S01-S03`, `S01-S09 BDRip`, vagy számozott mappa-struktúrákat (pl. `01. Noragami`, `02. Noragami Aragoto`).
   - **Relatív prioritás későbbi évadoknál**: Megakadályozza, hogy a 2. évad mappájában lévő `13.mkv` fájlt tévesen a 2. évad 1. részének higgye pusztán az abszolút epizód indexelés miatt.
 
-#### 4. Párhuzamosított metaadat-feloldás és gyorsítótárazás
-- Aszinkron, szálbiztos és memóriakorlátos (bounded) cache védi a szervert a túlterheléstől.
+#### 4. Teljesítmény-optimalizálások (Cold Start, Binge-Watching, Batch SQLite & Libtorrent)
+- **1. Tracker keresés és epizód-leképezés párhuzamosítása (Cold Start gyorsítás)**:
+  - A tracker keresés (`TorrentSourceProviderService.find_by_imdb_id`) azonnal, a `t = 0 ms` pillanatban elindul a háttérben, miközben a `TvdbResolver` lekéri a Cinemeta / Anime-Kitsu epizód-leképezéseket.
+  - Filmeknél (`movie`) és kanonikus Anime-Kitsu / élőszereplős sorozatoknál a rendszer automatikusan kihagyja a felesleges dinamikus Kitsu iker-IMDb lekérdezéseket.
+- **2. IMDb `TorrentSource` és `TorrentInfo` memória-gyorsítótár (Epizódváltás / Binge-Watching ~800ms -> ~15ms)**:
+  - Az IMDb azonosítóhoz tartozó tracker-találatokat a szerver rövid lejáratú (180 mp TTL) memóriabeli cache-ben, a dekódolt `.torrent` metaadatokat (`_TORRENT_INFO_CACHE`) és a tisztított torrentneveket (`@lru_cache`) pedig memóriában tartja, így sorozatnézéskor a következő epizódra váltás nem terheli újra a trackereket.
+- **3. Kötegelt (Batch) `.torrent` SQLite tranzakció (`create_many`)**:
+  - Az újonnan letöltött `.torrent` fájlokat a szerver párhuzamos HTTP letöltés után egyetlen kötegelt SQLite tranzakcióban és lemezre írással (`create_many`) menti el 20–40 különálló adatbázis-tranzakció helyett.
+- **4. Agresszívebb `libtorrent` piece-deadline ütemezés**:
+  - A videó indításakor és tekerésekor (seek) az aktuális piece `0 ms`, a közvetlenül következő piece `300 ms`, az előtöltött (prefetch) piece-ek pedig `1000 + távolság * 500 ms` határidőt kapnak a gyorsabb lejátszás-indítás érdekében.
 - **Negatív gyorsítótár védelem**: átmeneti hálózati kimaradás vagy timeout esetén a rendszer nem gyorsítótáraz hibás üres választ, így a következő lekérés azonnal megkísérli az újrapróbálkozást.
 
 ---
@@ -99,7 +107,7 @@ sequenceDiagram
    - A kliens kérést küld a StremHU szervernek:
      - Kitsu kiegészítő esetén: `kitsu:12:1089` (Kitsu sorozat ID `12`, epizód `1089`).
      - IMDb / Cinemeta esetén: `series:tt0388629:21:1` (One Piece Wano Country Arc, Season 21 Episode 1).
-   - A `parse_stream_id` felismeri az azonosító típusát (`KITSU`, `TVDB`, `TMDB` vagy `IMDB`).
+   - A `parse_stream_id` felismeri az azonosító típusát (`KITSU`, `TVDB` vagy `IMDB`).
 
 2. **Metaadat és számozás feloldása (`TvdbResolver`)**:
    - **Kitsu feloldás**: A Kitsu API és az `anime-kitsu` mapping adatbázis segítségével a szerver megtalálja a sorozat hivatalos IMDb azonosítóját (`tt0388629`), a sorozat címét (*One Piece*), és kiszámítja a szezonális leképezést (Season 21 Episode 1).

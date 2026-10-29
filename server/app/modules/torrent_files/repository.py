@@ -18,6 +18,13 @@ class TorrentFilesRepository:
         self.db.flush()
         return model
 
+    def create_many(self, models: list[TorrentFileModel]) -> list[TorrentFileModel]:
+        if not models:
+            return []
+        self.db.add_all(models)
+        self.db.flush()
+        return models
+
     def find_list(
         self,
         filter: TorrentFilesFilter | None = None,

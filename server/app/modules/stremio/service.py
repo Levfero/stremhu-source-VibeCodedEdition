@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 
 from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
@@ -28,6 +29,11 @@ from app.modules.stremio.schemas import (
 from app.modules.stremio.tvdb_resolver import TvdbResolver, tvdb_resolver
 from app.modules.torrent_streams.service import TorrentStreamsService
 from app.modules.users.models import UserModel
+
+_STREAM_CACHE_TTL = 60.0
+_STREAM_CACHE_MAX = 500
+_stream_cache: dict[str, tuple[float, list[StremioStream]]] = {}
+_ongoing_stream_tasks: dict[str, asyncio.Task[list[StremioStream]]] = {}
 
 
 class StremioService:
@@ -107,6 +113,40 @@ class StremioService:
         parsed_id: StreamId,
     ) -> list[StremioStream]:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
+        use_cache = type(self._torrent_streams_service) is TorrentStreamsService
+        cache_key = f"{user.id}:{parsed_id.model_dump_json()}"
+        if use_cache:
+            now = time.monotonic()
+            cached = _stream_cache.get(cache_key)
+            if cached is not None:
+                ts, cached_streams = cached
+                if now - ts < _STREAM_CACHE_TTL:
+                    return cached_streams
+                _stream_cache.pop(cache_key, None)
+
+            if cache_key in _ongoing_stream_tasks:
+                return await _ongoing_stream_tasks[cache_key]
+
+        task = asyncio.create_task(self._get_streams_uncached(user, parsed_id))
+        if use_cache:
+            _ongoing_stream_tasks[cache_key] = task
+        try:
+            result = await task
+            if use_cache and result and not any(s.name.startswith("⚠️") for s in result):
+                if len(_stream_cache) >= _STREAM_CACHE_MAX:
+                    oldest_key = min(_stream_cache, key=lambda k: _stream_cache[k][0])
+                    _stream_cache.pop(oldest_key, None)
+                _stream_cache[cache_key] = (time.monotonic(), result)
+            return result
+        finally:
+            if use_cache:
+                _ongoing_stream_tasks.pop(cache_key, None)
+
+    async def _get_streams_uncached(
+        self,
+        user: UserModel,
+        parsed_id: StreamId,
+    ) -> list[StremioStream]:
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
         if isinstance(parsed_id, TorrentStreamId):
             torrent_streams = await self._torrent_streams_service.find_by_torrent_id(
@@ -164,63 +204,55 @@ class StremioService:
             imdb_id = parsed_id.imdb_id
             series_info = parsed_id.series_info
 
-        # Dinamikus epizód leképezés és alternatív IMDb azonosítók feloldása (párhuzamosítva)
-        mapping_coro = None
-        if series_info and series_info.episode is not None and not series_info.alternate_episodes:
-            mapping_coro = self._tvdb_resolver.get_episode_mappings(
-                imdb_id=imdb_id,
-                season=series_info.season,
-                episode=series_info.episode,
-            )
-
-        alt_imdb_coro = None
-        if hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
-            alt_imdb_coro = self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
-
-        alternate_imdb_ids: list[str] | None = None
-        if mapping_coro and alt_imdb_coro:
-            mapping_res, alt_res = await asyncio.gather(
-                mapping_coro, alt_imdb_coro, return_exceptions=True
-            )
-            if isinstance(mapping_res, tuple) and len(mapping_res) == 2:
-                dyn_alt_eps, dyn_alt_seasons = mapping_res
-                if dyn_alt_eps:
-                    series_info.alternate_episodes = dyn_alt_eps
-                if dyn_alt_seasons:
-                    series_info.alternate_seasons = dyn_alt_seasons
-            elif isinstance(mapping_res, Exception):
-                logger.debug(f"[StremioService] Epizód leképezés hiba: {mapping_res}")
-
-            if isinstance(alt_res, list):
-                alternate_imdb_ids = alt_res
-            elif isinstance(alt_res, Exception):
-                logger.debug(f"[StremioService] Alternatív IMDb feloldási hiba: {alt_res}")
-        elif mapping_coro:
-            try:
-                dyn_alt_eps, dyn_alt_seasons = await mapping_coro
-                if dyn_alt_eps:
-                    series_info.alternate_episodes = dyn_alt_eps
-                if dyn_alt_seasons:
-                    series_info.alternate_seasons = dyn_alt_seasons
-            except Exception as e:
-                logger.debug(f"[StremioService] Epizód leképezés hiba: {e}")
-        elif alt_imdb_coro:
-            try:
-                alt_res = await alt_imdb_coro
-                if isinstance(alt_res, list):
-                    alternate_imdb_ids = alt_res
-            except Exception as e:
-                logger.debug(f"[StremioService] Alternatív IMDb feloldási hiba: {e}")
-
-        # IMDb alapú stream lekérdezés kereséssel és feloldással
-        # A másodlagos név szerinti kereséshez a cím csak akkor kerül lekérésre, ha IMDb-re 0 torrent érkezett
-        torrent_streams, errors = await self._torrent_streams_service.find_by_imdb(
-            user=user,
-            imdb_id=imdb_id,
-            series=series_info,
-            fallback_title=lambda: self._tvdb_resolver.get_title_by_imdb(imdb_id),
-            alternate_imdb_ids=alternate_imdb_ids,
+        # Tracker keresés azonnali előindítása a háttérben, hogy az epizód-leképezéssel
+        # (Cinemeta / Anime-Kitsu HTTP lekérdezésekkel) párhuzamosan fusson
+        prefetch_task: asyncio.Task | None = None
+        provider = getattr(
+            self._torrent_streams_service, "_torrent_source_provider_service", None
         )
+        if provider is not None and hasattr(provider, "find_by_imdb_id"):
+            prefetch_task = asyncio.create_task(provider.find_by_imdb_id(imdb_id))
+
+        try:
+            # Dinamikus epizód leképezés és alternatív IMDb azonosítók feloldása (csak sorozatoknál)
+            alternate_imdb_ids: list[str] | None = None
+            if series_info is not None:
+                if series_info.episode is not None and not series_info.alternate_episodes:
+                    try:
+                        dyn_alt_eps, dyn_alt_seasons = (
+                            await self._tvdb_resolver.get_episode_mappings(
+                                imdb_id=imdb_id,
+                                season=series_info.season,
+                                episode=series_info.episode,
+                            )
+                        )
+                        if dyn_alt_eps:
+                            series_info.alternate_episodes = dyn_alt_eps
+                        if dyn_alt_seasons:
+                            series_info.alternate_seasons = dyn_alt_seasons
+                    except Exception as e:
+                        logger.debug(f"[StremioService] Epizód leképezés hiba: {e}")
+
+                if hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
+                    try:
+                        alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
+                        if isinstance(alt_res, list):
+                            alternate_imdb_ids = alt_res
+                    except Exception as e:
+                        logger.debug(f"[StremioService] Alternatív IMDb feloldási hiba: {e}")
+
+            # IMDb alapú stream lekérdezés kereséssel és feloldással
+            # A másodlagos név szerinti kereséshez a cím csak akkor kerül lekérésre, ha IMDb-re 0 torrent érkezett
+            torrent_streams, errors = await self._torrent_streams_service.find_by_imdb(
+                user=user,
+                imdb_id=imdb_id,
+                series=series_info,
+                fallback_title=lambda: self._tvdb_resolver.get_title_by_imdb(imdb_id),
+                alternate_imdb_ids=alternate_imdb_ids,
+            )
+        finally:
+            if prefetch_task is not None and not prefetch_task.done():
+                prefetch_task.cancel()
 
         stremio_streams = [
             StremioStream.from_imdb_torrent_stream(

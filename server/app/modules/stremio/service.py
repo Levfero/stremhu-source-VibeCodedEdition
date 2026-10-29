@@ -132,36 +132,32 @@ class StremioService:
         parsed_id: StreamId,
     ) -> list[StremioStream]:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
-        use_cache = type(self._torrent_streams_service) is TorrentStreamsService
         dedup_val = getattr(user, "enable_stream_deduplication", True)
         enable_fallback = bool(getattr(user, "enable_fallback_subtitles", False))
         cache_key = f"{user.id}:{dedup_val}:{enable_fallback}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
-        if use_cache:
-            now = time.monotonic()
-            cached = _stream_cache.get(cache_key)
-            if cached is not None:
-                ts, cached_streams = cached
-                if now - ts < _STREAM_CACHE_TTL_SECONDS:
-                    return cached_streams
-                _stream_cache.pop(cache_key, None)
+        now = time.monotonic()
+        cached = _stream_cache.get(cache_key)
+        if cached is not None:
+            ts, cached_streams = cached
+            if now - ts < _STREAM_CACHE_TTL_SECONDS:
+                return cached_streams
+            _stream_cache.pop(cache_key, None)
 
-            if cache_key in _ongoing_stream_tasks:
-                return await _ongoing_stream_tasks[cache_key]
+        if cache_key in _ongoing_stream_tasks:
+            return await _ongoing_stream_tasks[cache_key]
 
         task = asyncio.create_task(self._get_streams_uncached(user, parsed_id))
-        if use_cache:
-            _ongoing_stream_tasks[cache_key] = task
+        _ongoing_stream_tasks[cache_key] = task
         try:
             streams = await task
-            if use_cache and streams and any(s.url is not None for s in streams):
+            if streams and any(s.url is not None for s in streams):
                 if len(_stream_cache) >= _MAX_STREAM_CACHE_ENTRIES:
                     for k in list(_stream_cache.keys())[:100]:
                         _stream_cache.pop(k, None)
                 _stream_cache[cache_key] = (time.monotonic(), streams)
             return streams
         finally:
-            if use_cache:
-                _ongoing_stream_tasks.pop(cache_key, None)
+            _ongoing_stream_tasks.pop(cache_key, None)
 
     async def _get_streams_uncached(
         self,

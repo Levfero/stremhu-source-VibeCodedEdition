@@ -35,7 +35,7 @@ _imdb_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 
 _QUERY_TRACKER_CACHE_TTL = 300.0
 _QUERY_TRACKER_CACHE_MAX = 1000
-_query_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
+_query_tracker_cache: dict[tuple[str, str, str], tuple[float, list[Any]]] = {}
 
 
 class IndexersService:
@@ -334,6 +334,7 @@ class IndexersService:
     async def get_torrents_by_query(
         self,
         query: str,
+        media_type: str | None = None,
     ) -> tuple[list[IndexerTorrent], list[str]]:
         indexer_accounts = await asyncio.to_thread(
             self._indexer_accounts_service.find_list
@@ -342,7 +343,11 @@ class IndexersService:
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
         ) -> list[IndexerTorrent]:
-            cache_key = (indexer_account.indexer_id, query.strip().lower())
+            cache_key = (
+                indexer_account.indexer_id,
+                query.strip().lower(),
+                media_type or "all",
+            )
             now = time.monotonic()
             indexer_definition_torrents: list[Any] | None = None
             cached = _query_tracker_cache.get(cache_key)
@@ -358,7 +363,9 @@ class IndexersService:
                     indexer_account.indexer_id
                 )
                 indexer_definition_torrents = (
-                    await indexer_definition.find_torrents_by_query(query)
+                    await indexer_definition.find_torrents_by_query(
+                        query, media_type=media_type
+                    )
                 )
                 if len(_query_tracker_cache) >= _QUERY_TRACKER_CACHE_MAX:
                     oldest_key = min(

@@ -3,6 +3,7 @@
 @website https://stremhu.hu
 """
 
+from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
@@ -20,6 +21,26 @@ from app.modules.indexer_definitions.schemas.internal import (
     IndexerDefinitionTorrent,
 )
 from app.modules.media_attributes.constants import MediaAttributeKey
+
+_NCORE_MOVIE_CATEGORIES: list[str] = [
+    "xvid_hun",
+    "xvid",
+    "dvd_hun",
+    "dvd",
+    "dvd9_hun",
+    "dvd9",
+    "hd_hun",
+    "hd",
+]
+
+_NCORE_SERIES_CATEGORIES: list[str] = [
+    "xvidser_hun",
+    "xvidser",
+    "dvdser_hun",
+    "dvdser",
+    "hdser_hun",
+    "hdser",
+]
 
 
 class NcoreIndexerDefinition(BaseIndexerDefinition):
@@ -89,25 +110,48 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         return await self._query_torrents(mire=imdb_id, miben="imdb", page=page)
 
     async def _fetch_torrents_by_query(
-        self, query: str, page: int | None = None
+        self,
+        query: str,
+        page: int | None = None,
+        media_type: str | None = None,
     ) -> IndexerDefinitionFindTorrentsResult:
-        return await self._query_torrents(mire=query, miben="nev", page=page)
+        return await self._query_torrents(
+            mire=query, miben="nev", page=page, media_type=media_type
+        )
 
     async def _query_torrents(
-        self, mire: str, miben: str, page: int | None = None
+        self,
+        mire: str,
+        miben: str,
+        page: int | None = None,
+        media_type: str | None = None,
     ) -> IndexerDefinitionFindTorrentsResult:
         current_page = page or 1
+        params: Any = [
+            ("oldal", str(current_page)),
+            ("miben", miben),
+            ("mire", mire),
+            ("miszerint", "seeders"),
+            ("hogyan", "DESC"),
+            ("jsons", "true"),
+        ]
+
+        if media_type == "movie":
+            params.append(("tipus", "kivalasztottak_kozott"))
+            for cat in _NCORE_MOVIE_CATEGORIES:
+                params.append(("kivalasztott_tipus[]", cat))
+        elif media_type == "series":
+            params.append(("tipus", "kivalasztottak_kozott"))
+            for cat in _NCORE_SERIES_CATEGORIES:
+                params.append(("kivalasztott_tipus[]", cat))
+        else:
+            params.append(("tipus", "kivalasztottak_kozott"))
+            for cat in _NCORE_MOVIE_CATEGORIES + _NCORE_SERIES_CATEGORIES:
+                params.append(("kivalasztott_tipus[]", cat))
+
         response = await self._client.get(
             "/torrents.php",
-            params={
-                "oldal": str(current_page),
-                "miben": miben,
-                "mire": mire,
-                "miszerint": "seeders",
-                "hogyan": "DESC",
-                "jsons": True,
-                "tipus": "all"
-            },
+            params=params,
         )
 
         try:

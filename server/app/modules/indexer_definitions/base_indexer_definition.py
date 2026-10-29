@@ -255,12 +255,17 @@ class BaseIndexerDefinition(ABC):
         return await self._find_all(imdb_id, None, [])
 
     async def find_torrents_by_query(
-        self, query: str
+        self, query: str, media_type: str | None = None
     ) -> list[IndexerDefinitionTorrent]:
-        return await self._find_all_by_query(query, None, [])
+        return await self._find_all_by_query(
+            query, None, [], media_type=media_type
+        )
 
     async def _fetch_torrents_by_query(
-        self, query: str, page: int | None = None
+        self,
+        query: str,
+        page: int | None = None,
+        media_type: str | None = None,
     ) -> IndexerDefinitionFindTorrentsResult:
         """Alapértelmezett megvalósítás: üres lista, ha az indexer nem támogatja a név szerinti keresést."""
         return IndexerDefinitionFindTorrentsResult(torrents=[])
@@ -325,6 +330,7 @@ class BaseIndexerDefinition(ABC):
         query: str,
         page: int | None,
         accumulator: list[IndexerDefinitionTorrent],
+        media_type: str | None = None,
     ) -> list[IndexerDefinitionTorrent]:
         if len(accumulator) >= 50:
             return pydash.uniq_by(
@@ -333,11 +339,15 @@ class BaseIndexerDefinition(ABC):
             )
 
         try:
-            result = await self._fetch_torrents_by_query(query, page)
+            result = await self._fetch_torrents_by_query(
+                query, page, media_type=media_type
+            )
             accumulator.extend(result.torrents)
 
             if result.next_page is not None:
-                return await self._find_all_by_query(query, result.next_page, accumulator)
+                return await self._find_all_by_query(
+                    query, result.next_page, accumulator, media_type=media_type
+                )
 
             return pydash.uniq_by(
                 accumulator,

@@ -19,6 +19,9 @@ from app.modules.torrent_files.schemas import TorrentFileIdentifier
 from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 
+_TORRENT_IMDB_CACHE: dict[tuple[str, str], str] = {}
+_MAX_TORRENT_IMDB_CACHE = 2000
+
 
 class StremioCatalogsService:
     def __init__(
@@ -55,14 +58,68 @@ class StremioCatalogsService:
             return StremioCatalogResponse(metas=meta_previews)
 
         # Ha nem t-<torrent_id> formátumú, közvetlen név/cím szerinti keresést futtatunk a trackereken
+        media_type_str = "movie" if media_type == MediaType.MOVIE else "series"
         try:
             torrent_sources, _ = (
-                await self._torrent_source_provider_service.find_by_query(extra.search)
+                await self._torrent_source_provider_service.find_by_query(
+                    extra.search, media_type=media_type_str
+                )
             )
+
+            # 2. szintű védelem SeriesParser-rel
+            from app.modules.torrent_streams.utils.series_parser import SeriesParser
+
+            filtered_sources = []
+            for ts in torrent_sources:
+                tf = ts.torrent_file
+                if not tf or not tf.info:
+                    filtered_sources.append(ts)
+                    continue
+
+                t_seasons, t_episodes = SeriesParser(tf.info.name).parse()
+                has_episodes = bool(
+                    t_seasons
+                    or t_episodes
+                    or (
+                        tf.info.files
+                        and any(
+                            SeriesParser(f.path or f.name).parse()[1]
+                            for f in tf.info.files
+                            if f.is_video
+                        )
+                    )
+                )
+
+                if media_type == MediaType.MOVIE:
+                    # Filmek közé nem engedünk be epizódos tartalmakat
+                    if not has_episodes:
+                        filtered_sources.append(ts)
+                else:
+                    # Sorozatok közé epizódos tartalmakat engedünk, vagy több videofájlt tartalmazó csomagokat
+                    if has_episodes or (
+                        tf.info.files
+                        and len([f for f in tf.info.files if f.is_video]) > 1
+                    ):
+                        filtered_sources.append(ts)
+
+            if filtered_sources or not torrent_sources:
+                torrent_sources = filtered_sources
+
             torrent_sources.sort(
                 key=lambda ts: getattr(ts.indexer_torrent, "seeders", 0) or 0,
                 reverse=True,
             )
+
+            for ts in torrent_sources:
+                it = ts.indexer_torrent
+                if it and it.imdb_id and getattr(it, "indexer_account", None):
+                    if len(_TORRENT_IMDB_CACHE) >= _MAX_TORRENT_IMDB_CACHE:
+                        for k in list(_TORRENT_IMDB_CACHE.keys())[:250]:
+                            _TORRENT_IMDB_CACHE.pop(k, None)
+                    _TORRENT_IMDB_CACHE[
+                        (it.indexer_account.indexer_id, it.torrent_id)
+                    ] = it.imdb_id
+
             content_type = (
                 ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
             )
@@ -70,6 +127,7 @@ class StremioCatalogsService:
                 MetaPreview.from_torrent_file(
                     torrent_source.torrent_file,
                     content_type=content_type,
+                    imdb_id=getattr(torrent_source.indexer_torrent, "imdb_id", None),
                 )
                 for torrent_source in torrent_sources
             ]
@@ -136,7 +194,10 @@ class StremioCatalogsService:
         if not torrent_file:
             return None
 
+        imdb_id = _TORRENT_IMDB_CACHE.get((indexer_id, torrent_id))
         content_type = (
             ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
         )
-        return MetaDetail.from_torrent_file(torrent_file, content_type=content_type)
+        return MetaDetail.from_torrent_file(
+            torrent_file, content_type=content_type, imdb_id=imdb_id
+        )

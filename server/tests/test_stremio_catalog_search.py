@@ -89,16 +89,60 @@ def mock_torrent_file():
     return torrent_file
 
 
+@pytest.fixture
+def mock_movie_torrent_file():
+    info = TorrentInfo(
+        info_hash="movie123hash",
+        name="Arsene.Lupin.2004.BDRip.x264.HuN",
+        size=2000000000,
+        piece_size=1048576,
+        files=[
+            TorrentFileInfo(
+                name="Arsene.Lupin.2004.mkv",
+                path="Arsene.Lupin.2004.mkv",
+                index=0,
+                size=2000000000,
+                offset=0,
+                start_piece_index=0,
+                end_piece_index=1907,
+                is_video=True,
+            ),
+        ],
+    )
+    import libtorrent
+
+    torrent_bytes = libtorrent.bencode(
+        {
+            b"info": {
+                b"name": b"m",
+                b"piece length": 16384,
+                b"pieces": b"\0" * 20,
+                b"length": 1,
+            }
+        }
+    )
+    torrent_file = TorrentFileModel(
+        indexer_id="ncore",
+        torrent_id="111222",
+        torrent_bytes=torrent_bytes,
+    )
+    torrent_file._cached_info = info
+    torrent_file.info_hash = "movie123hash"
+    return torrent_file
+
+
 @pytest.mark.anyio
-async def test_direct_query_catalog_search(mock_torrent_file):
+async def test_direct_query_catalog_search(mock_torrent_file, mock_movie_torrent_file):
     mock_files_service = MagicMock(spec=TorrentFilesService)
     mock_isolated_service = MagicMock(spec=IsolatedTorrentFilesService)
     mock_provider = AsyncMock(spec=TorrentSourceProviderService)
 
-    mock_source = TorrentSource(
+    mock_series_source = TorrentSource(
         indexer_torrent=IndexerTorrent(
             torrent_id="999888",
             download_url="https://ncore.invalid/dl",
+            imdb_id="tt2531336",
+            seeders=50,
             indexer_account=IndexerAccountModel(
                 indexer_id="ncore",
                 username="teszt",
@@ -107,7 +151,30 @@ async def test_direct_query_catalog_search(mock_torrent_file):
         ),
         torrent_file=mock_torrent_file,
     )
-    mock_provider.find_by_query.return_value = ([mock_source], [])
+
+    mock_movie_source = TorrentSource(
+        indexer_torrent=IndexerTorrent(
+            torrent_id="111222",
+            download_url="https://ncore.invalid/dl2",
+            imdb_id="tt0373690",
+            seeders=30,
+            indexer_account=IndexerAccountModel(
+                indexer_id="ncore",
+                username="teszt",
+                password="pw",
+            ),
+        ),
+        torrent_file=mock_movie_torrent_file,
+    )
+
+    async def fake_find_by_query(query, media_type=None):
+        if media_type == "movie":
+            return [mock_movie_source], []
+        elif media_type == "series":
+            return [mock_series_source], []
+        return [mock_series_source, mock_movie_source], []
+
+    mock_provider.find_by_query.side_effect = fake_find_by_query
 
     service = StremioCatalogsService(
         torrent_files_service=mock_files_service,
@@ -122,9 +189,14 @@ async def test_direct_query_catalog_search(mock_torrent_file):
         extra=ParsedExtra(search="Lupin"),
     )
     assert len(res_movie.metas) == 1
-    assert res_movie.metas[0].name == mock_torrent_file.info.name
+    assert res_movie.metas[0].name == mock_movie_torrent_file.info.name
     assert res_movie.metas[0].type == ContentType.MOVIE
-    assert res_movie.metas[0].id == "stremhu-source:ncore:999888"
+    assert res_movie.metas[0].id == "stremhu-source:ncore:111222"
+    assert res_movie.metas[0].imdb_id == "tt0373690"
+    assert (
+        res_movie.metas[0].poster
+        == "https://images.metahub.space/poster/medium/tt0373690/img"
+    )
 
     # 2. Series katalógus keresés
     res_series = await service.get_catalog(
@@ -133,7 +205,74 @@ async def test_direct_query_catalog_search(mock_torrent_file):
         extra=ParsedExtra(search="Lupin"),
     )
     assert len(res_series.metas) == 1
+    assert res_series.metas[0].name == mock_torrent_file.info.name
     assert res_series.metas[0].type == ContentType.SERIES
+    assert res_series.metas[0].id == "stremhu-source:ncore:999888"
+    assert res_series.metas[0].imdb_id == "tt2531336"
+    assert (
+        res_series.metas[0].poster
+        == "https://images.metahub.space/poster/medium/tt2531336/img"
+    )
+
+
+@pytest.mark.anyio
+async def test_series_parser_safeguard_filters_series_from_movie_catalog(
+    mock_torrent_file, mock_movie_torrent_file
+):
+    mock_files_service = MagicMock(spec=TorrentFilesService)
+    mock_isolated_service = MagicMock(spec=IsolatedTorrentFilesService)
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+
+    # Szimuláljuk, hogy a tracker tévesen sorozatot és filmet is visszaadott a movie keresésre
+    mock_series_source = TorrentSource(
+        indexer_torrent=IndexerTorrent(
+            torrent_id="999888",
+            download_url="https://ncore.invalid/dl",
+            imdb_id="tt2531336",
+            seeders=100,
+            indexer_account=IndexerAccountModel(
+                indexer_id="ncore",
+                username="teszt",
+                password="pw",
+            ),
+        ),
+        torrent_file=mock_torrent_file,
+    )
+    mock_movie_source = TorrentSource(
+        indexer_torrent=IndexerTorrent(
+            torrent_id="111222",
+            download_url="https://ncore.invalid/dl2",
+            imdb_id="tt0373690",
+            seeders=10,
+            indexer_account=IndexerAccountModel(
+                indexer_id="ncore",
+                username="teszt",
+                password="pw",
+            ),
+        ),
+        torrent_file=mock_movie_torrent_file,
+    )
+
+    mock_provider.find_by_query.return_value = (
+        [mock_series_source, mock_movie_source],
+        [],
+    )
+
+    service = StremioCatalogsService(
+        torrent_files_service=mock_files_service,
+        torrent_source_provider_service=mock_provider,
+        isolated_torrent_files_service=mock_isolated_service,
+    )
+
+    # Film keresésnél a SeriesParsernek ki kell szűrnie a Lupin.S04 sorozatot!
+    res_movie = await service.get_catalog(
+        media_type=MediaType.MOVIE,
+        catalog_id="search",
+        extra=ParsedExtra(search="Lupin"),
+    )
+    assert len(res_movie.metas) == 1
+    assert res_movie.metas[0].id == "stremhu-source:ncore:111222"
+    assert res_movie.metas[0].name == mock_movie_torrent_file.info.name
 
 
 def test_meta_detail_series_generates_episodes(mock_torrent_file):

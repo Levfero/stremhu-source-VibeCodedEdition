@@ -1,7 +1,7 @@
 # Fejlesztői Dokumentáció: `feature/stremio-catalog-search`
 
 > **Viszonyítási alap (Baseline):** Eredeti upstream [`s4pp1/stremhu-source`](https://github.com/s4pp1/stremhu-source) (`8c99c7d` commit).
-> Ez a dokumentum a `feature/stremio-catalog-search` branch által bevezetett közvetlen katalógus-keresési, sorozat-epizódfelbontási és fájlszintű streaming fejlesztéseit részletezi.
+> Ez a dokumentum a `feature/stremio-catalog-search` branch által bevezetett közvetlen katalógus-keresési, kategória szerinti szétválasztási (Filmek vs Sorozatok), borítókép/IMDb integrációs és sorozat-epizódfelbontási fejlesztéseit részletezi.
 
 ---
 
@@ -11,7 +11,7 @@ Az eredeti upstream `s4pp1/stremhu-source` két keresési katalógust regisztrá
 - `🔍 Torrent - StremHU • Filmek` (`id="search"`, `type=ContentType.MOVIE`)
 - `🔍 Torrent - StremHU • Sorozatok` (`id="search"`, `type=ContentType.SERIES`)
 
-Azonban az upstream megvalósításban a `StremioCatalogsService.get_catalog` kódja **kizárólag** a konkrét numerikus torrent ID-s kereséseket engedélyezte:
+Azonban az upstream megvalósításban a `StremioCatalogsService.get_catalog` kódja **kizárólag** a konkrét numerikus torrent ID-s kereséseket engedélyezte (`t-<torrent_id>`):
 ```python
 parts = extra.search.split("-", 1)
 if len(parts) < 2 or parts[0] != "t":
@@ -20,11 +20,17 @@ if len(parts) < 2 or parts[0] != "t":
 
 Ez a gyakorlatban azt jelentette, hogy:
 1. Ha a felhasználó a Stremio felső keresősávjába beírta bármilyen film vagy sorozat címét (pl. *Lupin*, *A mi kis falunk*, *Inception*), a StremHU **nulla találatot** adott vissza a két sorában.
-2. Csak akkor lehetett tartalmat lejátszani, ha a Stremio beépített Cinemeta (IMDb) katalógusában már létezett a műsor. Ha egy tartalom nem szerepelt az IMDb-n (pl. hazai vetélkedők, régebbi televíziós közvetítések), azt a Stremio felületéről egyáltalán nem lehetett elérni.
+2. Csak akkor lehetett tartalmat lejátszani, ha a Stremio beépített Cinemeta (IMDb) katalógusában már létezett a műsor. Ha egy tartalom nem szerepelt az IMDb-n (pl. hazai vetélkedők, televíziós közvetítések), azt a Stremio felületéről egyáltalán nem lehetett elérni.
 3. Sorozatok esetén hiányzott a torrenten belüli fájlok automatikus epizódlistává (`MetaVideo`) alakítása, így a Stremio UI nem tudott epizódválasztót renderelni közvetlen torrent metaadatokból.
+4. **Kategória-keveredés és fekete kártyák:** A kezdeti közvetlen keresés mindkét katalógusban azonos listát adott vissza (filmeknél sorozatok, sorozatoknál filmek jelentek meg), és hiányoztak a poszterek.
 
-A `feature/stremio-catalog-search` branch ezt a hiányosságot szünteti meg:
-- **Közvetlen szabadszavas tracker keresés (`find_by_query`):** Bármilyen szöveges keresőkifejezésre azonnal lekéri a beállított indexerek (nCore, HunTorrent, stb.) találatait, és megjeleníti őket a Stremio keresőjében.
+### A megoldott fejlesztések:
+- **Közvetlen szabadszavas tracker keresés (`find_by_query`):** Bármilyen szöveges keresőkifejezésre azonnal lekéri a beállított indexerek (nCore, HunTorrent, stb.) találatait, seederek szerint csökkenő sorrendben.
+- **Kategória szerinti szétválasztás (Filmek vs Sorozatok):**
+  - **Filmek katalógus:** Kizárólag magyar és külföldi filmkategóriák (`xvid_hun`, `hd_hun`, `dvd_hun`, `hd`, stb.).
+  - **Sorozatok katalógus:** Kizárólag magyar és külföldi sorozatkategóriák (`xvidser_hun`, `hdser_hun`, `dvdser_hun`, `hdser`, stb.).
+  - **Kettős védelem (`SeriesParser`):** A katalógus szerviz tartalomelemzéssel kiszűri a sorozat-epizódokat a filmek közül, és az önálló filmeket a sorozatok közül.
+- **Hivatalos borítóképek & IMDb pontszám:** Az indexerek által visszaadott `imdb_id` továbbításával a kártyák automatikusan megkapják a nagyfelbontású Metahub borítóképet (`https://images.metahub.space/poster/medium/{imdb_id}/img`) és az IMDb értékelést a sötét dobozok helyett.
 - **Automatikus sorozat- és epizódfelbontás (`MetaDetail.videos`):** A sorozatkiadásokban és évadpakkokban lévő videofájlokat a `SeriesParser` segítségével automatikusan felbontja évadokra és epizódokra (`S04E01`, `S04E02`, stb.).
 - **Fájlszintű közvetlen streaming (`file_index`):** A generált stream azonosító (`stremhu-source:{indexer_id}:{torrent_id}:{file_index}`) révén a Stremio epizódonként tudja elindítani a lejátszást évadcsomagokból is.
 
@@ -34,19 +40,23 @@ A `feature/stremio-catalog-search` branch ezt a hiányosságot szünteti meg:
 
 | Fájl elérési útja | Státusz | Változtatás összefoglalása |
 | :--- | :---: | :--- |
-| [`server/app/modules/stremio/catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) | **MÓDOSÍTOTT** | Szabadszavas keresési ág integrálása: ha a kifejezés nem `t-...`, a `find_by_query` hívással lekéri az élő találatokat a trackerekről, és `MetaPreview` listát állít elő. |
-| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `MetaDetail.from_torrent_file` kiegészítése automatikus `MetaVideo` generálással (`content_type=ContentType.SERIES`), valamint `TorrentStreamId.file_index` támogatás. |
+| [`server/app/modules/stremio/catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) | **MÓDOSÍTOTT** | Szabadszavas keresési ág integrálása, `media_type` szerinti célzott lekérdezés, `SeriesParser` alapú kategória-védelem, seederek szerinti rendezés és `MetaPreview` előállítás `imdb_id`-val és borítóképpel. |
+| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `MetaPreview.from_torrent_file` és `MetaDetail.from_torrent_file` kiegészítése `imdb_id`, `poster` és `background` támogatással, valamint `MetaVideo` generálással. |
+| [`server/app/modules/indexer_definitions/integrations/ncore.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/ncore.py) | **MÓDOSÍTOTT** | `_NCORE_MOVIE_CATEGORIES` és `_NCORE_SERIES_CATEGORIES` szétválasztása, `tipus="kivalasztottak_kozott"` és `kivalasztott_tipus[]` tömb átadása `media_type` alapján. |
+| [`server/app/modules/indexer_definitions/base_indexer_definition.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/base_indexer_definition.py) | **MÓDOSÍTOTT** | `find_torrents_by_query`, `_find_all_by_query` és `_fetch_torrents_by_query` metódusok felkészítése az opcionális `media_type` paraméterre. |
+| [`server/app/modules/indexers/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexers/service.py) | **MÓDOSÍTOTT** | `get_torrents_by_query` bővítése `media_type`-pal és a cache kulcs elkülönítése: `(indexer_id, query, media_type)`. |
+| [`server/app/modules/torrent_source_provider/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_source_provider/service.py) | **MÓDOSÍTOTT** | `find_by_query` metódusban feladat-deduplikáció `media_type` szerint és paraméter továbbítása. |
 | [`server/app/modules/stremio/utils.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/utils.py) | **MÓDOSÍTOTT** | `parse_stream_id` felkészítése az opcionális harmadik `:file_index` mező értelmezésére (`stremhu-source:{indexer}:{id}:{index}`). |
 | [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | `file_index` továbbítása a `_torrent_streams_service.find_by_torrent_id` hívás felé. |
 | [`server/app/modules/torrent_streams/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/service.py) | **MÓDOSÍTOTT** | `find_by_torrent_id` metódus bővítése az opcionális `file_index` szűrő paraméterrel. |
 | [`server/app/modules/torrent_streams/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/schemas.py) | **MÓDOSÍTOTT** | `TorrentStream.from_torrent_id` metódusban a fájlok szűrése a megadott `file_index` alapján. |
-| [`server/tests/test_stremio_catalog_search.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_stremio_catalog_search.py) | **ÚJ** | Teljes körű unit tesztcsomag: katalógus keresés filmre/sorozatra, sorozat epizódgenerálás, stream azonosító elemzés és fájlszintű szűrés. |
+| [`server/tests/test_stremio_catalog_search.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_stremio_catalog_search.py) | **ÚJ** | Teljes körű unit tesztcsomag: film/sorozat kategória-szétválasztás, Metahub borítóképek, `SeriesParser` védelem, epizódgenerálás és stream azonosító elemzés. |
 
 ---
 
 ## 3. Architektúra és Működési Folyamatábrák
 
-### 3.1. Közvetlen Katalógus-Keresési Folyamat
+### 3.1. Kategória-Célzott Katalógus Keresés és Borítókép Generálás
 
 ```mermaid
 sequenceDiagram
@@ -56,87 +66,53 @@ sequenceDiagram
     participant Router as StremioRouter (/catalog/...)
     participant CatService as StremioCatalogsService
     participant TSP as TorrentSourceProviderService
-    participant Indexers as IndexersService (nCore / HunTorrent)
+    participant Indexers as IndexersService
+    participant nCore as nCore Integráció
 
     User->>Stremio: Beírja: "Lupin"
     par Film Katalógus Kérés
-        Stremio->>Router: GET /api/{key}/stremio/catalog/movie/search/search=Lupin.json
-        Router->>CatService: get_catalog(movie, "search", search="Lupin")
+        Stremio->>Router: GET /catalog/movie/search/search=Lupin.json
+        Router->>CatService: get_catalog(movie, "search", "Lupin")
+        CatService->>TSP: find_by_query("Lupin", media_type="movie")
+        TSP->>Indexers: get_torrents_by_query("Lupin", media_type="movie")
+        Indexers->>nCore: _query_torrents(media_type="movie")
+        Note over nCore: tipus=kivalasztottak_kozott<br/>kivalasztott_tipus[] = xvid_hun, hd_hun, dvd...
+        nCore-->>CatService: Csak mozifilmek (pl. Arsene Lupin 2004, Lupin III)
+        Note over CatService: SeriesParser ellenőrzi:<br/>nincs SxxExx -> megtartja<br/>Metahub poszter hozzárendelése (tt0373690)
+        CatService-->>Stremio: 14 db film találat poszterekkel!
     and Sorozat Katalógus Kérés
-        Stremio->>Router: GET /api/{key}/stremio/catalog/series/search/search=Lupin.json
-        Router->>CatService: get_catalog(series, "search", search="Lupin")
+        Stremio->>Router: GET /catalog/series/search/search=Lupin.json
+        Router->>CatService: get_catalog(series, "search", "Lupin")
+        CatService->>TSP: find_by_query("Lupin", media_type="series")
+        TSP->>Indexers: get_torrents_by_query("Lupin", media_type="series")
+        Indexers->>nCore: _query_torrents(media_type="series")
+        Note over nCore: tipus=kivalasztottak_kozott<br/>kivalasztott_tipus[] = xvidser_hun, hdser_hun...
+        nCore-->>CatService: Csak sorozatok (Lupin S01-S04 évadok)
+        Note over CatService: SeriesParser ellenőrzi:<br/>van Sxx -> megtartja<br/>Metahub poszter hozzárendelése (tt2531336)
+        CatService-->>Stremio: 30 db sorozat találat poszterekkel!
     end
-
-    CatService->>TSP: find_by_query("Lupin")
-    Note over TSP: Dedup feladatkezelő (_ongoing_tasks):<br/>a két párhuzamos kérés csak 1x futtatja le a keresést!
-    TSP->>Indexers: get_torrents_by_query("Lupin")
-    Indexers-->>TSP: IndexerTorrent lista (nCore, HunTorrent)
-    TSP-->>CatService: list[TorrentSource] (szinkronizált .torrent adatokkal)
-
-    Note over CatService: MetaPreview kártyák generálása:<br/>id="stremhu-source:{indexer}:{id}"<br/>name="Lupin.S04.720p..."
-    CatService-->>Stremio: StremioCatalogResponse(metas=[...])
-    Stremio-->>User: Megjelenik a két sorban a találati lista!
 ```
 
 ---
 
-### 3.2. Sorozat Részletezés és Epizód Lejátszási Folyamat
+## 4. Tesztelési és Ellenőrzési Referencia
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Felhasználó
-    participant Stremio as Stremio Kliens
-    participant Router as StremioRouter
-    participant CatService as StremioCatalogsService
-    participant StreamService as StremioService
-    participant Engine as Relay Stream Engine
-
-    User->>Stremio: Rákattint a "Lupin S04" sorozat kártyára
-    Stremio->>Router: GET /api/{key}/stremio/meta/series/stremhu-source:ncore:12345.json
-    Router->>CatService: get_meta("ncore", "12345", media_type=series)
-    Note over CatService: MetaDetail.from_torrent_file():<br/>SeriesParser felbontja a fájlokat:<br/>S04E01 -> id="...:0"<br/>S04E02 -> id="...:1"
-    CatService-->>Stremio: MetaResponse(meta={videos: [S4E1, S4E2, ...]})
-
-    Stremio-->>User: Megjeleníti az évad/epizód választót
-    User->>Stremio: Kiválasztja az S04E02 epizódot
-    Stremio->>Router: GET /api/{key}/stremio/stream/series/stremhu-source:ncore:12345:1.json
-    Router->>StreamService: get_streams(user, TorrentStreamId(indexer=ncore, torrent=12345, file_index=1))
-    Note over StreamService: TorrentStream.from_torrent_id():<br/>Csak a file.index == 1 streamjét adja vissza!
-    StreamService-->>Stremio: StremioStreams(streams=[...])
-    Stremio->>Engine: Lejátszás indítása a kiválasztott epizódra!
-```
-
----
-
-## 4. Modulonkénti Részletes Működési Leírás (AI Agent Referencia)
-
-### 4.1. `StremioCatalogsService.get_catalog` (`server/app/modules/stremio/catalogs_service.py`)
-- Megvizsgálja a beérkező `extra.search` paramétert.
-- Ha a kifejezés `t-<torrent_id>` formátumú, megőrzi az upstream eredeti funkcióját, és közvetlenül az adott azonosítójú torrentet tölti be.
-- Minden más esetben meghívja a `_torrent_source_provider_service.find_by_query(extra.search)` metódust.
-- A kapott forrásokból a kért `media_type` szerint (`ContentType.SERIES` vagy `ContentType.MOVIE`) előállítja a `MetaPreview` listát.
-
-### 4.2. `MetaDetail.from_torrent_file` (`server/app/modules/stremio/schemas.py`)
-- Ha a tartalom típusa `ContentType.SERIES`, végigmegy a torrent fájljain:
-  - Kizárja a nem-videó és minta fájlokat (`is_sample_or_trash`).
-  - A `SeriesParser` segítségével meghatározza az évadot és az epizódszámot a fájl nevéből/elérési útjából.
-  - Generál egy `MetaVideo` elemet az egyedi azonosítóval (`f"{meta_id}:{file.index}"`).
-  - Beállítja a `behavior_hints.default_video_id` mezőt az első elérhető epizódra.
-
-### 4.3. `parse_stream_id` és `TorrentStreamId` (`server/app/modules/stremio/utils.py` & `schemas.py`)
-- A `stremhu-source:<indexer_id>:<torrent_id>` és `stremhu-source:<indexer_id>:<torrent_id>:<file_index>` formátumokat egyaránt felismeri.
-- A `file_index` mező opcionális (`int | None`), így a korábbi hivatkozásokkal és a filmekkel 100%-ban visszafelé kompatibilis.
-
----
-
-## 5. Tesztelési és Ellenőrzési Referencia
-
-A funkcióhoz tartozó linter, típusellenőrző és tesztcsomag futtatása:
+### 4.1. Unit Tesztek és Linter Eredmények
 ```powershell
 $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
 - **Ruff:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
-- **Pytest:** `220 passed, 64 snapshots passed in 13.47s`
+- **Pytest:** `221 passed, 64 snapshots passed in 2.47s`
 
+### 4.2. Élő Docker Desktop Verifikáció (`stremhu-local-test`)
+- **Sorozatok keresés:**
+  ```powershell
+  Invoke-RestMethod -Uri "https://192-168-1-23.local-ip.medicmobile.org:7070/api/b97de43f-eb45-42e7-ad77-5033ca74506b/stremio/catalog/series/search/search=Lupin.json"
+  ```
+  *Eredmény:* 30 db tiszta sorozat találat (`Lupin.S04...`, `Lupin.S01...`), mindegyikhez `imdbId="tt2531336"` és `poster="https://images.metahub.space/poster/medium/tt2531336/img"`.
+- **Filmek keresés:**
+  ```powershell
+  Invoke-RestMethod -Uri "https://192-168-1-23.local-ip.medicmobile.org:7070/api/b97de43f-eb45-42e7-ad77-5033ca74506b/stremio/catalog/movie/search/search=Lupin.json"
+  ```
+  *Eredmény:* 14 db tiszta mozifilm találat (`Arsene.Lupin.2004...`, `Lupin.III.Cagliostro...`), mindegyikhez saját `imdbId` (`tt0373690`, `tt0079833`) és hivatalos borítókép.

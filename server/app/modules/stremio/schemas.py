@@ -488,14 +488,24 @@ class MetaPreview(BaseMeta):
         cls,
         torrent_file: TorrentFileModel,
         content_type: ContentType = ContentType.MOVIE,
+        imdb_id: str | None = None,
+        imdb_rating: str | None = None,
     ) -> MetaPreview:
+        poster = (
+            f"https://images.metahub.space/poster/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
+            imdb_id=imdb_id,
             type=content_type,
             name=torrent_file.info.name,
+            poster=poster,
+            imdb_rating=imdb_rating,
         )
 
 
@@ -517,6 +527,7 @@ class MetaDetail(BaseMeta):
         cls,
         torrent_file: TorrentFileModel,
         content_type: ContentType = ContentType.MOVIE,
+        imdb_id: str | None = None,
     ) -> MetaDetail:
         videos: list[MetaVideo] | None = None
         behavior_hints: MetaDetailBehaviorHints | None = None
@@ -551,13 +562,27 @@ class MetaDetail(BaseMeta):
             if default_vid:
                 behavior_hints = MetaDetailBehaviorHints(default_video_id=default_vid)
 
+        poster = (
+            f"https://images.metahub.space/poster/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
+        background = (
+            f"https://live.metahub.space/background/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
+
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
+            imdb_id=imdb_id,
             type=content_type,
             name=torrent_file.info.name,
+            poster=poster,
+            background=background,
             videos=videos,
             behavior_hints=behavior_hints,
         )

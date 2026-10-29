@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 
 import { SmartFilterSettings } from '@/features/smart-filter/smart-filter-settings'
+import { SubtitleSettingsCard } from '@/features/subtitle-settings/subtitle-settings'
 import {
   Card,
   CardContent,
@@ -129,6 +130,8 @@ export function OtherPreferences() {
             smartFilterGroupingPreferenceId: 'smartFilterGroupingPreferenceId',
           }}
         />
+
+        <SubtitleSettingsCard />
       </div>
     </div>
   )

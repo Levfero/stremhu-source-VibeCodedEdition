@@ -201,6 +201,7 @@ export interface MeUpdateRequest {
   enableSmartFilter?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
+  enableFallbackSubtitles?: boolean | null
 }
 
 export type MediaType = (typeof MediaType)[keyof typeof MediaType]
@@ -371,6 +372,7 @@ export interface UserResponse {
   enableSmartFilter: boolean
   smartFilterGroupingPreferenceId: string | null
   smartFilterLimit: number
+  enableFallbackSubtitles: boolean
   maxConcurrentStreams: number | null
 }
 
@@ -531,6 +533,7 @@ export interface UserCreateRequest {
   smartFilterGroupingPreferenceId?: string | null
   /** @minimum 1 */
   smartFilterLimit?: number
+  enableFallbackSubtitles?: boolean
   maxConcurrentStreams?: number | null
   password?: string | null
   roleId?: string
@@ -544,6 +547,7 @@ export interface UserUpdateRequest {
   enableSmartFilter?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
+  enableFallbackSubtitles?: boolean | null
   maxConcurrentStreams?: number | null
 }
 

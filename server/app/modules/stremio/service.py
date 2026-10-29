@@ -7,6 +7,7 @@ from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.config import NodeEnv, config
 from app.modules.settings.service import SettingsService
+from app.modules.stream.active_playback import wait_for_active_binge_group
 from app.modules.stremio.constants import (
     ADDON_APP_PREFIX_ID,
     SEARCH_ID,
@@ -116,7 +117,8 @@ class StremioService:
         parsed_id: StreamId,
     ) -> list[StremioStream]:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből (rövid távú gyorsítótárral és in-flight deduplikációval)."""
-        cache_key = f"{user.id}:{parsed_id.model_dump_json()}"
+        enable_fallback = bool(getattr(user, "enable_fallback_subtitles", False))
+        cache_key = f"{user.id}:{enable_fallback}:{parsed_id.model_dump_json()}"
         now = time.monotonic()
 
         cached = _stream_cache.get(cache_key)
@@ -270,14 +272,21 @@ class StremioService:
             for torrent_stream in torrent_streams
         ]
 
-        # Ha valamelyik stream saját torrentjéhez nincs felirat, tartalékként használjuk a többi stream feliratát
-        fallback_subtitles = next(
-            (s.subtitles for s in stremio_streams if s.subtitles), None
-        )
-        if fallback_subtitles:
-            for s in stremio_streams:
-                if not s.subtitles:
-                    s.subtitles = fallback_subtitles
+        # Ha be van kapcsolva a felirat kölcsönzése más találatból, és az adott forrásnál
+        # nincs beállítva a teljes torrent letöltése, tartalékként használjuk a többi stream feliratát
+        if getattr(user, "enable_fallback_subtitles", False):
+            fallback_subtitles = next(
+                (
+                    s.subtitles
+                    for ts, s in zip(torrent_streams, stremio_streams)
+                    if s.subtitles and self._can_borrow_subtitle(ts)
+                ),
+                None,
+            )
+            if fallback_subtitles:
+                for ts, s in zip(torrent_streams, stremio_streams):
+                    if not s.subtitles and self._can_borrow_subtitle(ts):
+                        s.subtitles = fallback_subtitles
 
         for error in errors:
             stremio_streams.append(
@@ -347,6 +356,18 @@ class StremioService:
 
         return None
 
+    @staticmethod
+    def _can_borrow_subtitle(torrent_stream) -> bool:
+        acc = getattr(torrent_stream, "indexer_account", None)
+        if not acc:
+            return True
+        if getattr(acc, "download_full_torrent", False):
+            return False
+        idx_def = getattr(acc, "indexer_definition", None)
+        if idx_def and getattr(idx_def, "requires_full_download", False):
+            return False
+        return True
+
     async def get_subtitles(
         self,
         user: UserModel,
@@ -355,35 +376,75 @@ class StremioService:
         query_params: dict[str, str] | None = None,
     ) -> list[StremioSubtitle]:
         """Lekéri a feliratokat az adott médiához.
-        Elsősorban a lejátszott videó torrentjéből származó feliratot adja vissza,
-        ha ahhoz nincs felirat, akkor más streamek feliratait fallback-ként.
+        Elsősorban a lejátszott videó torrentjéből származó feliratot adja vissza;
+        másik torrentből csak akkor kölcsönöz feliratot, ha az engedélyezve van.
         """
         streams = await self.get_streams(user, parsed_id)
         if not streams:
             return []
 
-        # Próbáljuk beazonosítani a lejátszott streamet
+        enable_fallback = bool(getattr(user, "enable_fallback_subtitles", False))
+
+        # Próbáljuk beazonosítani a lejátszott streamet (videoSize / filename alapján)
         played_stream = self._find_played_stream(
             streams, extra=extra, query_params=query_params
         )
 
+        playable_streams = [
+            s for s in streams if s.url is not None or s.subtitles is not None
+        ]
+        distinct_sub_urls = {
+            sub.url for s in playable_streams if s.subtitles for sub in s.subtitles
+        }
+        has_stream_without_subs = any(not s.subtitles for s in playable_streams)
+
+        # Ha több különböző torrent van, és a kliens (pl. Nuvio)
+        # nem küldött videoSize/filename paramétert, megnézzük az aktív lejátszást
+        if (
+            played_stream is None
+            and len(playable_streams) > 1
+            and (
+                len(distinct_sub_urls) > 1
+                or (not enable_fallback and has_stream_without_subs)
+            )
+        ):
+            valid_binge_groups = {
+                s.behavior_hints.binge_group
+                for s in playable_streams
+                if s.behavior_hints and s.behavior_hints.binge_group
+            }
+            if valid_binge_groups:
+                active_bg = await wait_for_active_binge_group(
+                    api_key=user.api_key,
+                    valid_binge_groups=valid_binge_groups,
+                    timeout=0.4,
+                )
+                if active_bg:
+                    played_stream = next(
+                        (
+                            s
+                            for s in playable_streams
+                            if s.behavior_hints
+                            and s.behavior_hints.binge_group == active_bg
+                        ),
+                        None,
+                    )
+
         if played_stream:
             if played_stream.subtitles:
                 return played_stream.subtitles
-            # Ha a lejátszott streamhez nincs felirat, fallback a többire
-            for s in streams:
-                if s != played_stream and s.subtitles:
-                    return s.subtitles
+            # Ha a lejátszott streamhez nincs saját felirat, csak akkor kölcsönzünk másikból, ha be van kapcsolva
+            if enable_fallback:
+                for s in playable_streams:
+                    if s != played_stream and s.subtitles:
+                        return s.subtitles
+            return []
 
-        # Ha nem sikerült egyértelműen beazonosítani a streamet,
-        # visszaadjuk a feliratokat deduplikálva
-        all_subs: list[StremioSubtitle] = []
-        seen_urls: set[str] = set()
-        for s in streams:
-            if s.subtitles:
-                for sub in s.subtitles:
-                    if sub.url not in seen_urls:
-                        seen_urls.add(sub.url)
-                        all_subs.append(sub)
-        return all_subs
+        # Ha még nem indult el lejátszás, csak akkor adunk vissza feliratot,
+        # ha minden streamnek van sajátja, vagy ha a feliratkölcsönzés be van kapcsolva
+        if enable_fallback or not has_stream_without_subs:
+            for s in playable_streams:
+                if s.subtitles:
+                    return s.subtitles
+        return []
 

@@ -87,6 +87,12 @@ class UserModel(Base):
         default=1,
     )
 
+    enable_fallback_subtitles: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        default=False,
+        server_default=sa.text("0"),
+    )
+
     max_concurrent_streams: Mapped[int | None] = mapped_column(
         sa.Integer,
         default=None,

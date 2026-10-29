@@ -22,3 +22,5 @@ class MeUpdateRequest(BaseModel):
         default=None,
         ge=1,
     )
+
+    enable_fallback_subtitles: bool | None = None

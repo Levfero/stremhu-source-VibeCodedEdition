@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { SubtitleSettingsCard } from '@/features/subtitle-settings/subtitle-settings'
 import { Separator } from '@/shared/components/ui/separator'
 
 import { Indexers } from './-features/indexers'
@@ -26,6 +27,9 @@ function SystemRoute() {
         </div>
         <div className="break-inside-avoid mb-4">
           <KeepSeeding />
+        </div>
+        <div className="break-inside-avoid mb-4">
+          <SubtitleSettingsCard />
         </div>
         <div className="break-inside-avoid mb-4">
           <Restart />

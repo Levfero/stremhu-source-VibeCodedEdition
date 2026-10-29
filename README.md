@@ -50,9 +50,10 @@ Mit nyújt ez a branch a lejátszókban (Stremio / Nuvio)?
    - Kizárólag a magyar nyelvű feliratok jelennek meg a felületen.
    - Az egyéb idegen nyelvű feliratok (angol, német, francia, spanyol stb.) automatikusan kiszűrésre kerülnek, elkerülve a felesleges felirat-listázást (az idegen nyelvekre a népszerű külső subtitle kiegészítők, pl. OpenSubtitles használatosak).
    - **Ismeretlen feliratok elve:** Ha egy feliratnál nem szerepel nyelvi jelölés (pl. `01.ass`, `Noragami - 01.srt`), a rendszer a magyar trackerek kontextusából fakadóan **magyar feliratként** kezeli, így egyetlen releváns felirat sem vész el.
-4. **Pontos videó-illesztés és automatikus Fallback:**
-   - A lejátszott videó torrentjéből érkezik a felirat, garantálva, hogy a timing pontosan a nézett videóhoz igazodjon.
-   - Ha a kiválasztott videó torrentjében egyáltalán nincs felirat, a rendszer automatikusan biztosítja a többi azonos epizódhoz tartozó torrent magyar feliratát tartalékként (**fallback**).
+4. **Pontos videó-illesztés, Aktív Lejátszás Követés és Választható Feliratkölcsönzés (Fallback):**
+   - A lejátszott videó torrentjéből érkezik a felirat, garantálva, hogy az időzítés pontosan a nézett videóhoz igazodjon, és **csak 1 torrentre keletkezzen seedkötelezettség (Hit'n'Run)**.
+   - Azokban a lejátszókban (pl. Nuvio), amelyek a `/subtitles` végpont hívásakor nem küldenek `videoSize` vagy `filename` paramétert, a szerver az elindított videó-stream alapján (`active_playback`) automatikusan beazonosítja a lejátszott torrentet, így mindig csak a nézett kiadáshoz tartozó 1 db felirat jelenik meg.
+   - **Választható feliratkölcsönzés GUI kapcsolóval:** A webes felületen (**Beállítások → Preferenciák → További preferenciák** és **Irányítópult → Rendszer → Torrent feliratok**) külön kapcsolóval (`Felirat kölcsönzése más találatból`) engedélyezhető, hogy ha a választott torrentben nincs külön `.srt`/`.ass` fájl, a rendszer másik találatból kölcsönözzön feliratot — kizárólag olyan forrásnál (pl. nCore), ahol nincs bekapcsolva a *Teljes torrent letöltése*. A felületen lenyitható információs fül és figyelmeztetés tájékoztat a dupla seedkötelezettségről (Hit'n'Run).
 
 ---
 
@@ -69,9 +70,13 @@ server/app/modules/
 │       └── stream_file_resolver.py # resolve_subtitles (epizód-pontos illesztés és szűrés)
 ├── stremio/
 │   ├── router.py               # /subtitles végpont (Request, extra paraméterek átadása)
-│   └── service.py              # get_subtitles (lejátszott stream beazonosítása és fallback logika)
+│   └── service.py              # get_subtitles (lejátszott stream beazonosítása és opcionális fallback)
+├── relay/
+│   └── entities.py             # get_matched_subtitle_pieces (epizód-pontos felirat piece előtöltés)
 └── stream/
-    ├── router.py               # /subtitles/{stream_token}/{filename} felirat stream & Range
+    ├── active_playback.py      # Aktív videó-lejátszás követése Nuvio / paraméter nélküli kliensekhez
+    ├── router.py               # /subtitles/{stream_token}/{filename} felirat stream, memória-cache & Range
+    ├── service.py              # Videó és felirat fájlok validálása és előkészítése
     └── utils/
         └── subtitles.py        # ass_to_vtt (valós idejű ASS/SSA -> WebVTT konverter)
 ```
@@ -96,15 +101,16 @@ server/app/modules/
 - Sorozatpakkok esetén a fájlnév-tisztítás (`clean_video_stem`) mellett kötelező az epizódszám-egyezés ellenőrzése a `SeriesParser` segítségével.
 - Ha a felirat neve egy másik epizódot jelöl meg (pl. 2. rész az 1. helyett), a felirat eldobásra kerül, megakadályozva a több epizódot tartalmazó torrentek felirat-összemosódását.
 
-##### D. Lejátszott videó beazonosítása és Fallback stratégia
+##### D. Lejátszott videó beazonosítása és választható Fallback stratégia
 A Stremio és Nuvio a videó indításakor a `/subtitles/{media_type}/{stream_id}/{extra}.json` végpontot hívja meg:
-1. Az `extra` és query paraméterekből kinyerjük a `videoSize` és `filename` értékeket.
-2. A `_find_played_stream` metódus megkeresi a pontosan lejátszott `StremioStream`-et.
-3. **Ha a lejátszott streamnek van saját torrent-felirata:** kizárólag azt adja vissza, garantálva a tökéletesen időzített feliratot.
-4. **Ha a lejátszott streamnek nincs saját felirata:** tartalékként a többi stream magyar feliratait adja vissza.
-5. A streamek belső feliratlistáján (`stream.subtitles`) is érvényesül ez: a felirat nélküli streamek megkapják a fallback feliratot, így közvetlen Nuvio lejátszásnál is azonnal elérhető.
+1. Az `extra` és query paraméterekből kinyerjük a `videoSize` és `filename` értékeket, és a `_find_played_stream` megkeresi a lejátszott `StremioStream`-et.
+2. Ha a kliens (pl. Nuvio) nem küldött `videoSize`/`filename` paramétert, a `wait_for_active_binge_group` (`active_playback.py`) az éppen elindított `/stream/{token}` kérés alapján azonosítja be a lejátszott torrentet (`indexer_id-torrent_id`).
+3. **Ha a lejátszott streamnek van saját torrent-felirata:** kizárólag azt az 1 db feliratot adja vissza, garantálva a tökéletesen időzített feliratot.
+4. **Ha a lejátszott streamnek nincs saját felirata:** alapértelmezetten (`enable_fallback_subtitles = False`) nem indít el második torrentet (így nincs dupla Hit'n'Run kötelezettség). Ha a felhasználó a GUI-ban bekapcsolja a **Felirat kölcsönzése más találatból** opciót, és az adott forrásnál nincs beállítva a teljes torrent letöltése (`download_full_torrent = False`), a rendszer tartalékként felkínálja a többi találat magyar feliratát.
 
 ##### E. Teljesítmény-optimalizációk (Performance & Caching)
+- **Epizódszintű felirat-piece előtöltés (`File.get_matched_subtitle_pieces`):** Amikor elindul egy videó lejátszása, a `Torrent.get_deadlines` a `StreamFileResolver` segítségével beazonosítja a lejátszott epizódhoz tartozó feliratfájlt, és a piece-eire `500 ms`-os sürgősségi deadline-t állít be közvetlenül a videó első piece-e (`0 ms`) után.
+- **Konvertált `.vtt` és `.srt` memória-cache (`_subtitle_content_cache`):** A `stream_subtitle` végpont az első letöltés és `ass_to_vtt` konverzió után memóriában (TTL-lel, `Range` fejléc támogatással) tárolja a feliratot, így az ismételt lekéréseket vagy beletekeréseket `< 1 ms` alatt közvetlenül RAM-ból szolgálja ki.
 - **In-flight deduplikáció és rövid távú Stream Cache (`StremioService.get_streams`):** Amikor a Stremio párhuzamosan hívja meg a `/stream` és `/subtitles` végpontokat, az egyidejű kérések egyetlen közös `asyncio.Task`-ra várnak (`_ongoing_stream_tasks`), az eredmény pedig 60 másodpercig memóriában gyorsítótárazódik (`_stream_cache`). Így az nCore keresés és torrent-feldolgozás csak egyszer fut le, a lejátszáskor érkező `/subtitles/{extra}` kérés pedig ~0 ms alatt válaszol.
 - **`TorrentInfo` memória-gyorsítótár (`_TORRENT_INFO_CACHE`):** Az SQLite-ból betöltött `.torrent` binárisok `libtorrent.torrent_info` és Pydantic fájllista-építése `info_hash` alapján memóriában cache-elt, így nem kell minden kérésnél újra bencode-olni és felépíteni több száz fájlos csomagokat.
 - **Rövidzáras (Short-circuit) felirat-illesztés és `@lru_cache`:** A `resolve_subtitles` először gyors string-prefix egyezést vizsgál, és csak tényleges névegyezés esetén hívja meg a költséges `SeriesParser`-t; a `clean_torrent_name` pedig `@lru_cache` gyorsítótárat kapott, kiküszöbölve a több száz feliratot tartalmazó (pl. Netflix VARYG) pakkok felesleges regex-terhelését.

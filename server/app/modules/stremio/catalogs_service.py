@@ -59,6 +59,10 @@ class StremioCatalogsService:
             torrent_sources, _ = (
                 await self._torrent_source_provider_service.find_by_query(extra.search)
             )
+            torrent_sources.sort(
+                key=lambda ts: getattr(ts.indexer_torrent, "seeders", 0) or 0,
+                reverse=True,
+            )
             content_type = (
                 ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
             )

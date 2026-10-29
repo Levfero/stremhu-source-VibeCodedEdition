@@ -86,12 +86,11 @@ class TorrentSourceProviderService:
             indexer_errors,
         ) = await self._indexers_service.get_torrents_by_query(query)
 
-        if len(indexer_torrents) > 30:
-            indexer_torrents = sorted(
-                indexer_torrents,
-                key=lambda t: getattr(t, "seeders", 0) or 0,
-                reverse=True,
-            )[:30]
+        indexer_torrents = sorted(
+            indexer_torrents,
+            key=lambda t: getattr(t, "seeders", 0) or 0,
+            reverse=True,
+        )[:30]
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 

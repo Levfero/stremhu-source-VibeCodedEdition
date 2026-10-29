@@ -244,13 +244,10 @@ class StremioStream(BaseModel):
         readable_video_codecs = format_group(PreferenceKey.VIDEO_CODEC)
         readable_audio_channels = format_group(PreferenceKey.AUDIO_CHANNELS)
 
-        sub_badge = "💬 🇭🇺 Hun Sub" if torrent_stream.has_hungarian_sub else None
-
         description_second_line = " | ".join(
             compact(
                 [
                     readable_language,
-                    sub_badge,
                     readable_audio_qualities,
                     readable_audio_spatials,
                     readable_audio_channels,

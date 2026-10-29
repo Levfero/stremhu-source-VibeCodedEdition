@@ -41,7 +41,6 @@ def test_deduplicate_torrent_streams_by_info_hash():
         file_index=0,
         play_url="http://localhost:7070/play/1",
         is_persisted_torrent=False,
-        has_hungarian_sub=False,
     )
 
     stream2 = TorrentStream(
@@ -56,7 +55,6 @@ def test_deduplicate_torrent_streams_by_info_hash():
         file_index=0,
         play_url="http://localhost:7070/play/2",
         is_persisted_torrent=True,  # HunTorrenten letöltve/cache-elve van
-        has_hungarian_sub=True,  # Feliratot is talált benne
     )
 
     service = TorrentStreamsService(
@@ -76,7 +74,6 @@ def test_deduplicate_torrent_streams_by_info_hash():
     assert "HunTorrent" in result.extra_indexer_names
     assert result.combined_seeders == 75  # 45 + 30
     assert result.is_persisted_torrent is True
-    assert result.has_hungarian_sub is True
 
 
 def test_deduplicate_torrent_streams_by_name_and_size_fallback():
@@ -162,7 +159,6 @@ def test_stremio_stream_formatting_and_flags():
         is_persisted_torrent=True,
         extra_indexer_names=["nCore", "HunTorrent"],
         combined_seeders=85,
-        has_hungarian_sub=True,
     )
 
     stremio_stream = StremioStream.from_imdb_torrent_stream(stream)
@@ -179,10 +175,7 @@ def test_stremio_stream_formatting_and_flags():
     assert "🇭🇺 Hun" in stremio_stream.description
     assert "🇬🇧 Eng" in stremio_stream.description
 
-    # 4. Magyar felirat jelzés
-    assert "💬 🇭🇺 Hun Sub" in stremio_stream.description
-
-    # 5. Összevont trackerek és seederek
+    # 4. Összevont trackerek és seederek
     assert "🧲 nCore, HunTorrent" in stremio_stream.description
     assert "👥 85" in stremio_stream.description
 

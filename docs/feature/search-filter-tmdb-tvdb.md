@@ -29,9 +29,9 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 | [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | `tmdb`, `tvdb`, `kitsu`, `mal` és `anime:` prefixek teljes körű támogatása. `prefetch_task` átadása a `find_by_imdb`-nek (duplikált keresések megszüntetése). Párhuzamos iker IMDb lekérdezés filmekre és sorozatokra is. Cím szerinti mentőöv (Title Fallback Rescue). |
 | [`server/app/modules/stremio/catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) | **MÓDOSÍTOTT** | `MediaType.SERIES` támogatás a keresési katalógusban (`ContentType.SERIES` és `ContentType.MOVIE` elkülönítése). |
 | [`server/app/modules/stremio/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) | **MÓDOSÍTOTT** | `/meta/{media_type}/{id}.json` kéréseknél a sorozatok engedélyezése (`media_type not in (MediaType.MOVIE, MediaType.SERIES)`). |
-| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `StremioStream.from_imdb_torrent_stream`: `⚡ Letöltve` jelzés a címben és `⚡ Helyben tárolva (Azonnali lejátszás)` a leírás fejlécében; zászló emojik (`🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`); magyar felirat jelzés (`💬 🇭🇺 Hun Sub`); összevont trackerek (`🧲 nCore, HunTorrent, Majomparádé`) és összevont seederek (`👥 {sum}`). Nincs felesleges `[StremHU]` prefix. |
+| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `StremioStream.from_imdb_torrent_stream`: `⚡ Letöltve` jelzés a címben és `⚡ Helyben tárolva (Azonnali lejátszás)` a leírás fejlécében; zászló emojik (`🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`); összevont trackerek (`🧲 nCore, HunTorrent, Majomparádé`) és összevont seederek (`👥 {sum}`). Nincs felesleges `[StremHU]` prefix; a téves/megtévesztő felirat jelzések elkerülve. |
 | [`server/app/modules/stremio/utils.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/utils.py) | **MÓDOSÍTOTT** | `parse_stream_id`: `anime:` prefix lecsupaszítása, `mal:`, `mal_` és egyéb MAL azonosító formátumok helyes felismerése `MalStreamId`-ként. |
-| [`server/app/modules/torrent_streams/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/schemas.py) | **MÓDOSÍTOTT** | `TorrentStream`: `extra_indexer_names: list[str] = []`, `combined_seeders: int | None = None`, `has_hungarian_sub: bool = False`, `is_persisted_torrent: bool = False`. Automatikus magyar felirat detektálás a torrent fájllistájából (`.srt`, `.ass`, `.sub`, `.vtt` + magyar kulcsszavak) és nevéből (`hunsub`). |
+| [`server/app/modules/torrent_streams/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/schemas.py) | **MÓDOSÍTOTT** | `TorrentStream`: `extra_indexer_names: list[str] = []`, `combined_seeders: int | None = None`, `is_persisted_torrent: bool = False`. |
 | [`server/app/modules/torrent_streams/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/service.py) | **MÓDOSÍTOTT** | `prefetch_task` deduplikáció és azonnali `await`. `_deduplicate_torrent_streams`: multi-tracker és azonos tartalmú streamek összevonása `info_hash` és `(file_size, clean_name)` alapján, seederek összeadásával és egyedi indexer nyilvántartással. `_build_fallback_queries`: intelligens cím- és évadkeresés. |
 | [`server/app/modules/relay/entities.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/relay/entities.py) | **MÓDOSÍTOTT** | `_set_file_boundary_priorities`: 1-ről `min(3, total_pieces // 2)`-re bővített azonnali (`deadline = 0`) prioritás a streamelt fájl elejére és végére (MKV Cues és MP4 moov azonnali betöltése ExoPlayer / Nuvio alatt). |
 | [`server/app/modules/torznab/constants.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torznab/constants.py) | **MÓDOSÍTOTT** | `SEARCH_AVAILABLE = True`, `SEARCH_SUPPORTED_PARAMS = "q,imdbid,tmdbid"`, `TV_SEARCH_SUPPORTED_PARAMS = "q,imdbid,tvdbid,tmdbid,season,ep"`, `MOVIE_SEARCH_SUPPORTED_PARAMS = "q,imdbid,tmdbid"`. |
@@ -44,7 +44,7 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 | [`server/app/modules/indexer_definitions/integrations/bithumen.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/bithumen.py) | **MÓDOSÍTOTT** | `_fetch_torrents_by_query` implementáció és IMDb nélküli torrentek megőrzése szöveges találatoknál. |
 | [`server/app/modules/indexer_definitions/integrations/insane.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/insane.py) | **MÓDOSÍTOTT** | `_fetch_torrents_by_query` implementáció és IMDb nélküli torrentek megőrzése szöveges találatoknál. |
 | [`server/app/modules/torrent_source_provider/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_source_provider/service.py) | **MÓDOSÍTOTT** | `.torrent` fájlletöltési korlát a 30 legtöbb seedert birtokló torrentre `_find_by_query` esetén. |
-| [`server/tests/test_stream_optimizations.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_stream_optimizations.py) | **ÚJ** | Részletes unit tesztek a multi-tracker stream deduplikációra, Stremio címkézésre (zászló emojik, magyar felirat, letöltött állapot) és a relay boundary darab prioritásokra. |
+| [`server/tests/test_stream_optimizations.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_stream_optimizations.py) | **ÚJ** | Részletes unit tesztek a multi-tracker stream deduplikációra, Stremio címkézésre (zászló emojik, letöltött állapot) és a relay boundary darab prioritásokra. |
 | [`server/tests/test_extras_and_resolver.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_extras_and_resolver.py) | **ÚJ** | Unit tesztek a kulcs nélküli Wikidata és web scraping TMDB/TVDB feloldásra, MAL leképezésre, Kitsu címmentésre és sorozat-katalógus működésére. |
 | [`server/tests/test_torznab_query.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_torznab_query.py) | **MÓDOSÍTOTT** | Torznab `tvdbid` és `tmdbid` query parse unit tesztek. |
 | [`server/tests/test_torznab_search.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_torznab_search.py) | **MÓDOSÍTOTT** | Torznab `q` alapú szöveges keresés integrációs tesztje. |
@@ -82,14 +82,14 @@ flowchart TD
     GetStream --> KeyCalc["Kulcs generálás:\n1. info_hash\n2. (file_size, clean_name)"]
     KeyCalc --> CheckSeen{"Már feldolgozott kiadás?"}
     
-    CheckSeen -- "Igen (Duplikátum)" --> Merge["Összevonás az Elsődleges találattal:\n- Indexer hozzáadása extra_indexer_names-hez\n- Különböző tracker esetén seederek összeadása\n- Letöltött / Felirat státusz átvétele\n- Hash és fájlkulcs összekapcsolása"]
+    CheckSeen -- "Igen (Duplikátum)" --> Merge["Összevonás az Elsődleges találattal:\n- Indexer hozzáadása extra_indexer_names-hez\n- Különböző tracker esetén seederek összeadása\n- Letöltött státusz átvétele\n- Hash és fájlkulcs összekapcsolása"]
     Merge --> Loop
 
     CheckSeen -- "Nem (Új release)" --> AddPrimary["Hozzáadás deduped listához\nElsődlegesként regisztrálás a hash és fájl térképekben"]
     AddPrimary --> Loop
 
     Loop -- "Nem" --> SortRank["Smart Filter / Preferenciák szerinti rendezés\n(Letöltött torrentek előre rangsorolva)"]
-    SortRank --> Format["StremioStream formázás:\n🧲 nCore, HunTorrent, Majomparádé | 👥 645\n🇭🇺 Hun | 💬 🇭🇺 Hun Sub"]
+    SortRank --> Format["StremioStream formázás:\n🧲 nCore, HunTorrent, Majomparádé | 👥 645\n🇭🇺 Hun"]
 ```
 
 ---
@@ -107,7 +107,7 @@ flowchart TD
   1. Azonos a torrent swarm `info_hash` azonosítója (pl. mindkét oldalon ugyanaz a torrent fájl fut), **VAGY**
   2. Azonos a kinyert videófájl pontos mérete (`stream.file_size > 10_000_000` bájt) és normalizált tisztított neve (`clean_torrent_name(stream.file_name)`).
 - **Intelligens Seeder Számítás:** Ha a duplikált találat **másik indexerről** származik (pl. nCore 384 seeder + HunTorrent 4 seeder + Majomparádé 6 seeder), a rendszer összeadja a seedereket (`combined_seeders = 394`). Ha ugyanarról az indexerről származik, a maximumot választja.
-- **Tulajdonság Megőrzés:** Ha a duplikátumok bármelyike le van töltve helyben (`is_persisted_torrent = True`), vagy tartalmaz magyar feliratot (`has_hungarian_sub = True`), a megőrzött elsődleges stream automatikusan megkapja ezeket a jelzéseket.
+- **Tulajdonság Megőrzés:** Ha a duplikátumok bármelyike le van töltve helyben (`is_persisted_torrent = True`), a megőrzött elsődleges stream automatikusan megkapja a kiemelt státuszt.
 - **Stream Lejátszás Stabilitása:** A lejátszási URL (`play_url`) mindig a legjobban rangsorolt (legmagasabb seederű, legmegbízhatóbb) elsődleges forrásból származik.
 
 ### 4.3. Stream Megjelenítés és Stremio/Nuvio Best Practice (`server/app/modules/stremio/schemas.py`)
@@ -115,7 +115,7 @@ flowchart TD
   - Ha `is_persisted_torrent = True`, a stream nevének elejére a `⚡ Letöltve | ` jelzés kerül (pl. `⚡ Letöltve | 📺 1080p`), a leírás legelső sorába pedig: `⚡ Helyben tárolva (Azonnali lejátszás)`.
 - **Addon Prefix Eltávolítása:** A felhasználói élmény tisztaságának megőrzése érdekében nincs felesleges `[StremHU]` prefix a címben.
 - **Alapértelmezett Nemzeti Zászlók:** A hangsávoknál a rendszer automatikusan zászló emojit renderel külön kapcsoló nélkül: `🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`, `🇮🇹 Ita`, `🇪🇸 Esp`, `🇷🇺 Rus`.
-- **Magyar Felirat Jelzés:** Amennyiben a torrent fájllistájában magyar felirat (`.srt`, `.ass`, `.sub`, `.vtt` + `hun`, `hungarian`, `magyar`) vagy a torrent nevében `hunsub` található, a leírásban megjelenik a `💬 🇭🇺 Hun Sub` jelzés.
+- **Megtévesztő Felirat Jelvény Mellőzése:** A modern release-ek (MKV/MP4 konténerek) a feliratokat beágyazva tartalmazzák. A külső feliratfájlok jelenlétére támaszkodó feliratjelvény félrevezető téves negatívokat okozott volna (pl. minőségi MKV-nál nem jelezte volna, holott van benne felirat), ezért ezt mellőzzük; a feliratokat a lejátszó közvetlenül és a dedikált felirat-szolgáltatók biztosítják.
 - **Összevont Tracker Lista:** A forrás sorban valamennyi indexer fel van tüntetve: `🧲 nCore, HunTorrent, Majomparádé | 👥 394 | 💾 8.68 GiB`.
 
 ### 4.4. Relay Boundary Piece Buffer Kiterjesztés (`server/app/modules/relay/entities.py`)

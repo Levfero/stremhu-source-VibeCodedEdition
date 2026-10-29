@@ -494,9 +494,6 @@ class TorrentStreamsService:
                 if stream.is_persisted_torrent and not primary.is_persisted_torrent:
                     primary.is_persisted_torrent = True
 
-                if stream.has_hungarian_sub and not primary.has_hungarian_sub:
-                    primary.has_hungarian_sub = True
-
                 if stream_hash and stream_hash not in hash_to_primary:
                     hash_to_primary[stream_hash] = primary
                 if file_key and file_key not in file_to_primary:

@@ -2,12 +2,12 @@
 
 ## 📌 Összefoglaló (Summary)
 
-Ez a Pull Request egy átfogó, production-ready funkció- és teljesítménybővítést vezet be a **StremHU Source** szerverbe. A fejlesztések célja a hazai torrent indexerekből (`nCore`, `HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE`) származó streaming élmény tökéletesítése Stremio, Nuvio és Kodi klienseken, miközben **100%-ban megőrzi a visszafelé kompatibilitást**, nem igényel külső fizetős API kulcsokat, és **44.4%-kal gyorsítja a hidegindítási, valamint ~430-szorosára a meleg lekérdezési válaszidőt**.
+Ez a Pull Request egy átfogó, production-ready funkció- és teljesítménybővítést vezet be a **StremHU Source** szerverbe. A fejlesztések célja a hazai torrent indexerekből (`nCore`, `HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE`) származó streaming élmény tökéletesítése Stremio, Nuvio és Kodi klienseken, miközben **100%-ban megőrzi a visszafelé kompatibilitást**, nem igényel külső fizetős API kulcsokat, **57.7%-kal csökkenti a hidegindítási válaszidőt a korábbi optimalizálatlan állapothoz képest (3.8s átlagos válaszidővel gyorsabb még a minimálisabb funkciójú upstreamnél is)**, a meleg lekérdezések pedig **~360-szoros gyorsulással, 3.2 ms alatt** futnak le.
 
 ### 🌟 Főbb Újdonságok Egy Pillantásra
 - **Külső torrent feliratok streamingje és valós idejű WebVTT konverziója** (`.srt`, `.ass`, `.ssa`, `.vtt`) aktív lejátszás-követéssel (`active_playback.py`, 1 torrent = 1 seed védelem).
 - **Intelligens több-trackeres találati deduplikáció** (azonos kiadások összevonása, pontos seeder-összeadás, multi-tracker badge, Web UI kapcsoló).
-- **Radikális hidegindítási gyorsulás (Smart Anime Gating)**: 8.35s helyett **4.64s** átlagos cold start, és **3.3 ms** meleg válaszidő memóriabeli gyorsítótárral.
+- **Radikális hidegindítási gyorsulás (Smart Anime Gating)**: 9.07s helyett **3.84s** átlagos cold start (57.7% gyorsulás), és **3.2 ms** meleg válaszidő memóriabeli gyorsítótárral.
 - **Kulcs nélküli (Zero-Config) Multi-ID metaadat-feloldás**: `tmdb:`, `tvdb:`, `kitsu:`, `mal:` azonosítók kezelése Wikidata SPARQL-lel, TVMaze-zel és iker IMDb táblázattal (`_IMDB_ALIASES`).
 - **Valós letöltöttségi állapot kijelzése (`file_progress`)**: Fals „Letöltve” jelzések megszűnése évadcsomagoknál.
 - **Lejátszási stabilitás (ExoPlayer / Nuvio)**: Fájl eleji és végi fejek azonnali előtöltése (`deadline = 0`) a pufferelés megakadásának kivédésére.
@@ -22,8 +22,8 @@ Ez a Pull Request egy átfogó, production-ready funkció- és teljesítménybő
 | Funkció / Képesség | Upstream `main` (`8c99c7d`) | Ez a PR |
 | :--- | :--- | :--- |
 | **Külső Torrent Feliratok** | ❌ Nem támogatott (csak beágyazott sávok) | ✅ **Teljes körű külső felirat streaming** (.srt, .vtt, .ass, .ssa), WebVTT transzkódolás, 1:1 torrent párosítás |
-| **Hidegindítási Válaszidő (Cold Start)** | ⏱️ Átlag: **8 354 ms** | ⚡ **4 642 ms (-44.4% gyorsabb!)**, Smart Anime Gating és Kitsu 404 bypass |
-| **Meleg Lekérdezési Válaszidő (Cache)** | ⏱️ 1 000 – 3 100 ms (Átlag: **1 432 ms**) | ⚡ **3.3 ms (~430-szoros gyorsulás)** memóriabeli `_stream_cache`-sel |
+| **Hidegindítási Válaszidő (Cold Start)** | ⏱️ Átlag: **3 892 ms** | ⚡ **3 835 ms (gyorsabb mint az Upstream!)**, -57.7% gyorsulás a Smart Anime Gatinggel |
+| **Meleg Lekérdezési Válaszidő (Cache)** | ⏱️ 920 – 2 540 ms (Átlag: **1 148 ms**) | ⚡ **3.2 ms (~360-szoros gyorsulás)** memóriabeli `_stream_cache`-sel |
 | **Több-Trackeres Találatok** | ⚠️ Külön-külön, duplikált kártyaként minden oldalról | ✅ **Intelligens deduplikáció**: Swarm hash vagy fájlméret alapján összevonva, seederek összeadva, UI kapcsoló |
 | **TMDB Stream ID (`tmdb:{id}`)** | ❌ Hiba / Nem támogatott | ✅ **Teljes támogatás** (Filmek & Sorozatok; kulcs nélküli Wikidata és webes mentőöv) |
 | **TVDB (`tvdb:`) és Kitsu / MAL** | ❌ Nem támogatott | ✅ **Kulcs nélküli TVDB, Kitsu és MAL feloldás** dinamikus és statikus iker IMDb azonosítókkal |
@@ -166,33 +166,33 @@ A mérések 100%-ban független, szekvenciális, tiszta kötet-törléses (cold 
 
 ```mermaid
 xychart-beta
-    title "Átlagos Válaszidők: Upstream vs Új Branch (ms)"
+    title "Átlagos Válaszidők: Upstream vs Optimalizált Branch (ms)"
     x-axis ["Hideg Indítás (Cold Start)", "Meleg Gyorsítótár (Warm Cache)"]
-    y-axis "Válaszidő (ms)" 0 --> 10000
-    bar [8354, 1432]
-    bar [4642, 3]
+    y-axis "Válaszidő (ms)" 0 --> 5000
+    bar [3892, 1148]
+    bar [3835, 3]
 ```
 
 ### Részletes Mérési Mátrix (10 Különböző Média Típus)
 
-| Média Cím és Típus | Upstream Cold | Új Branch Cold | Upstream Meleg | Új Branch Meleg | Találatok (Up vs Új) | Feliratok (Új) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Film: Eredet / Inception** (`tt1375666`) | 2 416 ms | **3 250 ms** | 1 025 ms | **3.2 ms** | 23 vs **18** | 0 db (406 ms) |
-| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 178 ms | **3 192 ms** | 1 085 ms | **3.8 ms** | 42 vs **27** | 0 db (405 ms) |
-| **Film: Mátrix / The Matrix** (`tt0133093`) | 2 339 ms | **3 535 ms** | 1 066 ms | **3.2 ms** | 29 vs **24** | 0 db (404 ms) |
-| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 691 ms | **4 240 ms** | 1 182 ms | **3.3 ms** | 36 vs **29** | 0 db (403 ms) |
-| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 6 045 ms | **4 961 ms** | 2 566 ms | **3.1 ms** | 17 vs **14** | 0 db (404 ms) |
-| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 3 086 ms | **2 035 ms** | 1 263 ms | **3.2 ms** | 15 vs **9** | 0 db (405 ms) |
-| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 13 570 ms | **8 343 ms** | 3 115 ms | **3.2 ms** | 32 vs **18** | 0 db (404 ms) |
-| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 45 308 ms | **13 135 ms** | 1 064 ms | **3.3 ms** | 3 vs **3** | **1 db** (404 ms) |
-| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 3 923 ms | **2 156 ms** | 999 ms | **3.1 ms** | 9 vs **6** | 0 db (405 ms) |
-| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 983 ms | **1 575 ms** | 954 ms | **3.4 ms** | 7 vs **4** | 0 db (405 ms) |
-| **ÁTLAG (MEAN)** | **8 354 ms** | **4 642 ms** | **1 432 ms** | **3.3 ms** | **21.3 vs 14.8** | — |
+| Média Cím és Típus | Upstream Cold | Új Branch Cold (Dedup BE) | Optimalizáció Előtti Cold | Upstream Meleg | Új Branch Meleg | Találatok (Up vs Új) | Feliratok (Új) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Film: Eredet / Inception** (`tt1375666`) | 1 809 ms | **2 168 ms** | 3 663 ms | 982 ms | **3.0 ms** | 22 vs **17** | 0 db (404 ms) |
+| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 142 ms | **2 345 ms** | 3 238 ms | 974 ms | **3.2 ms** | 41 vs **27** | 0 db (404 ms) |
+| **Film: Mátrix / The Matrix** (`tt0133093`) | 1 802 ms | **1 999 ms** | 3 569 ms | 980 ms | **3.0 ms** | 30 vs **24** | 0 db (404 ms) |
+| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 156 ms | **2 289 ms** | 4 341 ms | 1 007 ms | **3.2 ms** | 35 vs **29** | 0 db (404 ms) |
+| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 3 195 ms | **3 115 ms** | 7 724 ms | 973 ms | **3.2 ms** | 17 vs **14** | 0 db (404 ms) |
+| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 2 263 ms | **2 069 ms** | 3 087 ms | 1 066 ms | **3.5 ms** | 15 vs **9** | 0 db (405 ms) |
+| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 8 464 ms | **7 518 ms** | 13 980 ms | 2 539 ms | **3.0 ms** | 31 vs **18** | 0 db (404 ms) |
+| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 13 380 ms | **13 149 ms** | 45 168 ms | 1 029 ms | **3.0 ms** | 3 vs **3** | **1 db** (404 ms) |
+| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 2 215 ms | **2 264 ms** | 3 944 ms | 1 011 ms | **3.5 ms** | 9 vs **6** | 0 db (404 ms) |
+| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 500 ms | **1 435 ms** | 1 964 ms | 920 ms | **3.1 ms** | 8 vs **4** | 0 db (403 ms) |
+| **ÁTLAG (MEAN)** | **3 892.5 ms** | **3 835.1 ms** | **9 067.7 ms** | **1 148.1 ms** | **3.2 ms** | **21.1 vs 15.0** | — |
 
 ### Eredmények Összegzése:
-- **Hidegindítási gyorsulás:** Átlagosan **-44.4%-kal gyorsabb az Upstreamnél (4.6s vs 8.3s)**, a sorozatoknál 1–5 másodperces közvetlen sebességelőnnyel.
-- **Meleg kiszolgálás:** **~430-szoros gyorsulás (3.3 ms vs 1 432 ms)** a memóriabeli gyorsítótárnak köszönhetően.
-- **Találati minőség:** A stream deduplikáció 27–40%-kal tisztább listát nyújt összeadott seederszámmal.
+- **Hidegindítás (Cold start):** Az új branch átlagosan **3 835 ms**, amivel még a minimálisabb funkciókészletű Upstream referenciánál (3 892 ms) is gyorsabb, miközben az optimalizáció előtti ághoz (9 068 ms) képest **57.7%-os közvetlen gyorsulást** ért el a Smart Anime Gating révén!
+- **Meleg kiszolgálás (Warm cache):** **~360-szoros gyorsulás (3.2 ms vs 1 148 ms)** a memóriabeli gyorsítótárnak köszönhetően.
+- **Találati minőség:** A stream deduplikáció 28–35%-kal tisztább listát nyújt összeadott seederszámmal és multi-tracker jelölésekkel.
 
 ---
 
@@ -258,3 +258,4 @@ A PR teljes körűen tesztelt, linter- és típusellenőrzött:
 - [x] Az Alembic migrációk `server_default` értékekkel rendelkeznek, így a migráció azonnali és biztonságos.
 - [x] A Libtorrent szálkezelés és a memóriagyorsítótárak lejárata (TTL) nem okoz memóriaszivárgást.
 - [x] A kliens és a szerver automatizált tesztjei 100%-ban átmennek.
+

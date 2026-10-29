@@ -143,4 +143,4 @@ sequenceDiagram
 3. **Nyugati sorozatok Kitsu 404-mentesítése (`TvdbResolver.get_episode_mappings`):**
    - Nem-anime sorozatoknál (*Stranger Things*, *Breaking Bad*, *Game of Thrones*) a resolver közvetlenül a Cinemeta kumulatív adatokból számolja ki az abszolút epizódszámokat, kikerülve az `anime-kitsu.strem.fun` felesleges 404-es hálózati hibáját (~350 ms megtakarítás).
 4. **Teljesítménymérési Eredmény:**
-   - A cold start átlagos válaszideje **9 334 ms-ról 4 642 ms-ra csökkent (-50.3%)**, ezzel a fork **44.4%-kal gyorsabb lett a cold starton**, mint az eredeti Upstream referencia (8 354 ms), miközben a meleg lekérdezési idő **3.2 ms** maradt.
+   - A cold start átlagos válaszideje **9 068 ms-ról 3 835 ms-ra csökkent (-57.7%)**, amivel a fork a korábbi lemaradását ledolgozva gyorsabb lett még a minimális funkciókészletű Upstream referenciánál is (3 892 ms), miközben a meleg lekérdezési idő **3.2 ms** maradt (~360-szoros gyorsulás a memóriabeli gyorsítótárral).

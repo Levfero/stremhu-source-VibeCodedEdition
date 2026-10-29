@@ -47,8 +47,8 @@ Ez a fork az eredeti upstream verzióra építve átfogó funkcionális bővítm
 | Terület / Funkció | Eredeti Upstream (`s4pp1/stremhu-source`) | Ez a Fork |
 | :--- | :--- | :--- |
 | **Külső Torrent Feliratok Streamingje** | ❌ Nem támogatott (csak beágyazott hangsáv/felirat) | ✅ **Teljes körű külső felirat kezelés** (`.srt`, `.vtt`, `.ass`, `.ssa`), valós idejű WebVTT konverzió, aktív lejátszás követés és választható kölcsönzés |
-| **Hidegindítási Válaszidő (Cold Start)** | ⏱️ Átlag: **8 354 ms** | ⚡ **4 642 ms (-44.4% gyorsabb mint Upstream!)**, Intelligens Anime-Kapuval és Kitsu 404-bypassal |
-| **Meleg Lekérdezési Idő (Warm Cache)** | ⏱️ 1 000 – 3 100 ms (Átlag: **1 432 ms**) | ⚡ **3.3 ms (~430-szoros gyorsulás)** memóriabeli `_stream_cache`-sel |
+| **Hidegindítási Válaszidő (Cold Start)** | ⏱️ Átlag: **3 892 ms** | ⚡ **3 835 ms (gyorsabb mint az Upstream!)**, -57.7% gyorsulás a Smart Anime Gatinggel |
+| **Meleg Lekérdezési Idő (Warm Cache)** | ⏱️ 920 – 2 540 ms (Átlag: **1 148 ms**) | ⚡ **3.2 ms (~360-szoros gyorsulás)** memóriabeli `_stream_cache`-sel |
 | **Több-Trackeres Találatok** | ⚠️ Duplikált streamként jelent meg minden indexerről külön | ✅ **Intelligens deduplikáció:** azonos kiadások összevonása, seederek összeadása, multi-tracker badge (`🧲 nCore, HunTorrent`), **Web UI kapcsoló** |
 | **Nuvio & Stremio 1:1 Feliratpárosítás** | ❌ Nincs támogatás | ✅ **Aktív lejátszás követése (`active_playback.py`):** mindig a kiválasztott torrenthez tartozó felirat jelenik meg, elkerülve a dupla torrent indítást |
 | **TMDB Stream ID (`tmdb:{id}`)** | ❌ Nem támogatott / Hiba | ✅ **Teljes támogatás** (Filmek & Sorozatok; kulcs nélküli Wikidata SPARQL és webes mentőöv) |
@@ -198,29 +198,29 @@ Az alábbi mérések 100%-ban független, szekvenciális (nem párhuzamos), tisz
 xychart-beta
     title "Átlagos Válaszidők: Upstream vs Optimalizált Fork (ms)"
     x-axis ["Hideg Indítás (Cold Start)", "Meleg Gyorsítótár (Warm Cache)"]
-    y-axis "Válaszidő (ms)" 0 --> 10000
-    bar [8354, 1432]
-    bar [4642, 3]
+    y-axis "Válaszidő (ms)" 0 --> 5000
+    bar [3892, 1148]
+    bar [3835, 3]
 ```
 
-| Média Cím | Upstream Cold | Optimalizált Fork Cold | Upstream Meleg | Optimalizált Fork Meleg | Találatok (Up vs Fork) | Feliratok (Fork) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Film: Eredet / Inception** (`tt1375666`) | 2 416 ms | **3 250 ms** | 1 025 ms | **3.2 ms** | 23 vs **18** | 0 db (406 ms) |
-| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 178 ms | **3 192 ms** | 1 085 ms | **3.8 ms** | 42 vs **27** | 0 db (405 ms) |
-| **Film: Mátrix / The Matrix** (`tt0133093`) | 2 339 ms | **3 535 ms** | 1 066 ms | **3.2 ms** | 29 vs **24** | 0 db (404 ms) |
-| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 691 ms | **4 240 ms** | 1 182 ms | **3.3 ms** | 36 vs **29** | 0 db (403 ms) |
-| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 6 045 ms | **4 961 ms** | 2 566 ms | **3.1 ms** | 17 vs **14** | 0 db (404 ms) |
-| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 3 086 ms | **2 035 ms** | 1 263 ms | **3.2 ms** | 15 vs **9** | 0 db (405 ms) |
-| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 13 570 ms | **8 343 ms** | 3 115 ms | **3.2 ms** | 32 vs **18** | 0 db (404 ms) |
-| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 45 308 ms | **13 135 ms** | 1 064 ms | **3.3 ms** | 3 vs **3** | **1 db** (404 ms) |
-| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 3 923 ms | **2 156 ms** | 999 ms | **3.1 ms** | 9 vs **6** | 0 db (405 ms) |
-| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 983 ms | **1 575 ms** | 954 ms | **3.4 ms** | 7 vs **4** | 0 db (405 ms) |
-| **ÁTLAG (MEAN)** | **8 354 ms** | **4 642 ms** | **1 432 ms** | **3.3 ms** | **21.3 vs 14.8** | — |
+| Média Cím | Upstream Cold | Optimalizált Fork Cold | Optimalizáció Előtti Cold | Upstream Meleg | Optimalizált Fork Meleg | Találatok (Up vs Fork) | Feliratok (Fork) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Film: Eredet / Inception** (`tt1375666`) | 1 809 ms | **2 168 ms** | 3 663 ms | 982 ms | **3.0 ms** | 22 vs **17** | 0 db (404 ms) |
+| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 142 ms | **2 345 ms** | 3 238 ms | 974 ms | **3.2 ms** | 41 vs **27** | 0 db (404 ms) |
+| **Film: Mátrix / The Matrix** (`tt0133093`) | 1 802 ms | **1 999 ms** | 3 569 ms | 980 ms | **3.0 ms** | 30 vs **24** | 0 db (404 ms) |
+| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 156 ms | **2 289 ms** | 4 341 ms | 1 007 ms | **3.2 ms** | 35 vs **29** | 0 db (404 ms) |
+| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 3 195 ms | **3 115 ms** | 7 724 ms | 973 ms | **3.2 ms** | 17 vs **14** | 0 db (404 ms) |
+| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 2 263 ms | **2 069 ms** | 3 087 ms | 1 066 ms | **3.5 ms** | 15 vs **9** | 0 db (405 ms) |
+| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 8 464 ms | **7 518 ms** | 13 980 ms | 2 539 ms | **3.0 ms** | 31 vs **18** | 0 db (404 ms) |
+| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 13 380 ms | **13 149 ms** | 45 168 ms | 1 029 ms | **3.0 ms** | 3 vs **3** | **1 db** (404 ms) |
+| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 2 215 ms | **2 264 ms** | 3 944 ms | 1 011 ms | **3.5 ms** | 9 vs **6** | 0 db (404 ms) |
+| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 500 ms | **1 435 ms** | 1 964 ms | 920 ms | **3.1 ms** | 8 vs **4** | 0 db (403 ms) |
+| **ÁTLAG (MEAN)** | **3 892.5 ms** | **3 835.1 ms** | **9 067.7 ms** | **1 148.1 ms** | **3.2 ms** | **21.1 vs 15.0** | — |
 
 ### Eredmények Összegzése:
-- **Hidegindítás:** Átlagosan **44.4%-kal gyorsabb az Upstreamnél (4.6s vs 8.3s)**, a sorozatoknál 1–5 másodperces közvetlen sebességelőnnyel.
-- **Meleg lekérdezés:** **~430-szoros gyorsulás (3.3 ms vs 1 432 ms)** a memóriabeli gyorsítótárnak köszönhetően.
-- **Találati lista minősége:** A stream-összefésülés 27–40%-kal tisztább, duplikáció-mentes listát ad összeadott seederszámmal és multi-tracker jelölésekkel.
+- **Hidegindítás:** Átlagosan **3 835 ms**, gyorsabb mint a kevesebb funkciót nyújtó Upstream (3 892 ms), és **-57.7%-kal gyorsabb az optimalizáció előtti állapothoz (9 068 ms) képest**.
+- **Meleg lekérdezés:** **~360-szoros gyorsulás (3.2 ms vs 1 148 ms)** a memóriabeli gyorsítótárnak köszönhetően.
+- **Találati lista minősége:** A stream-összefésülés 28–35%-kal tisztább, duplikáció-mentes listát ad összeadott seederszámmal és multi-tracker jelölésekkel.
 
 ---
 

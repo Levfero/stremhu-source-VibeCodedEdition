@@ -29,11 +29,11 @@ from app.modules.settings.service import SettingsService
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
 
-_IMDB_TRACKER_CACHE_TTL = 180.0
+_IMDB_TRACKER_CACHE_TTL = 1800.0
 _IMDB_TRACKER_CACHE_MAX = 1000
 _imdb_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 
-_QUERY_TRACKER_CACHE_TTL = 180.0
+_QUERY_TRACKER_CACHE_TTL = 300.0
 _QUERY_TRACKER_CACHE_MAX = 1000
 _query_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 

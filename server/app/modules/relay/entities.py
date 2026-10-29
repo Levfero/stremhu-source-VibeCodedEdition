@@ -182,9 +182,15 @@ class Torrent:
         file: File,
         target_deadlines: dict[int, int],
     ) -> None:
-        for piece_index in {file.start_piece_index, file.end_piece_index}:
-            if not self.torrent_handle.have_piece(piece_index):
-                target_deadlines[piece_index] = 0
+        total_pieces = file.end_piece_index - file.start_piece_index + 1
+        boundary_count = min(3, total_pieces // 2) if total_pieces > 1 else 1
+        for i in range(boundary_count):
+            start_p = file.start_piece_index + i
+            end_p = file.end_piece_index - i
+            if not self.torrent_handle.have_piece(start_p):
+                target_deadlines[start_p] = 0
+            if not self.torrent_handle.have_piece(end_p):
+                target_deadlines[end_p] = 0
 
 
 class File:

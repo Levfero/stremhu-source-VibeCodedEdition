@@ -10,6 +10,7 @@ from pydantic.alias_generators import to_camel
 from pydash import compact
 
 from app.common.schemas.internal import ImdbInfo, SeriesInfo
+from app.modules.media_attributes.constants import MediaAttributeKey
 from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
 from app.modules.preferences.constants import PreferenceKey
@@ -180,8 +181,17 @@ class StremioStream(BaseModel):
         is_series: bool = False,
     ) -> StremioStream:
         file_size = f"💾 {humanize.naturalsize(torrent_stream.file_size, binary=True, format='%.2f')}"
-        seeders = f"👥 {torrent_stream.seeders}"
-        indexer = f"🧲 {torrent_stream.indexer_account.indexer_definition.name}"
+        effective_seeders = (
+            torrent_stream.combined_seeders
+            if torrent_stream.combined_seeders is not None
+            else torrent_stream.seeders
+        )
+        seeders = f"👥 {effective_seeders}" if effective_seeders is not None else None
+
+        indexer_names = torrent_stream.extra_indexer_names or [
+            torrent_stream.indexer_account.indexer_definition.name
+        ]
+        indexer = f"🧲 {', '.join(indexer_names)}"
 
         description_first_line = " | ".join(compact([indexer, seeders, file_size]))
 
@@ -190,6 +200,17 @@ class StremioStream(BaseModel):
             for attribute in torrent_stream.attributes
             if isinstance(attribute, MediaAttributeModel)
         ]
+
+        flag_map = {
+            MediaAttributeKey.HUN: "🇭🇺",
+            MediaAttributeKey.ENG: "🇬🇧",
+            "jap": "🇯🇵",
+            "ger": "🇩🇪",
+            "fra": "🇫🇷",
+            "ita": "🇮🇹",
+            "esp": "🇪🇸",
+            "rus": "🇷🇺",
+        }
 
         def format_group(pref_key: str) -> str | None:
 
@@ -200,6 +221,15 @@ class StremioStream(BaseModel):
 
             if not attrs:
                 return None
+
+            if pref_key == PreferenceKey.LANGUAGE:
+                parts = []
+                for attr in attrs:
+                    label = attr.short_name or attr.name
+                    flag = flag_map.get(attr.id)
+                    parts.append(f"{flag} {label}" if flag else label)
+                return ", ".join(parts)
+
             joined = ", ".join([attr.short_name or attr.name for attr in attrs])
             emoji = EMOJI_MAP.get(pref_key)
             return f"{emoji} {joined}" if emoji else joined
@@ -214,10 +244,13 @@ class StremioStream(BaseModel):
         readable_video_codecs = format_group(PreferenceKey.VIDEO_CODEC)
         readable_audio_channels = format_group(PreferenceKey.AUDIO_CHANNELS)
 
+        sub_badge = "💬 🇭🇺 Hun Sub" if torrent_stream.has_hungarian_sub else None
+
         description_second_line = " | ".join(
             compact(
                 [
                     readable_language,
+                    sub_badge,
                     readable_audio_qualities,
                     readable_audio_spatials,
                     readable_audio_channels,
@@ -238,17 +271,23 @@ class StremioStream(BaseModel):
         readable_is_persisted: str | None = None
 
         if torrent_stream.is_persisted_torrent:
-            readable_is_persisted = "⭐"
+            readable_is_persisted = "⚡ Letöltve"
 
         name = " | ".join(
             compact(
                 [readable_is_persisted, readable_resolutions, readable_video_qualities]
             )
         )
+        persisted_banner = (
+            "⚡ Helyben tárolva (Azonnali lejátszás)"
+            if torrent_stream.is_persisted_torrent
+            else None
+        )
         file_name_line = f"📁 {torrent_stream.file_name}" if is_series else None
         description = "\n".join(
             compact(
                 [
+                    persisted_banner,
                     file_name_line,
                     description_first_line,
                     description_second_line,

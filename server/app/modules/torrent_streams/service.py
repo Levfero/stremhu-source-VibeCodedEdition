@@ -11,6 +11,7 @@ from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentInfo
 from app.modules.attributes.models import AttributeModel
+from app.modules.media_attributes.parser import clean_torrent_name
 from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
 from app.modules.torrent_source_provider.service import (
@@ -243,17 +244,20 @@ class TorrentStreamsService:
         sorted_torrent_streams = self._sort_torrent_streams(
             filtered_torrent_streams, user
         )
+        deduplicated_torrent_streams = self._deduplicate_torrent_streams(
+            sorted_torrent_streams
+        )
 
         if user.enable_smart_filter:
             limit = user.smart_filter_limit
 
             if not user.smart_filter_grouping_preference_id:
-                sorted_torrent_streams = sorted_torrent_streams[:limit]
+                sorted_torrent_streams = deduplicated_torrent_streams[:limit]
             else:
                 grouped_torrent_streams: list[TorrentStream] = []
                 seen_attribute_ids: set[frozenset[str]] = set()
 
-                for torrent_stream in sorted_torrent_streams:
+                for torrent_stream in deduplicated_torrent_streams:
                     target_attributes = frozenset(
                         attribute.id
                         for attribute in torrent_stream.attributes
@@ -265,10 +269,12 @@ class TorrentStreamsService:
                         seen_attribute_ids.add(target_attributes)
                         grouped_torrent_streams.append(torrent_stream)
 
-                if not grouped_torrent_streams and sorted_torrent_streams:
-                    grouped_torrent_streams = sorted_torrent_streams[:1]
+                if not grouped_torrent_streams and deduplicated_torrent_streams:
+                    grouped_torrent_streams = deduplicated_torrent_streams[:1]
 
                 sorted_torrent_streams = grouped_torrent_streams[:limit]
+        else:
+            sorted_torrent_streams = deduplicated_torrent_streams
 
         return sorted_torrent_streams, list(dict.fromkeys(indexer_errors))
 
@@ -425,6 +431,92 @@ class TorrentStreamsService:
 
         torrent_streams.sort(key=sort_key)
         return torrent_streams
+
+    def _deduplicate_torrent_streams(
+        self,
+        torrent_streams: list[TorrentStream],
+    ) -> list[TorrentStream]:
+        """
+        Multi-tracker és azonos tartalmú torrent streamek intelligens összevonása.
+        Ha több forrás azonos swarmból (info_hash) vagy azonos médiafájlból (pontos fájlméret és tisztított név)
+        származik, egyetlen stream találattá vonjuk össze.
+        Felsoroljuk az összes elérhető indexert (pl. 🧲 nCore, HunTorrent, Majomparádé)
+        és összesítjük a trackerek egyedi seeder-számait.
+        """
+        deduped: list[TorrentStream] = []
+        hash_to_primary: dict[str, TorrentStream] = {}
+        file_to_primary: dict[tuple[int, str], TorrentStream] = {}
+        indexers_per_primary: dict[int, set[str]] = {}
+
+        for stream in torrent_streams:
+            stream_hash = stream.info_hash.lower() if stream.info_hash else ""
+            clean_name = clean_torrent_name(stream.file_name).lower() if stream.file_name else ""
+            file_key = (
+                (stream.file_size, clean_name)
+                if stream.file_size > 10_000_000 and clean_name
+                else None
+            )
+
+            primary: TorrentStream | None = None
+            if stream_hash and stream_hash in hash_to_primary:
+                primary = hash_to_primary[stream_hash]
+            elif file_key and file_key in file_to_primary:
+                primary = file_to_primary[file_key]
+
+            indexer_id = stream.indexer_account.indexer_id
+            indexer_name = stream.indexer_account.indexer_definition.name
+
+            if primary is not None:
+                p_id = id(primary)
+                seen_idx = indexers_per_primary[p_id]
+
+                if (
+                    indexer_name
+                    and indexer_name not in primary.extra_indexer_names
+                ):
+                    primary.extra_indexer_names.append(indexer_name)
+
+                # Ha a duplikált találat másik indexerről származik, összeadjuk a seedereket
+                if indexer_id not in seen_idx:
+                    seen_idx.add(indexer_id)
+                    current_seeders = (
+                        primary.combined_seeders
+                        if primary.combined_seeders is not None
+                        else (primary.seeders or 0)
+                    )
+                    add_seeders = stream.seeders or 0
+                    primary.combined_seeders = current_seeders + add_seeders
+                else:
+                    # Ugyanazon indexer esetén a nagyobb seeder számot tartjuk meg
+                    if stream.seeders and stream.seeders > (primary.combined_seeders or 0):
+                        primary.combined_seeders = stream.seeders
+
+                if stream.is_persisted_torrent and not primary.is_persisted_torrent:
+                    primary.is_persisted_torrent = True
+
+                if stream.has_hungarian_sub and not primary.has_hungarian_sub:
+                    primary.has_hungarian_sub = True
+
+                if stream_hash and stream_hash not in hash_to_primary:
+                    hash_to_primary[stream_hash] = primary
+                if file_key and file_key not in file_to_primary:
+                    file_to_primary[file_key] = primary
+            else:
+                if not stream.extra_indexer_names and indexer_name:
+                    stream.extra_indexer_names = [indexer_name]
+                if stream.combined_seeders is None:
+                    stream.combined_seeders = stream.seeders
+
+                deduped.append(stream)
+                p_id = id(stream)
+                indexers_per_primary[p_id] = {indexer_id}
+
+                if stream_hash:
+                    hash_to_primary[stream_hash] = stream
+                if file_key:
+                    file_to_primary[file_key] = stream
+
+        return deduped
 
     def _format_filesize(self, bytes_size: int) -> str:
         return humanize.naturalsize(bytes_size, binary=True)

@@ -75,6 +75,12 @@ def test_detect_subtitle_language():
     assert detect_subtitle_language("Film de jo - 01.srt")[0] == "hun"
     assert detect_subtitle_language("ep01.en.srt")[0] == "eng"
     assert detect_subtitle_language("ep01.de.srt")[0] == "ger"
+    # Mappanévi felülbírálási tesztek (a fájlnév explicit nyelve prioritást élvez a release mappával szemben)
+    assert detect_subtitle_language("English.srt", "Movie.HUN.1080p/Subs")[0] == "eng"
+    assert detect_subtitle_language("German.srt", "Movie.HUN.1080p/Subs")[0] == "ger"
+    assert detect_subtitle_language("01.srt", "Movie.HUN.1080p/Subs/English")[0] == "eng"
+    assert detect_subtitle_language("01.srt", "Movie.HUN.1080p/Subs/hun")[0] == "hun"
+    assert detect_subtitle_language("01.ass", "Noragami [HunSub]")[0] == "hun"
 
 
 def test_resolve_subtitles_ignores_other_episodes_in_packs():
@@ -258,17 +264,22 @@ ScriptType: v4.00+
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:01:23.45,0:01:27.89,Default,,0,0,0,,{\\pos(192,200)}Szia, ez egy teszt felirat!\\NMásodik sor.
+Dialogue: 0,0:01:23.45,0:01:27.89,Default,,0,0,0,,{\\pos(192,200)}Szia,\\hez egy teszt felirat!\\NMásodik sor.
 Dialogue: 0,0:02:10.00,0:02:15.50,Default,,0,0,0,,{\\c&H0000FF&}{\\b1}Vastag és színes{\\b0}
+Dialogue: 0,0:02:20.00,0:02:25.00,Default,,0,0,0,,{\\p1}m 0 0 l 100 0 100 100 0 100{\\p0}
+Dialogue: 0,0:03:00.10.20,0:03:05.10,Default,,0,0,0,,Többpontos időbélyeg teszt
 """
     vtt = ass_to_vtt(ass_sample)
     assert vtt.startswith("WEBVTT\n")
     assert "00:01:23.450 --> 00:01:27.890" in vtt
     assert "Szia, ez egy teszt felirat!\nMásodik sor." in vtt
+    assert "\\h" not in vtt
     assert "00:02:10.000 --> 00:02:15.500" in vtt
     assert "Vastag és színes" in vtt
     assert "{\\pos" not in vtt
     assert "{\\c&H" not in vtt
+    assert "m 0 0 l 100" not in vtt
+    assert "Többpontos időbélyeg teszt" in vtt
 
 
 def test_manifest_includes_subtitles_resource():
@@ -705,6 +716,127 @@ def test_subtitle_memory_cache_and_range_support():
     assert resp_range.status_code == 206
     assert resp_range.body == b"WEBVTT"
     _subtitle_content_cache.clear()
+
+
+def test_resolve_subtitles_prefix_boundary_matching():
+    # Filmgyűjtemény (nem sorozat): Movie 1.mkv nem illeszkedhet a Movie 10.hun.srt-re!
+    v1 = make_file("Collection/Movie 1.mkv", 0)
+    v2 = make_file("Collection/Movie 10.mkv", 1)
+    s_movie1 = make_file("Collection/Movie 1.hun.srt", 2, is_video=False)
+    s_movie10 = make_file("Collection/Movie 10.hun.srt", 3, is_video=False)
+
+    t_info = TorrentInfo(
+        info_hash="hash_movies",
+        name="Movie Collection",
+        size=4000,
+        piece_size=1000,
+        files=[v1, v2, s_movie1, s_movie10],
+    )
+
+    resolver = StreamFileResolver(t_info, series=None)
+    resolved_v1 = resolver.resolve_subtitles(v1)
+    resolved_v2 = resolver.resolve_subtitles(v2)
+
+    assert len(resolved_v1) == 1
+    assert resolved_v1[0].name == "Movie 1.hun.srt"
+
+    assert len(resolved_v2) == 1
+    assert resolved_v2[0].name == "Movie 10.hun.srt"
+
+
+@pytest.mark.anyio
+async def test_concurrent_wait_for_active_binge_group():
+    import asyncio
+
+    from app.modules.stream.active_playback import (
+        clear_active_playbacks,
+        record_active_playback,
+        wait_for_active_binge_group,
+    )
+
+    clear_active_playbacks()
+    api_key = "concurrent-key"
+    valid_groups = {"ncore-111", "ncore-222"}
+
+    # Párhuzamos várakozás két taszkban
+    task1 = asyncio.create_task(
+        wait_for_active_binge_group(api_key, valid_groups, timeout=1.0)
+    )
+    task2 = asyncio.create_task(
+        wait_for_active_binge_group(api_key, valid_groups, timeout=1.0)
+    )
+
+    await asyncio.sleep(0.01)
+    # Stream elindulása
+    record_active_playback(api_key, "ncore", "222")
+
+    res1, res2 = await asyncio.gather(task1, task2)
+    assert res1 == "ncore-222"
+    assert res2 == "ncore-222"
+    clear_active_playbacks()
+
+
+def test_relay_prioritizes_hungarian_subtitles():
+    from app.modules.relay.entities import Torrent
+
+    v1 = TorrentFileInfo(
+        name="Noragami - 01.mkv",
+        path="Noragami/Noragami - 01.mkv",
+        size=1000,
+        offset=0,
+        start_piece_index=0,
+        end_piece_index=0,
+        is_video=True,
+        is_subtitle=False,
+        index=0,
+    )
+    # Angol felirat van elöl a torrentben
+    s_eng = TorrentFileInfo(
+        name="Noragami - 01.eng.srt",
+        path="Noragami/Noragami - 01.eng.srt",
+        size=500,
+        offset=20000,
+        start_piece_index=20,
+        end_piece_index=20,
+        is_video=False,
+        is_subtitle=True,
+        index=1,
+    )
+    # Magyar felirat követi
+    s_hun = TorrentFileInfo(
+        name="Noragami - 01.hun.srt",
+        path="Noragami/Noragami - 01.hun.srt",
+        size=500,
+        offset=30000,
+        start_piece_index=30,
+        end_piece_index=30,
+        is_video=False,
+        is_subtitle=True,
+        index=2,
+    )
+
+    t_info = TorrentInfo(
+        info_hash="hash_lang_prio",
+        name="Noragami DualSub",
+        size=40000,
+        piece_size=1000,
+        files=[v1, s_eng, s_hun],
+    )
+
+    mock_handle = MagicMock()
+    mock_service = MagicMock()
+
+    torrent = Torrent(
+        torrent_handle=mock_handle,
+        torrent_info=t_info,
+        service=mock_service,
+        default_priority=0,
+    )
+
+    pieces = torrent.files[0].get_matched_subtitle_pieces()
+    # A magyar felirat piece-e (30) meg kell jelenjen és előnyt kell élvezzen
+    assert 30 in pieces
+
 
 
 

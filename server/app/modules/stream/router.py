@@ -159,6 +159,7 @@ _SUBTITLE_CACHE_TTL_SECONDS = 3600.0
 _subtitle_content_cache: dict[
     tuple[str, str, int, bool], tuple[float, str, str, bytes]
 ] = {}
+_subtitle_locks: dict[tuple[str, str, int, bool], asyncio.Lock] = {}
 
 
 def _get_cached_subtitle(
@@ -261,171 +262,180 @@ async def stream_subtitle(
         want_vtt_hint,
     )
 
-    with isolated_db_session() as local_db:
-        auth_service = create_auth_service(local_db)
-        user = await asyncio.to_thread(
-            auth_service.verify_api_key,
-            api_key=api_key,
-        )
+    lock = _subtitle_locks.setdefault(cache_key, asyncio.Lock())
+    try:
+        async with lock:
+            with isolated_db_session() as local_db:
+                auth_service = create_auth_service(local_db)
+                user = await asyncio.to_thread(
+                    auth_service.verify_api_key,
+                    api_key=api_key,
+                )
 
-        stream_service = create_stream_service(local_db)
+                stream_service = create_stream_service(local_db)
 
-        cached = _get_cached_subtitle(cache_key)
-        if cached is not None:
-            cached_media_type, cached_disp_name, cached_bytes = cached
-            return _build_cached_subtitle_response(
-                request_method=request.method,
-                media_type=cached_media_type,
-                disp_name=cached_disp_name,
-                content_bytes=cached_bytes,
-                range_header=range_header,
-                convert_to_vtt=want_vtt_hint,
-                stream_service=stream_service,
+                cached = _get_cached_subtitle(cache_key)
+                if cached is not None:
+                    cached_media_type, cached_disp_name, cached_bytes = cached
+                    return _build_cached_subtitle_response(
+                        request_method=request.method,
+                        media_type=cached_media_type,
+                        disp_name=cached_disp_name,
+                        content_bytes=cached_bytes,
+                        range_header=range_header,
+                        convert_to_vtt=want_vtt_hint,
+                        stream_service=stream_service,
+                    )
+
+                parsed_range_header, file = await stream_service.prepare_for_stream(
+                    range_header=range_header,
+                    indexer_id=stream_token.indexer_id,
+                    torrent_id=stream_token.torrent_id,
+                    file_index=stream_token.file_index,
+                )
+
+            req_ext = (
+                Path(filename).suffix.lower()
+                if filename
+                else Path(file.name).suffix.lower()
+            )
+            file_ext = Path(file.name).suffix.lower()
+
+            convert_to_vtt = req_ext == ".vtt" and file_ext in (".ass", ".ssa")
+            final_cache_key = (
+                stream_token.indexer_id,
+                stream_token.torrent_id,
+                stream_token.file_index,
+                convert_to_vtt,
             )
 
-        parsed_range_header, file = await stream_service.prepare_for_stream(
-            range_header=range_header,
-            indexer_id=stream_token.indexer_id,
-            torrent_id=stream_token.torrent_id,
-            file_index=stream_token.file_index,
-        )
+            if convert_to_vtt:
+                media_type = "text/vtt; charset=utf-8"
+                disp_name = Path(file.name).stem + ".vtt"
+            elif file_ext in (".ass", ".ssa"):
+                media_type = "text/x-ssa; charset=utf-8"
+                disp_name = file.name
+            elif file_ext == ".vtt":
+                media_type = "text/vtt; charset=utf-8"
+                disp_name = file.name
+            elif file_ext == ".srt":
+                media_type = "text/plain; charset=utf-8"
+                disp_name = file.name
+            else:
+                media_type = (
+                    content_types.get_content_type(file.name)
+                    or "text/plain; charset=utf-8"
+                )
+                disp_name = file.name
 
-    req_ext = (
-        Path(filename).suffix.lower() if filename else Path(file.name).suffix.lower()
-    )
-    file_ext = Path(file.name).suffix.lower()
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=86400",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+                "Content-Disposition": f'inline; filename="{disp_name}"',
+            }
 
-    convert_to_vtt = req_ext == ".vtt" and file_ext in (".ass", ".ssa")
-    final_cache_key = (
-        stream_token.indexer_id,
-        stream_token.torrent_id,
-        stream_token.file_index,
-        convert_to_vtt,
-    )
+            if convert_to_vtt:
+                if request.method == "HEAD":
+                    return _apply_capitalized_headers(
+                        Response(
+                            status_code=200,
+                            headers=headers,
+                            media_type=media_type,
+                        )
+                    )
 
-    if convert_to_vtt:
-        media_type = "text/vtt; charset=utf-8"
-        disp_name = Path(file.name).stem + ".vtt"
-    elif file_ext in (".ass", ".ssa"):
-        media_type = "text/x-ssa; charset=utf-8"
-        disp_name = file.name
-    elif file_ext == ".vtt":
-        media_type = "text/vtt; charset=utf-8"
-        disp_name = file.name
-    elif file_ext == ".srt":
-        media_type = "text/plain; charset=utf-8"
-        disp_name = file.name
-    else:
-        media_type = (
-            content_types.get_content_type(file.name) or "text/plain; charset=utf-8"
-        )
-        disp_name = file.name
+                iterator = await file.stream(
+                    playback_id=stream_token.playback_id,
+                    user_id=user.id,
+                    request=request,
+                    stream_start_byte=0,
+                    stream_end_byte=file.size - 1,
+                )
+                chunks = []
+                async for chunk in iterator:
+                    chunks.append(chunk)
+                raw_bytes = b"".join(chunks)
+                content_text = raw_bytes.decode("utf-8-sig", errors="replace")
+                vtt_output = ass_to_vtt(content_text)
+                vtt_bytes = vtt_output.encode("utf-8")
+                _put_cached_subtitle(final_cache_key, media_type, disp_name, vtt_bytes)
+                if cache_key != final_cache_key:
+                    _put_cached_subtitle(cache_key, media_type, disp_name, vtt_bytes)
+                headers["Content-Length"] = str(len(vtt_bytes))
+                return _apply_capitalized_headers(
+                    Response(
+                        content=vtt_bytes,
+                        status_code=200,
+                        headers=headers,
+                        media_type=media_type,
+                    )
+                )
 
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Content-Disposition": f'inline; filename="{disp_name}"',
-    }
+            if range_header is None:
+                status_code = 200
+                headers["Content-Length"] = str(file.size)
+            else:
+                status_code = 206
+                headers["Content-Length"] = str(parsed_range_header.content_length)
+                headers["Content-Range"] = (
+                    f"bytes {parsed_range_header.start_byte}-{parsed_range_header.end_byte}/{file.size}"
+                )
 
-    if convert_to_vtt:
-        if request.method == "HEAD":
-            return _apply_capitalized_headers(
-                Response(
-                    status_code=200,
-                    headers=headers,
+            if request.method == "HEAD":
+                return _apply_capitalized_headers(
+                    Response(
+                        status_code=status_code,
+                        headers=headers,
+                        media_type=media_type,
+                    )
+                )
+
+            if file.size <= 2 * 1024 * 1024:
+                iterator = await file.stream(
+                    playback_id=stream_token.playback_id,
+                    user_id=user.id,
+                    request=request,
+                    stream_start_byte=0,
+                    stream_end_byte=file.size - 1,
+                )
+                chunks = []
+                async for chunk in iterator:
+                    chunks.append(chunk)
+                raw_bytes = b"".join(chunks)
+                _put_cached_subtitle(final_cache_key, media_type, disp_name, raw_bytes)
+                if cache_key != final_cache_key:
+                    _put_cached_subtitle(cache_key, media_type, disp_name, raw_bytes)
+                return _build_cached_subtitle_response(
+                    request_method=request.method,
                     media_type=media_type,
+                    disp_name=disp_name,
+                    content_bytes=raw_bytes,
+                    range_header=range_header,
+                    convert_to_vtt=False,
+                    stream_service=stream_service,
+                )
+
+            iterator = await file.stream(
+                playback_id=stream_token.playback_id,
+                user_id=user.id,
+                request=request,
+                stream_start_byte=parsed_range_header.start_byte,
+                stream_end_byte=parsed_range_header.end_byte,
+            )
+
+            return _apply_capitalized_headers(
+                StreamingResponse(
+                    content=iterator,
+                    media_type=media_type,
+                    status_code=status_code,
+                    headers=headers,
                 )
             )
-
-        iterator = await file.stream(
-            playback_id=stream_token.playback_id,
-            user_id=user.id,
-            request=request,
-            stream_start_byte=0,
-            stream_end_byte=file.size - 1,
-        )
-        chunks = []
-        async for chunk in iterator:
-            chunks.append(chunk)
-        raw_bytes = b"".join(chunks)
-        content_text = raw_bytes.decode("utf-8-sig", errors="replace")
-        vtt_output = ass_to_vtt(content_text)
-        vtt_bytes = vtt_output.encode("utf-8")
-        _put_cached_subtitle(final_cache_key, media_type, disp_name, vtt_bytes)
-        if cache_key != final_cache_key:
-            _put_cached_subtitle(cache_key, media_type, disp_name, vtt_bytes)
-        headers["Content-Length"] = str(len(vtt_bytes))
-        return _apply_capitalized_headers(
-            Response(
-                content=vtt_bytes,
-                status_code=200,
-                headers=headers,
-                media_type=media_type,
-            )
-        )
-
-    if range_header is None:
-        status_code = 200
-        headers["Content-Length"] = str(file.size)
-    else:
-        status_code = 206
-        headers["Content-Length"] = str(parsed_range_header.content_length)
-        headers["Content-Range"] = (
-            f"bytes {parsed_range_header.start_byte}-{parsed_range_header.end_byte}/{file.size}"
-        )
-
-    if request.method == "HEAD":
-        return _apply_capitalized_headers(
-            Response(
-                status_code=status_code,
-                headers=headers,
-                media_type=media_type,
-            )
-        )
-
-    if file.size <= 2 * 1024 * 1024:
-        iterator = await file.stream(
-            playback_id=stream_token.playback_id,
-            user_id=user.id,
-            request=request,
-            stream_start_byte=0,
-            stream_end_byte=file.size - 1,
-        )
-        chunks = []
-        async for chunk in iterator:
-            chunks.append(chunk)
-        raw_bytes = b"".join(chunks)
-        _put_cached_subtitle(final_cache_key, media_type, disp_name, raw_bytes)
-        if cache_key != final_cache_key:
-            _put_cached_subtitle(cache_key, media_type, disp_name, raw_bytes)
-        return _build_cached_subtitle_response(
-            request_method=request.method,
-            media_type=media_type,
-            disp_name=disp_name,
-            content_bytes=raw_bytes,
-            range_header=range_header,
-            convert_to_vtt=False,
-            stream_service=stream_service,
-        )
-
-    iterator = await file.stream(
-        playback_id=stream_token.playback_id,
-        user_id=user.id,
-        request=request,
-        stream_start_byte=parsed_range_header.start_byte,
-        stream_end_byte=parsed_range_header.end_byte,
-    )
-
-    return _apply_capitalized_headers(
-        StreamingResponse(
-            content=iterator,
-            media_type=media_type,
-            status_code=status_code,
-            headers=headers,
-        )
-    )
+    finally:
+        if cache_key in _subtitle_locks and not lock.locked():
+            _subtitle_locks.pop(cache_key, None)
 
 
 

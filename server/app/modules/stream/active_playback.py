@@ -3,7 +3,7 @@ import time
 
 # (api_key) -> list of (binge_group, timestamp)
 _ACTIVE_PLAYBACKS: dict[str, list[tuple[str, float]]] = {}
-_PLAYBACK_EVENTS: dict[str, asyncio.Event] = {}
+_PLAYBACK_EVENTS: dict[str, list[asyncio.Event]] = {}
 _PLAYBACK_TTL_SECONDS = 7200.0  # 2 óra
 
 
@@ -25,8 +25,8 @@ def record_active_playback(
     history.insert(0, (binge_group, now))
     _ACTIVE_PLAYBACKS[api_key] = history[:20]
 
-    event = _PLAYBACK_EVENTS.get(api_key)
-    if event is not None:
+    events = _PLAYBACK_EVENTS.get(api_key, [])
+    for event in events:
         event.set()
 
 
@@ -64,14 +64,18 @@ async def wait_for_active_binge_group(
 
     # 2. Várunk röviden, hátha a lejátszó épp most nyitja meg a /stream/{token} URL-t
     event = asyncio.Event()
-    _PLAYBACK_EVENTS[api_key] = event
+    _PLAYBACK_EVENTS.setdefault(api_key, []).append(event)
     try:
         await asyncio.wait_for(event.wait(), timeout=timeout)
     except asyncio.TimeoutError:
         pass
     finally:
-        if _PLAYBACK_EVENTS.get(api_key) is event:
-            _PLAYBACK_EVENTS.pop(api_key, None)
+        events = _PLAYBACK_EVENTS.get(api_key)
+        if events is not None:
+            if event in events:
+                events.remove(event)
+            if not events:
+                _PLAYBACK_EVENTS.pop(api_key, None)
 
     return find_active_binge_group(api_key, valid_binge_groups)
 

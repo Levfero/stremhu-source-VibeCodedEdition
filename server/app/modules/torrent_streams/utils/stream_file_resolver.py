@@ -385,14 +385,15 @@ class StreamFileResolver:
             clean_sub_stem = _CLEAN_STEM_REGEX.sub("", sub_stem).strip()
 
             is_exact = clean_sub_stem == clean_video_stem or sub_stem == video_stem
-            is_prefix = bool(
-                not is_exact
-                and clean_video_stem
-                and (
-                    sub_stem.startswith(clean_video_stem)
-                    or clean_sub_stem.startswith(clean_video_stem)
-                )
-            )
+            is_prefix = False
+            if not is_exact and clean_video_stem:
+                for stem in (sub_stem, clean_sub_stem):
+                    if stem.startswith(clean_video_stem):
+                        remainder = stem[len(clean_video_stem) :]
+                        if not remainder or remainder[0] in " ._-[(":
+                            is_prefix = True
+                            break
+
             if not is_exact and not is_prefix:
                 continue
 

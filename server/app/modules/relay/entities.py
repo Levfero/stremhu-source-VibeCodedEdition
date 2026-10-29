@@ -21,6 +21,7 @@ from app.common.constants import (
 )
 from app.common.logger import logger
 from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+from app.modules.torrent_streams.utils.resolver_helpers import detect_subtitle_language
 from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
 
 
@@ -235,7 +236,11 @@ class File:
         if self._matched_subtitle_pieces is not None:
             return self._matched_subtitle_pieces
 
-        if not self.is_video or not hasattr(self.torrent, "torrent_info"):
+        if (
+            not self.is_video
+            or not hasattr(self.torrent, "torrent_info")
+            or not self.torrent.piece_size
+        ):
             self._matched_subtitle_pieces = []
             return self._matched_subtitle_pieces
 
@@ -243,8 +248,19 @@ class File:
             matched_subs = StreamFileResolver(
                 self.torrent.torrent_info
             ).resolve_subtitles(self.file_info)
-            pieces: set[int] = set()
+
+            # Magyar feliratok előre sorolása a darabok (piece-ek) előtöltésénél
+            hun_subs: list[TorrentFileInfo] = []
+            other_subs: list[TorrentFileInfo] = []
             for sub_info in matched_subs:
+                lang, _ = detect_subtitle_language(sub_info.name, sub_info.path)
+                if lang == "hun":
+                    hun_subs.append(sub_info)
+                else:
+                    other_subs.append(sub_info)
+
+            pieces: set[int] = set()
+            for sub_info in hun_subs + other_subs:
                 if sub_info.size > 2 * 1024 * 1024:
                     continue
                 sub_start = sub_info.offset // self.torrent.piece_size

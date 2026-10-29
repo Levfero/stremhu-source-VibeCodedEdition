@@ -24,17 +24,17 @@ A `feature/torrent-subtitles` ág az alábbi problémákat oldja meg:
 
 | Modul / Fájl | Státusz | Változtatás összefoglalása |
 | :--- | :---: | :--- |
-| `server/app/modules/stream/utils/subtitles.py` | **ÚJ** | `ass_to_vtt` valós idejű ASS/SSA -> WebVTT konverter (időbélyeg-átalakítás, `{...}` tagek tisztítása, sortörések). |
-| `server/app/modules/stream/active_playback.py` | **ÚJ** | Felhasználónkénti aktív lejátszott `binge_group` (`stremhu-{indexer_id}-{torrent_id}`) nyilvántartása és `asyncio.Event` alapú bevárása (`wait_for_active_binge_group`) Nuvio-kompatibilitáshoz. |
-| `server/app/modules/torrent_streams/utils/resolver_helpers.py` | Módosult | `SUBTITLE_EXTENSIONS`, `is_subtitle_file` és `detect_subtitle_language` (magyar felismerés, idegen nyelvek kizárása, ismeretlen = `hun`). |
-| `server/app/modules/torrent_streams/utils/stream_file_resolver.py` | Módosult | `resolve_subtitles(video_file)`: rövidzáras (short-circuit) fájlnév-illesztés, epizódszám-ellenőrzés `SeriesParser`-rel és mappaszintű felirat-párosítás. |
+| `server/app/modules/stream/utils/subtitles.py` | **ÚJ** | `ass_to_vtt` valós idejű ASS/SSA -> WebVTT konverter (biztonságos `split(".", 1)` időbélyeg-átalakítás, `{...}` stílustagek tisztítása, `{\\p1}` rajzolt vektorok kizárása, `\\h` nem törő szóközök cseréje, előre fordított regexek). |
+| `server/app/modules/stream/active_playback.py` | **ÚJ** | Felhasználónkénti aktív lejátszott `binge_group` nyilvántartása és versenyhelyzet-mentes `asyncio.Event` lista alapú egyidejű felébresztése (`wait_for_active_binge_group`) Nuvio-kompatibilitáshoz. |
+| `server/app/modules/torrent_streams/utils/resolver_helpers.py` | Módosult | `SUBTITLE_EXTENSIONS`, `is_subtitle_file` és 4-lépcsős `detect_subtitle_language` (fájlnév prioritása, szülőmappák, torrentcím, ismeretlen = `hun`). |
+| `server/app/modules/torrent_streams/utils/stream_file_resolver.py` | Módosult | `resolve_subtitles(video_file)`: elválasztó karaktert ellenőrző prefix-illesztés, epizódszám-ellenőrzés `SeriesParser`-rel és mappaszintű felirat-párosítás. |
 | `server/app/modules/torrent_streams/schemas.py` | Módosult | `TorrentStreamSubtitle` séma; `.ass`/`.ssa` fájlok átirányítása `.vtt` végpontra; `subtitles` lista felépítése a `TorrentStream`-en. |
 | `server/app/modules/stremio/router.py` & `service.py` | Módosult | `/subtitles/{content_type}/{stream_id}.json` és `/{extra}.json` végpontok; `get_subtitles`, `_find_played_stream`, `_can_borrow_subtitle` és `enable_fallback_subtitles` logika. |
-| `server/app/modules/stream/router.py` & `service.py` | Módosult | `/api/{api_key}/stream/{stream_token}/subtitles/{file_index}/{file_name}` végpont (`GET`/`HEAD`, `Range: bytes=...` / `206 Partial Content`), `_subtitle_content_cache` memória-gyorsítótár, valamint `persist_torrent=False` a kölcsönzött feliratok előtöltéséhez. |
-| `server/app/modules/relay/entities.py` | Módosult | `File.is_subtitle`, `File.get_matched_subtitle_pieces` és `Torrent._set_matched_subtitle_priorities` (`500 ms` deadline a lejátszott epizód felirat-piece-eire). |
+| `server/app/modules/stream/router.py` & `service.py` | Módosult | `/api/{api_key}/subtitles/{stream_token}/{filename}` végpont (`GET`/`HEAD`, `Range: bytes=...` / `206 Partial Content`), in-flight kérés-összevonás (`_subtitle_locks`), `_subtitle_content_cache` memória-gyorsítótár. |
+| `server/app/modules/relay/entities.py` | Módosult | `File.is_subtitle`, `File.get_matched_subtitle_pieces` (magyar feliratok prioritásával a 6-darabos kvótában) és `Torrent._set_matched_subtitle_priorities` (`500 ms` deadline a lejátszott epizód felirat-piece-eire). |
 | `server/app/modules/users/models.py` & Alembic migráció | Módosult | `enable_fallback_subtitles: Mapped[bool]` mező a `users` táblán (`d41f8e2a1b5c` migráció). |
 | `client/src/features/subtitle-settings/subtitle-settings.tsx` | **ÚJ** | `SubtitleSettingsCard` React komponens: *„Felirat kölcsönzése más találatból”* kapcsoló, Hit'n'Run figyelmeztető `Alert` és lenyitható `Accordion` tájékoztató fül. |
-| `server/tests/test_subtitles.py` | **ÚJ** | Unit és integrációs tesztek a nyelvfelismeréshez, ASS->VTT konverzióhoz, epizód-illesztéshez, aktív lejátszás követéséhez, GUI fallback kapcsolóhoz és felirat-piece előtöltéshez. |
+| `server/tests/test_subtitles.py` | **ÚJ** | 16 db átfogó unit és integrációs teszt a nyelvfelismeréshez, ASS->VTT konverzióhoz, határeset-prefixekhez, konkurens aktív lejátszás követéséhez, GUI fallback kapcsolóhoz és felirat-piece előtöltéshez. |
 
 ---
 
@@ -108,20 +108,24 @@ sequenceDiagram
 
 ## 4. Modulonkénti Részletes Működés és Kritikus Invariánsok
 
-1. **`detect_subtitle_language(file_path: str)` (`resolver_helpers.py`):**
-   - Ha a fájlnév/útvonal magyar mintát tartalmaz (`hun`, `hu`, `magyar`, `hunsub`), `("hun", "Hungarian (Torrent)")`-t ad vissza.
-   - Ha ismert idegen nyelvi kódot tartalmaz (`eng`, `en`, `ger`, `de`, `fre`, `spa`, `ita`, `rus`, `jpn` stb.), visszaadja az adott nyelvkódot, amelyet a `TorrentStream` kiszűr (`if lang != "hun": continue`).
-   - Ha **semmilyen** nyelvi jelölés nincs a fájlnévben (pl. `Naruto Shippuuden - 072.srt`), a magyar tracker-kontextus miatt `("hun", "Hungarian (Torrent)")` értéket ad vissza.
+1. **`detect_subtitle_language(filename: str, path: str = "")` (`resolver_helpers.py`):**
+   - **4-lépcsős hierarchia:**
+     1. *Fájlnév vizsgálata:* Ha a felirat fájlneve explicit magyar mintát (`hun`, `hu`, `magyar`, `hunsub`) vagy idegen nyelvet (`eng`, `ger`, `spa` stb.) tartalmaz, ez azonnal dönt. Ezzel elkerülhető, hogy egy `.HUN.` jelölésű release mappa almappájában lévő `English.srt` tévesen magyarként legyen kiszolgálva.
+     2. *Szülőmappák vizsgálata:* Ha a fájlnév jelöletlen (pl. `01.srt`), a közvetlen szülőmappák nyelve dönt (pl. `Subs/eng` -> `eng`, `Subs/hun` -> `hun`).
+     3. *Torrent útvonal vizsgálata:* Ha a szülőmappák sem tartalmaznak nyelvet, de a torrentcím magyar jelölést hordoz (pl. `[HunSub]`), a felirat magyarnak minősül.
+     4. *Alapértelmezés:* Magyar trackereken a teljesen jelöletlen feliratok alapértelmezetten `("hun", "Hungarian (Torrent)")` címkét kapnak.
 
 2. **`StreamFileResolver.resolve_subtitles(video_file)` (`stream_file_resolver.py`):**
-   - **1. szint (Exact stem prefix):** Ha a felirat tisztított neve a videófájl tisztított nevével kezdődik (`sub_stem.startswith(video_stem)`), azonnal illeszkedik.
+   - **1. szint (Stem prefix elválasztó karakterrel):** Ha a felirat törzsneve a videófájl nevével kezdődik, megköveteli, hogy a prefix után elválasztó jel (`.`, `-`, `_`, szóköz, `[`, `(`) vagy a sztring vége következzen (így megelőzhető, hogy pl. `Movie 1.mkv`-hez a `Movie 10.hun.srt` illeszkedjen).
    - **2. szint (Epizódszám-egyezés):** Sorozatoknál a `SeriesParser` kinyeri a felirat évad- és epizódszámát, és ellenőrzi az `_is_episode_match` szabályait (beleértve az anime `alt_episodes_set` abszolút számozást is!). Ha a torrentben több felirat van, de egy másik epizódhoz tartozik, kizárja.
    - **3. szint (Ugyanazon mappa / Egyetlen felirat):** Filmeknél vagy egyepizódos mappákban az azonos mappában lévő feliratot hozzárendeli a videóhoz.
 
 3. **Kölcsönzött felirat életciklusa és Hit'n'Run védelem (`stream/router.py` & `stremio/service.py`):**
    - Amikor a `stream_subtitle` végpontot egy olyan torrentre hívják meg, amely még nincs az adatbázisban (pl. a felhasználó még csak rákattintott a felirat-újratöltésre, vagy kölcsönzött feliratot tölt be), a `prepare_torrent_for_Download` `persist_torrent=False` paraméterrel hívódik meg, így nem dob `HTTP 400` hibát, viszont amint a `libtorrent` letölti a felirat piece-eit, a `TorrentModel` bekerül a helyi kliens automatikus seedelési és automatikus törlési szabályai alá.
    - A `_can_borrow_subtitle(torrent_stream)` ellenőrzi, hogy `not indexer_account.download_full_torrent and not indexer_definition.requires_full_download` — így ha egy forrásnál a teljes torrent letöltése kötelező vagy be van kapcsolva, abból sosem kölcsönöz feliratot.
+   - Az egyidejű feliratkéréseket az aszinkron `_subtitle_locks` zár fogja össze, megelőzve a párhuzamos dupla letöltést és WebVTT transzkódolást.
 
 4. **Epizódszintű Felirat Piece-Prefetch (`relay/entities.py`):**
    - A `File.get_matched_subtitle_pieces()` a `StreamFileResolver(t_info, series=SeriesInfo(season=..., episode=...)).resolve_subtitles(target_vfile)` hívással kizárólag az **aktuálisan nézett epizódhoz** tartozó feliratfájlok piece-eit adja vissza (így egy 500 részes Naruto pakkban nem tölti elő az összes 500 `.srt` fájlt, csak a nézett részét!).
+   - A darabok kiválasztásakor a **magyar nyelvű feliratok piece-ei élveznek prioritást**, így a 6-darabos kvótát nem foglalják el az idegen nyelvű feliratok.
    - A `Torrent._set_matched_subtitle_priorities` ezekre a piece-ekre `500 ms` deadline-t állít be.

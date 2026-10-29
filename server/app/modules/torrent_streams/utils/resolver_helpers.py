@@ -97,25 +97,49 @@ FOREIGN_LANG_PATTERNS = [
 def detect_subtitle_language(filename: str, path: str = "") -> tuple[str, str]:
     """
     Detects language code (ISO 639-2) and readable label from subtitle file name and path.
+    Evaluates filename first to avoid false positives from folder release names (e.g. Movie.HUN.1080p/Subs/English.srt).
     Defaults to Hungarian ('hun', 'Hungarian (Torrent)') in context of Hungarian trackers/anime.
     """
-    text = f"{path}/{filename}".lower()
-    is_forced = "forced" in text
+    fn_lower = filename.lower()
+    path_lower = path.lower()
+    is_forced = "forced" in fn_lower or "forced" in path_lower
 
-    # Hungarian
-    if HUN_LANG_PATTERN.search(text):
+    # 1. lépés: Elsődlegesen a közvetlen fájlnevet vizsgáljuk
+    if HUN_LANG_PATTERN.search(fn_lower):
         if is_forced:
             return "hun", "Hungarian (Forced)"
         return "hun", "Hungarian"
 
-    # Foreign languages
     for pattern, code, name in FOREIGN_LANG_PATTERNS:
-        if pattern.search(text):
+        if pattern.search(fn_lower):
             if is_forced:
                 return code, f"{name} (Forced)"
             return code, name
 
-    # Default to Hungarian for stremhu-source
+    # 2. lépés: Ha a fájlnév nem hordoz nyelvi kódot (pl. 01.srt), a szülőmappákat vizsgáljuk legbelülről kifelé
+    clean_path = path.replace("\\", "/").strip("/")
+    path_parts = [p for p in clean_path.split("/") if p]
+    if path_parts and path_parts[-1].lower() == fn_lower:
+        path_parts.pop()
+    for folder in reversed(path_parts):
+        folder_lower = folder.lower()
+        if HUN_LANG_PATTERN.search(folder_lower):
+            if is_forced:
+                return "hun", "Hungarian (Forced)"
+            return "hun", "Hungarian"
+        for pattern, code, name in FOREIGN_LANG_PATTERNS:
+            if pattern.search(folder_lower):
+                if is_forced:
+                    return code, f"{name} (Forced)"
+                return code, name
+
+    # 3. lépés: Ha a szülőmappákban sincs konkrét nyelvi almappa, de a teljes útvonal (pl. torrent cím) magyar jelölést tartalmaz (pl. [HunSub])
+    if HUN_LANG_PATTERN.search(path_lower):
+        if is_forced:
+            return "hun", "Hungarian (Forced)"
+        return "hun", "Hungarian"
+
+    # 4. lépés: Alapértelmezés (magyar trackerek kontextusában)
     if is_forced:
         return "hun", "Hungarian (Torrent) (Forced)"
     return "hun", "Hungarian (Torrent)"

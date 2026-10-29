@@ -29,6 +29,11 @@
 > - **Hivatalos weboldal & dokumentáció:** [https://stremhu.app](https://stremhu.app)
 > - **Hivatalos Docker Hub image:** [s4pp1/stremhu-source:latest](https://hub.docker.com/r/s4pp1/stremhu-source)
 
+
+<p align="center">
+  A fork docker image-t megtalálhatod dockerHubon is : [levfero/stremhu-source:dev](https://hub.docker.com/r/levfero/stremhu-source)
+</p>
+
 ---
 
 # 🚀 Újdonságok és Fejlesztések az Eredeti Upstream Verzióhoz (`s4pp1/stremhu-source`) Képest

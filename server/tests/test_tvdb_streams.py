@@ -572,9 +572,12 @@ async def test_get_episode_mappings_generic_caching():
 
 
 @pytest.mark.anyio
-async def test_resolve_kitsu_aot_season_isolation():
+async def test_resolve_kitsu_aot_season_isolation(monkeypatch):
     # Attack on Titan S3 Kitsu ID: 13569, Ep: 2
     resolver = TvdbResolver()
+    async def mock_anime_kitsu(kitsu_id, episode):
+        return "tt2560140", 3, 2, [39], [], "Attack on Titan Season 3"
+    monkeypatch.setattr(resolver, "_resolve_from_anime_kitsu", mock_anime_kitsu)
     imdb_id, season, ep, alt_eps, alt_seasons = await resolver.resolve_kitsu_to_imdb("13569", 2)
     assert imdb_id == "tt2560140"
     assert season == 3

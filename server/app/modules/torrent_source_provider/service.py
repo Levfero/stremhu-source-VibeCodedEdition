@@ -64,13 +64,14 @@ class TorrentSourceProviderService:
     async def find_by_query(
         self,
         query: str,
+        media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
-        task_key = f"query:{query}"
+        task_key = f"query:{query}:{media_type or 'all'}"
         if task_key in _ongoing_tasks:
             result = await _ongoing_tasks[task_key]
             return cast(tuple[list[TorrentSource], list[str]], result)
 
-        task = asyncio.create_task(self._find_by_query(query))
+        task = asyncio.create_task(self._find_by_query(query, media_type=media_type))
         _ongoing_tasks[task_key] = task
         try:
             return await task
@@ -80,18 +81,20 @@ class TorrentSourceProviderService:
     async def _find_by_query(
         self,
         query: str,
+        media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers_service.get_torrents_by_query(query)
+        ) = await self._indexers_service.get_torrents_by_query(
+            query, media_type=media_type
+        )
 
-        if len(indexer_torrents) > 30:
-            indexer_torrents = sorted(
-                indexer_torrents,
-                key=lambda t: getattr(t, "seeders", 0) or 0,
-                reverse=True,
-            )[:30]
+        indexer_torrents = sorted(
+            indexer_torrents,
+            key=lambda t: getattr(t, "seeders", 0) or 0,
+            reverse=True,
+        )[:30]
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 

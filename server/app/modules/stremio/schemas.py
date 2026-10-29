@@ -488,14 +488,24 @@ class MetaPreview(BaseMeta):
         cls,
         torrent_file: TorrentFileModel,
         content_type: ContentType = ContentType.MOVIE,
+        imdb_id: str | None = None,
+        imdb_rating: str | None = None,
     ) -> MetaPreview:
+        poster = (
+            f"https://images.metahub.space/poster/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
+            imdb_id=imdb_id,
             type=content_type,
             name=torrent_file.info.name,
+            poster=poster,
+            imdb_rating=imdb_rating,
         )
 
 
@@ -517,14 +527,64 @@ class MetaDetail(BaseMeta):
         cls,
         torrent_file: TorrentFileModel,
         content_type: ContentType = ContentType.MOVIE,
+        imdb_id: str | None = None,
     ) -> MetaDetail:
+        videos: list[MetaVideo] | None = None
+        behavior_hints: MetaDetailBehaviorHints | None = None
+
+        if content_type == ContentType.SERIES:
+            from app.modules.torrent_streams.utils.resolver_helpers import (
+                is_sample_or_trash,
+            )
+            from app.modules.torrent_streams.utils.series_parser import SeriesParser
+
+            videos = []
+            default_vid: str | None = None
+            ep_counter = 1
+            for file in torrent_file.info.files:
+                if not file.is_video or is_sample_or_trash(file.name):
+                    continue
+                s_list, e_list = SeriesParser(file.path or file.name).parse()
+                season = s_list[0] if s_list else 1
+                episode = e_list[0] if e_list else ep_counter
+                ep_counter += 1
+                video_id = f"{cls.build_meta_id(torrent_file.indexer_id, torrent_file.torrent_id)}:{file.index}"
+                if not default_vid:
+                    default_vid = video_id
+                videos.append(
+                    MetaVideo(
+                        id=video_id,
+                        title=file.name,
+                        season=season,
+                        episode=episode,
+                    )
+                )
+            if default_vid:
+                behavior_hints = MetaDetailBehaviorHints(default_video_id=default_vid)
+
+        poster = (
+            f"https://images.metahub.space/poster/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
+        background = (
+            f"https://live.metahub.space/background/medium/{imdb_id}/img"
+            if imdb_id
+            else None
+        )
+
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
                 torrent_file.torrent_id,
             ),
+            imdb_id=imdb_id,
             type=content_type,
             name=torrent_file.info.name,
+            poster=poster,
+            background=background,
+            videos=videos,
+            behavior_hints=behavior_hints,
         )
 
 
@@ -571,6 +631,7 @@ class TorrentStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TORRENT
     indexer_id: str
     torrent_id: str
+    file_index: int | None = None
 
 
 class TvdbStreamId(BaseModel):

@@ -45,6 +45,9 @@ def parse_stream_id(value: str) -> StreamId:
 
         indexer_id = parts[0]
         torrent_id = parts[1]
+        file_index: int | None = None
+        if len(parts) > 2 and parts[2].isdigit():
+            file_index = int(parts[2])
 
         if not indexer_id or not torrent_id:
             raise HTTPException(
@@ -56,6 +59,7 @@ def parse_stream_id(value: str) -> StreamId:
             type=StreamIdType.TORRENT,
             indexer_id=indexer_id,
             torrent_id=torrent_id,
+            file_index=file_index,
         )
 
     if value.startswith("tvdb"):

@@ -23,6 +23,10 @@ class BaseUser(BaseModel):
         ge=1,
     )
 
+    enable_fallback_subtitles: bool = Field(
+        default=False,
+    )
+
     max_concurrent_streams: int | None = Field(
         default=None,
         gt=0,
@@ -54,6 +58,8 @@ class UserUpdate(BaseModel):
         default=None,
         ge=1,
     )
+
+    enable_fallback_subtitles: bool | None = None
 
     max_concurrent_streams: int | None = Field(
         default=None,

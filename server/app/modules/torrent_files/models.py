@@ -15,6 +15,13 @@ _TORRENT_INFO_CACHE: dict[str, TorrentInfo] = {}
 _MAX_TORRENT_INFO_CACHE = 2000
 
 
+def _cache_torrent_info(info: TorrentInfo) -> None:
+    if len(_TORRENT_INFO_CACHE) >= _MAX_TORRENT_INFO_CACHE:
+        for k in list(_TORRENT_INFO_CACHE.keys())[:250]:
+            _TORRENT_INFO_CACHE.pop(k, None)
+    _TORRENT_INFO_CACHE[info.info_hash] = info
+
+
 class TorrentFileModel(Base):
     __tablename__ = "torrent_files"
 
@@ -63,6 +70,7 @@ class TorrentFileModel(Base):
     def validate_torrent_bytes(self, _: str, value: bytes) -> bytes:
         self._cached_info = self._torrent_info(value)
         self.info_hash = self._cached_info.info_hash
+        _cache_torrent_info(self._cached_info)
         return value
 
     @property

@@ -56,6 +56,7 @@ async def test_stremio_service_resolves_tvdb():
     mock_tvdb_resolver.resolve_tvdb_to_imdb.return_value = "tt9335498"
     mock_tvdb_resolver.get_title_by_imdb.return_value = "Demon Slayer"
     mock_tvdb_resolver.get_episode_mappings.return_value = ([], [])
+    mock_tvdb_resolver.get_alternate_imdb_ids.return_value = []
 
     mock_torrent_streams_service.find_by_imdb.return_value = ([], [])
 
@@ -81,7 +82,9 @@ async def test_stremio_service_resolves_tvdb():
     assert callable(call_kwargs["fallback_title"])
     # A lazy getter meghívásával a címlekérésnek le kell futnia
     assert await call_kwargs["fallback_title"]() == "Demon Slayer"
-    mock_tvdb_resolver.get_title_by_imdb.assert_awaited_once_with("tt9335498")
+    mock_tvdb_resolver.get_title_by_imdb.assert_awaited_once_with(
+        "tt9335498", is_series=True
+    )
     assert streams == []
 
 
@@ -985,6 +988,52 @@ def test_relay_tighter_piece_deadlines():
     # További előtöltött piece-ek: 1000 + distance * 500 ms
     assert deadlines[4] == 2000  # distance=2 -> 1000 + 2*500
     assert deadlines[5] == 2500  # distance=3 -> 1000 + 3*500
+
+
+@pytest.mark.anyio
+async def test_get_alternate_imdb_ids_fast_path():
+    resolver = TvdbResolver()
+    # Filmeknél (is_series=False) külső hívás nélkül, azonnal üres listát ad vissza
+    alts = await resolver.get_alternate_imdb_ids("tt1375666", is_series=False, allow_dynamic_search=True)
+    assert alts == []
+
+    # allow_dynamic_search=False esetén még sorozatoknál is azonnal visszatér, ha nem ismert anime
+    alts_series = await resolver.get_alternate_imdb_ids("tt4574334", is_series=True, allow_dynamic_search=False)
+    assert alts_series == []
+
+    # Ismert animénél (DBZ) viszont allow_dynamic_search=False esetén is azonnal megadja a statikus párt
+    alts_anime = await resolver.get_alternate_imdb_ids("tt0121220", is_series=True, allow_dynamic_search=False)
+    assert "tt0214341" in alts_anime
+
+
+@pytest.mark.anyio
+async def test_get_alternate_imdb_ids_false_positive_rejection():
+    resolver = TvdbResolver()
+    # Mockoljuk a get_title_by_imdb-t
+    resolver.get_title_by_imdb = AsyncMock(return_value="Inception")  # type: ignore[method-assign]
+
+    # Mockoljuk a kitsu választ, mintha visszadná a Cobol Job rövidfilmet
+    mock_client = AsyncMock()
+    mock_kitsu_resp = MagicMock()
+    mock_kitsu_resp.status_code = 200
+    mock_kitsu_resp.json.return_value = {
+        "data": [
+            {
+                "id": "5951",
+                "attributes": {
+                    "canonicalTitle": "Inception: The Cobol Job",
+                    "titles": {"en": "Inception: The Cobol Job"},
+                },
+            }
+        ]
+    }
+    mock_client.get.return_value = mock_kitsu_resp
+    resolver._get_client = lambda: mock_client  # type: ignore[assignment]
+
+    # Mivel "Inception" != "Inception: The Cobol Job", a szigorú címegyezésnek vissza kell utasítania
+    alts = await resolver.get_alternate_imdb_ids("tt1375666", is_series=True, allow_dynamic_search=True)
+    assert alts == []
+
 
 
 

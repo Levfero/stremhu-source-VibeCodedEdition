@@ -21,6 +21,8 @@ from app.common.constants import (
 )
 from app.common.logger import logger
 from app.common.torrent_info import TorrentFileInfo, TorrentInfo
+from app.modules.torrent_streams.utils.resolver_helpers import detect_subtitle_language
+from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
 
 
 class Torrent:
@@ -32,6 +34,7 @@ class Torrent:
         default_priority: int,
     ):
         self.torrent_handle = torrent_handle
+        self.torrent_info = torrent_info
         self.service = service
 
         self.info_hash = torrent_info.info_hash
@@ -129,6 +132,7 @@ class Torrent:
                 continue
 
             self._set_file_boundary_priorities(file, target_deadlines)
+            self._set_matched_subtitle_priorities(file, target_deadlines)
 
             for stream in list(file.streams.values()):
                 if stream.is_destroying:
@@ -192,6 +196,19 @@ class Torrent:
             if not self.torrent_handle.have_piece(end_p):
                 target_deadlines[end_p] = 0
 
+    def _set_matched_subtitle_priorities(
+        self,
+        file: File,
+        target_deadlines: dict[int, int],
+    ) -> None:
+        for piece_index in file.get_matched_subtitle_pieces():
+            if not self.torrent_handle.have_piece(piece_index):
+                if (
+                    piece_index not in target_deadlines
+                    or 500 < target_deadlines[piece_index]
+                ):
+                    target_deadlines[piece_index] = 500
+
 
 class File:
     def __init__(
@@ -200,6 +217,7 @@ class File:
         torrent: Torrent,
     ):
         self.torrent = torrent
+        self.file_info = file_info
         self.name = file_info.name
         self.size = file_info.size
         self.offset = file_info.offset
@@ -209,8 +227,57 @@ class File:
 
         content_type = content_types.get_content_type(self.name)
         self.is_video = content_type.startswith("video/") if content_type else False
+        self.is_subtitle = getattr(file_info, "is_subtitle", False)
+        self._matched_subtitle_pieces: list[int] | None = None
 
         self.streams: dict[str, Stream] = {}
+
+    def get_matched_subtitle_pieces(self) -> list[int]:
+        if self._matched_subtitle_pieces is not None:
+            return self._matched_subtitle_pieces
+
+        if (
+            not self.is_video
+            or not hasattr(self.torrent, "torrent_info")
+            or not self.torrent.piece_size
+        ):
+            self._matched_subtitle_pieces = []
+            return self._matched_subtitle_pieces
+
+        try:
+            matched_subs = StreamFileResolver(
+                self.torrent.torrent_info
+            ).resolve_subtitles(self.file_info)
+
+            # Magyar feliratok előre sorolása a darabok (piece-ek) előtöltésénél
+            hun_subs: list[TorrentFileInfo] = []
+            other_subs: list[TorrentFileInfo] = []
+            for sub_info in matched_subs:
+                lang, _ = detect_subtitle_language(sub_info.name, sub_info.path)
+                if lang == "hun":
+                    hun_subs.append(sub_info)
+                else:
+                    other_subs.append(sub_info)
+
+            pieces: set[int] = set()
+            for sub_info in hun_subs + other_subs:
+                if sub_info.size > 2 * 1024 * 1024:
+                    continue
+                sub_start = sub_info.offset // self.torrent.piece_size
+                sub_end = (
+                    sub_info.offset + max(sub_info.size - 1, 0)
+                ) // self.torrent.piece_size
+                for p in range(sub_start, sub_end + 1):
+                    pieces.add(p)
+                    if len(pieces) >= 6:
+                        break
+                if len(pieces) >= 6:
+                    break
+            self._matched_subtitle_pieces = sorted(pieces)
+        except Exception:
+            self._matched_subtitle_pieces = []
+
+        return self._matched_subtitle_pieces
 
     @property
     def has_active_streams(self) -> bool:

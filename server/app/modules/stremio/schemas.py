@@ -141,6 +141,18 @@ class BehaviorHints(BaseModel):
     video_size: int | None = None
 
 
+class StremioSubtitle(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    id: str
+    url: str
+    lang: str
+    label: str | None = None
+
+
 class StremioStream(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
@@ -151,16 +163,32 @@ class StremioStream(BaseModel):
     description: str
     url: str | None = None
     external_url: str | None = None
+    subtitles: list[StremioSubtitle] | None = None
     behavior_hints: BehaviorHints | None = None
 
     @classmethod
     def from_id_torrent_stream(cls, torrent_stream: TorrentStream) -> StremioStream:
         file_size = f"💾 {humanize.naturalsize(torrent_stream.file_size, binary=True, format='%.2f')}"
 
+        stremio_subtitles = (
+            [
+                StremioSubtitle(
+                    id=sub.id,
+                    url=sub.url,
+                    lang=sub.lang,
+                    label=sub.label,
+                )
+                for sub in torrent_stream.subtitles
+            ]
+            if torrent_stream.subtitles
+            else None
+        )
+
         return cls(
             name=file_size,
             description=f"📁 {torrent_stream.file_name}",
             url=torrent_stream.play_url,
+            subtitles=stremio_subtitles,
             behavior_hints=BehaviorHints(
                 filename=cls._build_behavior_filename(
                     file_name=torrent_stream.file_name,
@@ -299,10 +327,25 @@ class StremioStream(BaseModel):
             media_attributes=media_attributes,
         )
 
+        stremio_subtitles = (
+            [
+                StremioSubtitle(
+                    id=sub.id,
+                    url=sub.url,
+                    lang=sub.lang,
+                    label=sub.label,
+                )
+                for sub in torrent_stream.subtitles
+            ]
+            if torrent_stream.subtitles
+            else None
+        )
+
         return cls(
             name=name,
             description=description,
             url=torrent_stream.play_url,
+            subtitles=stremio_subtitles,
             behavior_hints=BehaviorHints(
                 filename=behavior_filename,
                 binge_group=binge_group,
@@ -357,6 +400,16 @@ class StremioStreams(BaseModel):
     )
 
     streams: list[StremioStream]
+
+
+class StremioSubtitles(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    subtitles: list[StremioSubtitle] = []
+
 
 
 # ──────────────────────────────────────────────

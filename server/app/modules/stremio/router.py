@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from fastapi.responses import RedirectResponse
 
 from app.common.logger import logger
@@ -22,6 +22,7 @@ from app.modules.stremio.schemas import (
     StreamId,
     StremioCatalogResponse,
     StremioStreams,
+    StremioSubtitles,
 )
 from app.modules.stremio.service import StremioService
 from app.modules.users.models import UserModel
@@ -70,6 +71,34 @@ async def streams(
     logger.info(f"[StremioRouter] Stream kérés érkezett: {media_type=}, {parsed_id=}")
     streams = await stremio_service.get_streams(user, parsed_id)
     return StremioStreams(streams=streams)
+
+
+@router.get(
+    "/subtitles/{media_type}/{stream_id}.json",
+    response_model=StremioSubtitles,
+    response_model_exclude_none=True,
+)
+@router.get(
+    "/subtitles/{media_type}/{stream_id}/{extra}.json",
+    response_model=StremioSubtitles,
+    response_model_exclude_none=True,
+)
+async def subtitles(
+    request: Request,
+    media_type: Annotated[MediaType, Path(..., description="A média típusa")],
+    parsed_id: Annotated[StreamId, Depends(get_parsed_stream_id)],
+    stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
+    user: Annotated[UserModel, Depends(ApiKeyGuard())],
+    extra: str | None = None,
+) -> StremioSubtitles:
+    stremio_subs = await stremio_service.get_subtitles(
+        user=user,
+        parsed_id=parsed_id,
+        extra=extra,
+        query_params=dict(request.query_params),
+    )
+    return StremioSubtitles(subtitles=stremio_subs)
+
 
 
 @router.get(

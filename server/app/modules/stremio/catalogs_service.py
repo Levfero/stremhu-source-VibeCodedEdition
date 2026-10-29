@@ -45,15 +45,34 @@ class StremioCatalogsService:
             return StremioCatalogResponse(metas=[])
 
         parts = extra.search.split("-", 1)
-        if len(parts) < 2 or parts[0] != "t":
-            return StremioCatalogResponse(metas=[])
+        if len(parts) >= 2 and parts[0] == "t":
+            torrent_id = parts[1]
+            try:
+                meta_previews = await self.get_metas(torrent_id, media_type=media_type)
+            except Exception as e:
+                logger.error("A lista lekérésénél hiba történt: %s", e)
+                meta_previews = []
+            return StremioCatalogResponse(metas=meta_previews)
 
-        torrent_id = parts[1]
-
+        # Ha nem t-<torrent_id> formátumú, közvetlen név/cím szerinti keresést futtatunk a trackereken
         try:
-            meta_previews = await self.get_metas(torrent_id, media_type=media_type)
+            torrent_sources, _ = (
+                await self._torrent_source_provider_service.find_by_query(extra.search)
+            )
+            content_type = (
+                ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
+            )
+            meta_previews = [
+                MetaPreview.from_torrent_file(
+                    torrent_source.torrent_file,
+                    content_type=content_type,
+                )
+                for torrent_source in torrent_sources
+            ]
         except Exception as e:
-            logger.error("A lista lekérésénél hiba történt: %s", e)
+            logger.error(
+                "Katalógus név szerinti keresési hiba (%s): %s", extra.search, e
+            )
             meta_previews = []
 
         return StremioCatalogResponse(metas=meta_previews)

@@ -518,6 +518,39 @@ class MetaDetail(BaseMeta):
         torrent_file: TorrentFileModel,
         content_type: ContentType = ContentType.MOVIE,
     ) -> MetaDetail:
+        videos: list[MetaVideo] | None = None
+        behavior_hints: MetaDetailBehaviorHints | None = None
+
+        if content_type == ContentType.SERIES:
+            from app.modules.torrent_streams.utils.resolver_helpers import (
+                is_sample_or_trash,
+            )
+            from app.modules.torrent_streams.utils.series_parser import SeriesParser
+
+            videos = []
+            default_vid: str | None = None
+            ep_counter = 1
+            for file in torrent_file.info.files:
+                if not file.is_video or is_sample_or_trash(file.name):
+                    continue
+                s_list, e_list = SeriesParser(file.path or file.name).parse()
+                season = s_list[0] if s_list else 1
+                episode = e_list[0] if e_list else ep_counter
+                ep_counter += 1
+                video_id = f"{cls.build_meta_id(torrent_file.indexer_id, torrent_file.torrent_id)}:{file.index}"
+                if not default_vid:
+                    default_vid = video_id
+                videos.append(
+                    MetaVideo(
+                        id=video_id,
+                        title=file.name,
+                        season=season,
+                        episode=episode,
+                    )
+                )
+            if default_vid:
+                behavior_hints = MetaDetailBehaviorHints(default_video_id=default_vid)
+
         return cls(
             id=cls.build_meta_id(
                 torrent_file.indexer_id,
@@ -525,6 +558,8 @@ class MetaDetail(BaseMeta):
             ),
             type=content_type,
             name=torrent_file.info.name,
+            videos=videos,
+            behavior_hints=behavior_hints,
         )
 
 
@@ -571,6 +606,7 @@ class TorrentStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TORRENT
     indexer_id: str
     torrent_id: str
+    file_index: int | None = None
 
 
 class TvdbStreamId(BaseModel):

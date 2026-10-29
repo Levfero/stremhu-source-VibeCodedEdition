@@ -17,6 +17,7 @@ from app.modules.stremio.enums import (
 )
 from app.modules.stremio.schemas import (
     KitsuStreamId,
+    MalStreamId,
     Manifest,
     ManifestBehaviorHints,
     ManifestCatalog,
@@ -177,19 +178,33 @@ class StremioService:
         fallback_title_override: str | None = None
 
         if isinstance(parsed_id, TvdbStreamId):
-            resolved_imdb_id = await self._tvdb_resolver.resolve_tvdb_to_imdb(
-                parsed_id.tvdb_id
-            )
-            if not resolved_imdb_id:
+            resolved_imdb_id: str | None = None
+            resolved_title: str | None = None
+            if hasattr(self._tvdb_resolver, "resolve_tvdb_to_imdb"):
+                resolved_imdb_id = await self._tvdb_resolver.resolve_tvdb_to_imdb(
+                    parsed_id.tvdb_id
+                )
+            if not resolved_imdb_id and hasattr(self._tvdb_resolver, "resolve_tvdb"):
+                tvdb_res = await self._tvdb_resolver.resolve_tvdb(
+                    parsed_id.tvdb_id,
+                    is_series=parsed_id.series_info is not None,
+                )
+                if isinstance(tvdb_res, tuple) and len(tvdb_res) >= 2:
+                    resolved_imdb_id, resolved_title = tvdb_res[0], tvdb_res[1]
+                elif isinstance(tvdb_res, str):
+                    resolved_imdb_id = tvdb_res
+
+            imdb_id = resolved_imdb_id
+            series_info = parsed_id.series_info
+            fallback_title_override = resolved_title
+            if not imdb_id and not fallback_title_override:
                 return [
                     StremioStream(
                         name="⚠️ [StremHU] TVDB feloldási hiba",
-                        description=f"Nem sikerült IMDb azonosítót találni a TVDB ID-hoz ({parsed_id.tvdb_id}).",
+                        description=f"Nem sikerült IMDb azonosítót vagy címet találni a TVDB ID-hoz ({parsed_id.tvdb_id}).",
                         external_url=app_url,
                     )
                 ]
-            imdb_id = resolved_imdb_id
-            series_info = parsed_id.series_info
         elif isinstance(parsed_id, KitsuStreamId):
             (
                 resolved_imdb_id,
@@ -197,18 +212,11 @@ class StremioService:
                 ep,
                 alt_eps,
                 alt_seasons,
-            ) = await self._tvdb_resolver.resolve_kitsu_to_imdb(
+                resolved_title,
+            ) = await self._tvdb_resolver.resolve_kitsu(
                 parsed_id.kitsu_id,
                 parsed_id.episode,
             )
-            if not resolved_imdb_id:
-                return [
-                    StremioStream(
-                        name="⚠️ [StremHU] Kitsu feloldási hiba",
-                        description=f"Nem sikerült IMDb azonosítót találni a Kitsu ID-hoz ({parsed_id.kitsu_id}).",
-                        external_url=app_url,
-                    )
-                ]
             imdb_id = resolved_imdb_id
             series_info = (
                 SeriesInfo(
@@ -220,6 +228,47 @@ class StremioService:
                 if ep is not None
                 else None
             )
+            fallback_title_override = resolved_title
+            if not imdb_id and not fallback_title_override:
+                return [
+                    StremioStream(
+                        name="⚠️ [StremHU] Kitsu feloldási hiba",
+                        description=f"Nem sikerült IMDb azonosítót vagy címet találni a Kitsu ID-hoz ({parsed_id.kitsu_id}).",
+                        external_url=app_url,
+                    )
+                ]
+        elif isinstance(parsed_id, MalStreamId):
+            (
+                resolved_imdb_id,
+                season,
+                ep,
+                alt_eps,
+                alt_seasons,
+                resolved_title,
+            ) = await self._tvdb_resolver.resolve_mal(
+                parsed_id.mal_id,
+                parsed_id.episode,
+            )
+            imdb_id = resolved_imdb_id
+            series_info = (
+                SeriesInfo(
+                    season=season or 1,
+                    episode=ep,
+                    alternate_episodes=alt_eps,
+                    alternate_seasons=alt_seasons,
+                )
+                if ep is not None
+                else None
+            )
+            fallback_title_override = resolved_title
+            if not imdb_id and not fallback_title_override:
+                return [
+                    StremioStream(
+                        name="⚠️ [StremHU] MyAnimeList feloldási hiba",
+                        description=f"Nem sikerült IMDb azonosítót vagy címet találni a MyAnimeList ID-hoz ({parsed_id.mal_id}).",
+                        external_url=app_url,
+                    )
+                ]
         elif isinstance(parsed_id, TmdbStreamId):
             (
                 resolved_imdb_id,
@@ -253,7 +302,7 @@ class StremioService:
             prefetch_task = asyncio.create_task(provider.find_by_imdb_id(imdb_id))
 
         try:
-            # Dinamikus epizód leképezés és alternatív IMDb azonosítók feloldása (csak sorozatoknál)
+            # Dinamikus epizód leképezés (sorozatoknál) és alternatív IMDb azonosítók feloldása
             alternate_imdb_ids: list[str] | None = None
             if imdb_id and series_info is not None:
                 if (
@@ -275,17 +324,15 @@ class StremioService:
                     except Exception as e:
                         logger.debug(f"[StremioService] Epizód leképezés hiba: {e}")
 
-                if hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
-                    try:
-                        alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(
-                            imdb_id
-                        )
-                        if isinstance(alt_res, list):
-                            alternate_imdb_ids = alt_res
-                    except Exception as e:
-                        logger.debug(
-                            f"[StremioService] Alternatív IMDb feloldási hiba: {e}"
-                        )
+            if imdb_id and hasattr(self._tvdb_resolver, "get_alternate_imdb_ids"):
+                try:
+                    alt_res = await self._tvdb_resolver.get_alternate_imdb_ids(imdb_id)
+                    if isinstance(alt_res, list) and alt_res:
+                        alternate_imdb_ids = alt_res
+                except Exception as e:
+                    logger.debug(
+                        f"[StremioService] Alternatív IMDb feloldási hiba: {e}"
+                    )
 
             # IMDb alapú stream lekérdezés kereséssel és feloldással
             # A másodlagos név szerinti kereséshez a cím csak akkor kerül lekérésre, ha IMDb-re 0 torrent érkezett
@@ -305,6 +352,7 @@ class StremioService:
                 series=series_info,
                 fallback_title=fallback_fn,
                 alternate_imdb_ids=alternate_imdb_ids,
+                prefetch_task=prefetch_task,
             )
         finally:
             if prefetch_task is not None and not prefetch_task.done():

@@ -43,6 +43,7 @@ class StreamIdType(str, Enum):
     TVDB = "tvdb"
     KITSU = "kitsu"
     TMDB = "tmdb"
+    MAL = "mal"
 
 
 class MediaType(str, Enum):

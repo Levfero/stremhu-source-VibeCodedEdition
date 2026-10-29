@@ -7,8 +7,9 @@ from app.common.torrent_info import TorrentFileInfo, TorrentInfo
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.constants import SEARCH_ID
 from app.modules.stremio.enums import MediaType
-from app.modules.stremio.schemas import ParsedExtra
+from app.modules.stremio.schemas import KitsuStreamId, MalStreamId, ParsedExtra
 from app.modules.stremio.tvdb_resolver import TvdbResolver
+from app.modules.stremio.utils import parse_stream_id
 from app.modules.torrent_streams.utils.resolver_helpers import (
     is_extra_file,
     is_extra_folder,
@@ -244,4 +245,166 @@ async def test_stremio_catalog_service_supports_series():
     )
     assert len(res.metas) == 1
     assert res.metas[0].id == "stremhu-source:ncore:12345"
+
+
+def test_parse_stream_id_mal_and_anime_prefixes():
+    # MAL stream IDs
+    mal_stream = parse_stream_id("mal:21:1")
+    assert isinstance(mal_stream, MalStreamId)
+    assert mal_stream.mal_id == "21"
+    assert mal_stream.episode == 1
+
+    # anime: prefix stripped
+    anime_kitsu = parse_stream_id("anime:kitsu:12:3")
+    assert isinstance(anime_kitsu, KitsuStreamId)
+    assert anime_kitsu.kitsu_id == "12"
+    assert anime_kitsu.episode == 3
+
+    anime_mal = parse_stream_id("anime:mal:100:2")
+    assert isinstance(anime_mal, MalStreamId)
+    assert anime_mal.mal_id == "100"
+    assert anime_mal.episode == 2
+
+
+@pytest.mark.anyio
+async def test_resolve_tvdb_series_via_tvmaze():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "name": "Game of Thrones",
+        "externals": {"imdb": "tt0944947"},
+    }
+    mock_client.get.return_value = mock_resp
+    resolver._client = mock_client
+
+    imdb_id, title = await resolver.resolve_tvdb("121361", is_series=True)
+    assert imdb_id == "tt0944947"
+    assert title == "Game of Thrones"
+
+
+@pytest.mark.anyio
+async def test_resolve_tvdb_movie_via_wikidata():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "results": {
+            "bindings": [
+                {
+                    "imdb": {"value": "tt1375666"},
+                    "labelHu": {"value": "Eredet"},
+                    "labelEn": {"value": "Inception"},
+                }
+            ]
+        }
+    }
+    mock_client.get.return_value = mock_resp
+    resolver._client = mock_client
+
+    imdb_id, title = await resolver.resolve_tvdb("305", is_series=False)
+    assert imdb_id == "tt1375666"
+    assert title == "Eredet"
+
+
+@pytest.mark.anyio
+async def test_resolve_kitsu_with_title_fallback():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+
+    # strem.fun returns 404
+    mock_404 = MagicMock()
+    mock_404.status_code = 404
+
+    # kitsu API returns canonicalTitle
+    mock_kitsu = MagicMock()
+    mock_kitsu.status_code = 200
+    mock_kitsu.json.return_value = {
+        "data": {
+            "attributes": {
+                "canonicalTitle": "Solo Leveling",
+                "titles": {"en": "Solo Leveling"},
+            }
+        }
+    }
+
+    async def fake_get(url, **kwargs):
+        if "kitsu.io" in url:
+            return mock_kitsu
+        return mock_404
+
+    mock_client.get.side_effect = fake_get
+    resolver._client = mock_client
+
+    imdb_id, season, ep, alt_eps, alt_seasons, title = await resolver.resolve_kitsu(45678, 1)
+    assert imdb_id is None
+    assert season == 1
+    assert ep == 1
+    assert title == "Solo Leveling"
+
+
+@pytest.mark.anyio
+async def test_resolve_mal_via_kitsu_mapping():
+    resolver = TvdbResolver()
+    mock_client = AsyncMock()
+    mock_client.is_closed = False
+
+    # 1. Kitsu mapping returns kitsu item id 12
+    mock_mapping_resp = MagicMock()
+    mock_mapping_resp.status_code = 200
+    mock_mapping_resp.json.return_value = {
+        "data": [
+            {
+                "relationships": {
+                    "item": {"data": {"type": "anime", "id": "12"}}
+                }
+            }
+        ]
+    }
+
+    # 2. Kitsu details
+    mock_kitsu_resp = MagicMock()
+    mock_kitsu_resp.status_code = 200
+    mock_kitsu_resp.json.return_value = {
+        "data": {
+            "attributes": {
+                "canonicalTitle": "One Piece",
+                "titles": {"en": "One Piece"},
+            }
+        }
+    }
+
+    # 3. strem.fun returns imdb_id in meta
+    mock_stremfun_resp = MagicMock()
+    mock_stremfun_resp.status_code = 200
+    mock_stremfun_resp.json.return_value = {
+        "meta": {
+            "imdb_id": "tt0388629",
+            "name": "One Piece",
+        }
+    }
+
+    async def fake_get(url, **kwargs):
+        if "mappings" in url:
+            return mock_mapping_resp
+        if "kitsu.io/api/edge/anime" in url:
+            return mock_kitsu_resp
+        if "strem.fun" in url:
+            return mock_stremfun_resp
+        return MagicMock(status_code=404)
+
+    mock_client.get.side_effect = fake_get
+    resolver._client = mock_client
+
+    imdb_id, season, ep, alt_eps, alt_seasons, title = await resolver.resolve_mal("21", 1)
+    assert imdb_id == "tt0388629"
+    assert title == "One Piece"
+
 

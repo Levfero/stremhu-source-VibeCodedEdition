@@ -503,7 +503,21 @@ class TmdbStreamId(BaseModel):
     series_info: SeriesInfo | None = None
 
 
-StreamId = ImdbStreamId | TorrentStreamId | TvdbStreamId | KitsuStreamId | TmdbStreamId
+class MalStreamId(BaseModel):
+    type: StreamIdType = StreamIdType.MAL
+    mal_id: str
+    episode: int | None = None
+    series_info: SeriesInfo | None = None
+
+
+StreamId = (
+    ImdbStreamId
+    | TorrentStreamId
+    | TvdbStreamId
+    | KitsuStreamId
+    | TmdbStreamId
+    | MalStreamId
+)
 
 
 

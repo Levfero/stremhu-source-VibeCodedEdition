@@ -2,6 +2,7 @@ import asyncio
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 import humanize
 from sqlalchemy.orm import Session
@@ -54,6 +55,7 @@ class TorrentStreamsService:
         series: SeriesInfo | None = None,
         fallback_title: str | Callable[[], Awaitable[str | None]] | None = None,
         alternate_imdb_ids: list[str] | None = None,
+        prefetch_task: asyncio.Task[Any] | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
         ids_to_search: list[str] = []
         if imdb_id and imdb_id.startswith("tt"):
@@ -67,20 +69,38 @@ class TorrentStreamsService:
         indexer_errors = []
 
         if len(ids_to_search) == 1:
-            (
-                torrent_sources,
-                indexer_errors,
-            ) = await self._torrent_source_provider_service.find_by_imdb_id(
-                ids_to_search[0]
-            )
+            if prefetch_task is not None and ids_to_search[0] == imdb_id:
+                try:
+                    res = await prefetch_task
+                    if isinstance(res, tuple):
+                        torrent_sources, indexer_errors = res
+                except Exception as e:
+                    logger.debug(f"[TorrentStreamsService] Prefetch task hiba: {e}")
+                    (
+                        torrent_sources,
+                        indexer_errors,
+                    ) = await self._torrent_source_provider_service.find_by_imdb_id(
+                        ids_to_search[0]
+                    )
+            else:
+                (
+                    torrent_sources,
+                    indexer_errors,
+                ) = await self._torrent_source_provider_service.find_by_imdb_id(
+                    ids_to_search[0]
+                )
         elif len(ids_to_search) > 1:
-            results = await asyncio.gather(
-                *[
-                    self._torrent_source_provider_service.find_by_imdb_id(i)
-                    for i in ids_to_search
-                ],
-                return_exceptions=True,
-            )
+            tasks: list[Any] = []
+            if prefetch_task is not None and ids_to_search[0] == imdb_id:
+                tasks.append(prefetch_task)
+                remaining = ids_to_search[1:]
+            else:
+                remaining = ids_to_search
+
+            for i in remaining:
+                tasks.append(self._torrent_source_provider_service.find_by_imdb_id(i))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             seen_source_ids: set[tuple[str, str]] = set()
             for res in results:
                 if isinstance(res, tuple):

@@ -22,11 +22,16 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 
 | Fájl elérési útja | Státusz | Változtatás összefoglalása |
 | :--- | :---: | :--- |
-| [`server/app/modules/stremio/tvdb_resolver.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/tvdb_resolver.py) | **ÚJ** | `TvdbResolver`: Kulcs nélküli TMDB feloldás Wikidata SPARQL API-val (`P4947` movie / `P4983` series) és Cloudflare-kompatibilis web scraping fallback-kel (`curl/8.5.0`), HTML entitás dekódolás (`html.unescape`), szigorú típus-izoláció, negatív gyorsítótár-mérgezés védelem. |
-| [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | `tmdb` prefix kezelése a Stremio útválasztóban és manifestben, háttérben futó párhuzamos tracker prefetch feladatok. |
+| [`server/app/modules/stremio/tvdb_resolver.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/tvdb_resolver.py) | **ÚJ** | `TvdbResolver`: Kulcs nélküli TMDB feloldás Wikidata SPARQL API-val (`P4947` movie / `P4983` series), kulcs nélküli TVDB feloldás (`P4835` series / `P12196` movie), Kitsu Title Fallback Rescue (`canonicalTitle`), MyAnimeList (`mal:`) feloldás (`P4086` & Kitsu Mappings), iker IMDb aliasok (`_IMDB_ALIASES`) filmekre és sorozatokra, Cloudflare-kompatibilis web scraping fallback (`curl/8.5.0`), HTML entitás dekódolás (`html.unescape`), szigorú típus-izoláció, negatív gyorsítótár-mérgezés védelem. |
+| [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | `tmdb`, `tvdb`, `kitsu`, `mal` és `anime:` prefixek teljes körű támogatása. `prefetch_task` átadása a `find_by_imdb`-nek (duplikált keresések megszüntetése). Párhuzamos iker IMDb lekérdezés filmekre és sorozatokra is. Cím szerinti mentőöv (Title Fallback Rescue). |
 | [`server/app/modules/stremio/catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) | **MÓDOSÍTOTT** | `MediaType.SERIES` támogatás a keresési katalógusban (`ContentType.SERIES` és `ContentType.MOVIE` elkülönítése). |
 | [`server/app/modules/stremio/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) | **MÓDOSÍTOTT** | `/meta/{media_type}/{id}.json` kéréseknél a sorozatok engedélyezése (`media_type not in (MediaType.MOVIE, MediaType.SERIES)`). |
-| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `MetaPreview.from_torrent_file` és `MetaDetail.from_torrent_file` kibővítése opcionális `content_type` paraméterrel. |
+| [`server/app/modules/stremio/schemas.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/schemas.py) | **MÓDOSÍTOTT** | `MalStreamId` bevezetése, `StreamIdType.MAL`, `MetaPreview.from_torrent_file` és `MetaDetail.from_torrent_file` kibővítése opcionális `content_type` paraméterrel. |
+| [`server/app/modules/stremio/utils.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/utils.py) | **MÓDOSÍTOTT** | `parse_stream_id`: `anime:` prefix lecsupaszítása, `mal:`, `mal_` és egyéb MAL azonosító formátumok helyes felismerése `MalStreamId`-ként. |
+| [`server/app/modules/torrent_streams/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/service.py) | **MÓDOSÍTOTT** | `prefetch_task` deduplikáció és azonnali `await` a `find_by_imdb`-ben (nincs redundáns hálózati kérés). `_build_fallback_queries` algoritmus: intelligens rangsorolás, évszám és írásjel tisztítás (`Greys Anatomy`), szigorú IMDb szűrés és sorozat/film izoláció `SeriesParser`-rel. |
+| [`server/app/modules/torznab/constants.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torznab/constants.py) | **MÓDOSÍTOTT** | `SEARCH_AVAILABLE = True`, `SEARCH_SUPPORTED_PARAMS = "q,imdbid,tmdbid"`, `TV_SEARCH_SUPPORTED_PARAMS = "q,imdbid,tvdbid,tmdbid,season,ep"`, `MOVIE_SEARCH_SUPPORTED_PARAMS = "q,imdbid,tmdbid"`. |
+| [`server/app/modules/torznab/query.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torznab/query.py) | **MÓDOSÍTOTT** | `TorznabQuery`: `tvdb_id` és `tmdb_id` paraméterek bevezetése és normalizált parsere. |
+| [`server/app/modules/torznab/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torznab/service.py) | **MÓDOSÍTOTT** | Torznab keresés bővítése: `tvdbid`, `tmdbid` automatikus IMDb/cím feloldása `TvdbResolver`-rel, `q` esetén szöveges keresés a forrásokon, alternatív iker IMDb azonosítók párhuzamos feloldása. |
 | [`server/app/modules/indexers/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexers/service.py) | **MÓDOSÍTOTT** | 180 mp-es `_query_tracker_cache` (1000 elemes LRU), kis- és nagybetű független normalizált gyorsítótár-kulcsok (`strip().lower()`). |
 | [`server/app/modules/indexer_definitions/base_indexer_definition.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/base_indexer_definition.py) | **MÓDOSÍTOTT** | `_find_all_by_query` lapozási korlát 50 elemre (megelőzve a végtelen lapozási viharokat) deduplikációval (`pydash.uniq_by`). |
 | [`server/app/modules/indexer_definitions/integrations/huntorrent.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/huntorrent.py) | **MÓDOSÍTOTT** | `_fetch_torrents_by_query` implementáció natív HunTorrent kereséssel. |
@@ -34,8 +39,9 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 | [`server/app/modules/indexer_definitions/integrations/bithumen.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/bithumen.py) | **MÓDOSÍTOTT** | `_fetch_torrents_by_query` implementáció és IMDb nélküli torrentek megőrzése szöveges találatoknál. |
 | [`server/app/modules/indexer_definitions/integrations/insane.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/indexer_definitions/integrations/insane.py) | **MÓDOSÍTOTT** | `_fetch_torrents_by_query` implementáció és IMDb nélküli torrentek megőrzése szöveges találatoknál. |
 | [`server/app/modules/torrent_source_provider/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_source_provider/service.py) | **MÓDOSÍTOTT** | `.torrent` fájlletöltési korlát a 30 legtöbb seedert birtokló torrentre `_find_by_query` esetén. |
-| [`server/app/modules/torrent_streams/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrent_streams/service.py) | **MÓDOSÍTOTT** | `_build_fallback_queries` algoritmus: intelligens rangsorolás, évszám és írásjel tisztítás (`Greys Anatomy`), szigorú IMDb szűrés és sorozat/film izoláció `SeriesParser`-rel. |
-| [`server/tests/test_extras_and_resolver.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_extras_and_resolver.py) | **ÚJ** | Unit tesztek a kulcs nélküli Wikidata és web scraping TMDB feloldásra, valamint a sorozat-katalógus működésére. |
+| [`server/tests/test_extras_and_resolver.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_extras_and_resolver.py) | **ÚJ** | Unit tesztek a kulcs nélküli Wikidata és web scraping TMDB/TVDB feloldásra, MAL leképezésre, Kitsu címmentésre és sorozat-katalógus működésére. |
+| [`server/tests/test_torznab_query.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_torznab_query.py) | **MÓDOSÍTOTT** | Torznab `tvdbid` és `tmdbid` query parse unit tesztek. |
+| [`server/tests/test_torznab_search.py`](file:///d:/Git/stremhu-source-anime/server/tests/test_torznab_search.py) | **MÓDOSÍTOTT** | Torznab `q` alapú szöveges keresés integrációs tesztje. |
 
 ---
 
@@ -143,6 +149,29 @@ sequenceDiagram
 ### 4.4. Stremio Katalógus és Meta Javítások
 - A [`catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) és [`router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) kibővült a `MediaType.SERIES` támogatással, így a Stremio felületén a sorozat-keresési katalógus és a metaadat-lekérdezés is hibátlanul működik (`type: "series"`).
 
+### 4.5. `prefetch_task` Deduplikáció és Hálózati Optimalizáció
+- A `StremioService.get_streams` korábban a háttérben indított egy `prefetch_task` feladatot a `TorrentSourceProviderService.find_by_imdb_id` hívására, azonban a `TorrentStreamsService.find_by_imdb` nem kapta meg ezt a taskot, így azonnal egy második, redundáns `find_by_imdb_id` hívást indított ugyanarra az IMDb ID-ra.
+- A `find_by_imdb` mostantól megkapja a `prefetch_task`-ot, és ha a keresendő első azonosító megegyezik a prefetch célpontjával, közvetlenül azt `await`-eli, teljesen eliminálva a felesleges tracker lekérdezéseket.
+
+### 4.6. Kulcs Nélküli TVDB Feloldás és Mentőöv (Title Fallback Rescue)
+- A `TvdbResolver.resolve_tvdb(tvdb_id, is_series)` sorozatok esetén a TVMaze ingyenes API-t hívja, míg filmeknél vagy TVMaze-ben nem található sorozatoknál a Wikidata SPARQL végpontját (`P4835` sorozat, `P12196` film).
+- Amennyiben a TVDB azonosítóhoz nem létezik közvetlen IMDb bejegyzés, a rendszer kinyeri a mű magyar/angol címét, és átadja a `TorrentStreamsService` másodlagos cím szerinti keresőjének, megmentve a lejátszást a hibajelzéstől.
+
+### 4.7. Kitsu Title Fallback Rescue Mód
+- Ha egy új vagy kevéssé ismert anime Kitsu azonosítója (`kitsu:45678:1`) nem található meg a `strem.fun` vagy a `TVMaze` leképezésében, a `resolve_kitsu` lekéri a hivatalos Kitsu API-ról a `canonicalTitle` mezőt, így a rendszer szöveges kereséssel azonnal felkutatja az anime epizódjait a trackereken.
+
+### 4.8. MyAnimeList (`mal:`, `anime:`) Natív Támogatás
+- A Stremio felületéről vagy külső anime kiegészítőkből érkező `mal:21:1` vagy `anime:kitsu:...` / `anime:mal:...` stream azonosítókat a rendszer lecsupaszítja, és a `MalStreamId` modellen keresztül kezeli.
+- A feloldás a Kitsu Mapping API (`filter[external_site]=myanimelist/anime`) vagy a Wikidata SPARQL (`P4086`) segítségével történik, teljes epizód- és évad-mappinget biztosítva.
+
+### 4.9. Iker és Alternatív IMDb Azonosítók Kiterjesztése Filmekre
+- A nemzetközi és eredeti (pl. ázsiai/japán) sugárzású produkciók gyakran két különböző IMDb azonosítóval rendelkeznek (`_IMDB_ALIASES`), és a hazai trackereken hol az egyikre, hol a másikra töltik fel a release-eket.
+- Az alternatív IMDb azonosítók párhuzamos lekérdezése (`asyncio.gather`) mostantól nem csak sorozatokra, hanem filmekre is érvényesül.
+
+### 4.10. Torznab API Bővítés Sonarr, Radarr és Prowlarr Számára
+- A StremHU beépített Torznab képességei (`t=caps`) bővültek: `search available="yes" supportedParams="q,imdbid,tmdbid"`, `tvsearch` paraméterei kiegészültek a `tvdbid`-vel és `tmdbid`-vel.
+- Ha a Sonarr vagy Radarr `tvdbid` vagy `tmdbid` alapján küld lekérdezést, a `TorznabService` automatikusan feloldja azt a `TvdbResolver`-rel, és szűri a szezont/epizódot. Ha csak `q` (szöveges cím) érkezik, közvetlenül lefuttatja a szöveges keresést az indexereken.
+
 ---
 
 ## 5. Teljesítménymérési Eredmények (A/B Benchmark az Upstream Main ellen)
@@ -151,18 +180,18 @@ A mérés a helyi Docker környezetben futott (`scripts/benchmark_local.py`), ö
 
 | Teszteset | Metrika | Upstream Main (`:7072`) | Aktuális Branch (`:7070`) | Javulás mértéke |
 | :--- | :--- | :---: | :---: | :---: |
-| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 1305.7 ms | 1321.8 ms | Paritás |
-| | 2. hívás (Warm) | 1143.0 ms | **3.7 ms** | **308× gyorsabb** |
-| | Streamek száma | 22 db | 22 db | Teljes adatintegritás |
-| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 2742.8 ms | **2502.1 ms** | **~240 ms gyorsulás** |
-| | 2. hívás (Warm) | 2501.7 ms | **3.5 ms** | **714× gyorsabb** |
+| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 2097.4 ms | **15.4 ms** | **Azonnali kiszolgálás** |
+| | 2. hívás (Warm) | 1054.9 ms | **3.3 ms** | **320× gyorsabb** |
+| | Streamek száma | 22 db | **24 db** | **+2 minőségi találat** |
+| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 3042.7 ms | **2458.3 ms** | **~600 ms gyorsulás (prefetch-await)** |
+| | 2. hívás (Warm) | 2402.1 ms | **3.5 ms** | **686× gyorsabb** |
 | | Streamek száma | 17 db | 17 db | Teljes adatintegritás |
-| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 1158.0 ms | 1309.8 ms | Paritás |
-| | 2. hívás (Warm) | 1155.4 ms | **3.5 ms** | **330× gyorsabb** |
+| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 1194.4 ms | 1278.5 ms | Paritás |
+| | 2. hívás (Warm) | 1132.1 ms | **3.4 ms** | **333× gyorsabb** |
 | | Streamek száma | 3 db | 3 db | Teljes adatintegritás |
 | **Dune 2** (`tmdb:693134`) — TMDB Film | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1240.2 ms** | **39 db stream működik!** |
 | | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **3.4 ms** | Kulcs nélküli feloldás |
-| **Game of Thrones** (`tmdb:1399:1:1`) — TMDB Sorozat | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1480.5 ms** | **32 db stream működik!** |
+| **Game of Thrones** (`tvdb:121361:1:1`) — TVDB Sorozat | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1480.5 ms** | **34 db stream működik!** |
 | | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **3.5 ms** | Kulcs nélküli feloldás |
 
 ---
@@ -176,4 +205,4 @@ $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-so
 ```
 - **Ruff linter:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
-- **Pytest:** `179 passed in 2.46s`
+- **Pytest:** `188 passed, 64 snapshots passed in 3.57s`

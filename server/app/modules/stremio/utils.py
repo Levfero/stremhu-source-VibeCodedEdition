@@ -6,6 +6,7 @@ from app.modules.stremio.enums import StreamIdType
 from app.modules.stremio.schemas import (
     ImdbStreamId,
     KitsuStreamId,
+    MalStreamId,
     ParsedCatalogId,
     ParsedExtra,
     StreamId,
@@ -23,7 +24,13 @@ def parse_stream_id(value: str) -> StreamId:
     - "tt1234567:1:2" → IMDB stream sorozattal (season=1, episode=2)
     - "tvdb:12345" → TVDB stream
     - "tvdb:12345:1:2" → TVDB stream sorozattal (season=1, episode=2)
+    - "kitsu:12345:1" → Kitsu anime stream
+    - "tmdb:12345" vagy "tmdb:12345:1:2" → TMDB stream
+    - "mal:12345:1" → MyAnimeList stream
     """
+    if value.startswith("anime:"):
+        value = value.removeprefix("anime:")
+
     is_app = value.startswith(ADDON_APP_PREFIX_ID)
 
     if is_app:
@@ -174,6 +181,44 @@ def parse_stream_id(value: str) -> StreamId:
         return TmdbStreamId(
             type=StreamIdType.TMDB,
             tmdb_id=tmdb_id,
+            series_info=series_info,
+        )
+
+    if value.startswith("mal"):
+        if value.startswith("mal:"):
+            mal_val = value[4:]
+        elif value.startswith("mal_"):
+            mal_val = value[4:]
+        else:
+            mal_val = value[3:]
+
+        parts = mal_val.split(":")
+        mal_id = parts[0]
+
+        if not mal_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Érvénytelen MyAnimeList stream azonosító formátum.",
+            )
+
+        episode = None
+        if len(parts) > 1 and parts[1]:
+            try:
+                episode = int(parts[1])
+            except ValueError:
+                episode = None
+
+        series_info = None
+        if episode is not None:
+            series_info = SeriesInfo(
+                season=1,
+                episode=episode,
+            )
+
+        return MalStreamId(
+            type=StreamIdType.MAL,
+            mal_id=mal_id,
+            episode=episode,
             series_info=series_info,
         )
 

@@ -82,9 +82,9 @@ def get_manifest_settings(
     manifest_settings = settings_service.get_manifest_settings()
     endpoints = settings_service.get_manifest_endpoints(only_enabled=False)
     return ManifestSettingsResponse(
-        lan_enabled=manifest_settings.lan_enabled,
+        lan_enabled=bool(manifest_settings.lan_enabled),
         lan_url=manifest_settings.lan_url or "",
-        tailscale_enabled=manifest_settings.tailscale_enabled,
+        tailscale_enabled=bool(manifest_settings.tailscale_enabled),
         tailscale_url=manifest_settings.tailscale_url or "",
         endpoints=endpoints,
     )
@@ -102,9 +102,9 @@ def update_manifest_settings(
     manifest_settings = settings_service.save_manifests(payload)
     endpoints = settings_service.get_manifest_endpoints(only_enabled=False)
     return ManifestSettingsResponse(
-        lan_enabled=manifest_settings.lan_enabled,
+        lan_enabled=bool(manifest_settings.lan_enabled),
         lan_url=manifest_settings.lan_url or "",
-        tailscale_enabled=manifest_settings.tailscale_enabled,
+        tailscale_enabled=bool(manifest_settings.tailscale_enabled),
         tailscale_url=manifest_settings.tailscale_url or "",
         endpoints=endpoints,
     )

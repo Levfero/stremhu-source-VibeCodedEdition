@@ -34,6 +34,7 @@ class Config(BaseSettings):
     )
 
     reverse_proxy_domain: str | None = None
+    tmdb_api_key: str | None = None
 
     lan_url: str | None = None
     tailscale_ip: str | None = None

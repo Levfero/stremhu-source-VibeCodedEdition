@@ -1,4 +1,6 @@
 import asyncio
+import time
+from typing import Any
 
 from fastapi import HTTPException, status
 
@@ -26,6 +28,10 @@ from app.modules.settings.schemas.internal import SystemSettings
 from app.modules.settings.service import SettingsService
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
+
+_IMDB_TRACKER_CACHE_TTL = 180.0
+_IMDB_TRACKER_CACHE_MAX = 1000
+_imdb_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 
 
 class IndexersService:
@@ -250,12 +256,93 @@ class IndexersService:
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
         ) -> list[IndexerTorrent]:
+            cache_key = (indexer_account.indexer_id, imdb_id)
+            now = time.monotonic()
+            indexer_definition_torrents: list[Any] | None = None
+            cached = _imdb_tracker_cache.get(cache_key)
+            if cached is not None:
+                ts, cached_def_torrents = cached
+                if now - ts < _IMDB_TRACKER_CACHE_TTL:
+                    indexer_definition_torrents = cached_def_torrents
+                else:
+                    _imdb_tracker_cache.pop(cache_key, None)
 
+            if indexer_definition_torrents is None:
+                indexer_definition = self._indexer_definitions_service.get_by_id(
+                    indexer_account.indexer_id
+                )
+                indexer_definition_torrents = (
+                    await indexer_definition.find_torrents_by_imdb_id(imdb_id)
+                )
+                if len(_imdb_tracker_cache) >= _IMDB_TRACKER_CACHE_MAX:
+                    oldest_key = min(
+                        _imdb_tracker_cache, key=lambda k: _imdb_tracker_cache[k][0]
+                    )
+                    _imdb_tracker_cache.pop(oldest_key, None)
+                _imdb_tracker_cache[cache_key] = (
+                    time.monotonic(),
+                    list(indexer_definition_torrents),
+                )
+
+            return [
+                IndexerTorrent(
+                    indexer_account=indexer_account,
+                    torrent_id=indexer_definition_torrent.torrent_id,
+                    download_url=indexer_definition_torrent.download_url,
+                    imdb_id=indexer_definition_torrent.imdb_id,
+                    seeders=indexer_definition_torrent.seeders,
+                    media_attributes=resolve_attribute_ids(
+                        indexer_definition_torrent.attribute_ids
+                    ),
+                )
+                for indexer_definition_torrent in indexer_definition_torrents
+            ]
+
+        async def fetch_and_map_with_timeout(
+            indexer_account: IndexerAccountModel,
+        ) -> list[IndexerTorrent]:
+            try:
+                return await asyncio.wait_for(
+                    fetch_and_map(indexer_account), timeout=12.5
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError(
+                    f"A(z) '{indexer_account.indexer_definition.name}' indexer nem válaszolt időben."
+                )
+
+        tasks = [
+            fetch_and_map_with_timeout(indexer_account)
+            for indexer_account in indexer_accounts
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        indexer_torrents: list[IndexerTorrent] = []
+        errors: list[str] = []
+
+        for result in results:
+            if isinstance(result, BaseException):
+                errors.append(str(result))
+            else:
+                indexer_torrents.extend(result)
+
+        return indexer_torrents, errors
+
+    async def get_torrents_by_query(
+        self,
+        query: str,
+    ) -> tuple[list[IndexerTorrent], list[str]]:
+        indexer_accounts = await asyncio.to_thread(
+            self._indexer_accounts_service.find_list
+        )
+
+        async def fetch_and_map(
+            indexer_account: IndexerAccountModel,
+        ) -> list[IndexerTorrent]:
             indexer_definition = self._indexer_definitions_service.get_by_id(
                 indexer_account.indexer_id
             )
             indexer_definition_torrents = (
-                await indexer_definition.find_torrents_by_imdb_id(imdb_id)
+                await indexer_definition.find_torrents_by_query(query)
             )
             return [
                 IndexerTorrent(

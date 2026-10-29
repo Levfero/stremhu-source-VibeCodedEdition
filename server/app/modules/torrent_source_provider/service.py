@@ -61,6 +61,35 @@ class TorrentSourceProviderService:
 
         return torrent_files, indexer_errors
 
+    async def find_by_query(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        task_key = f"query:{query}"
+        if task_key in _ongoing_tasks:
+            result = await _ongoing_tasks[task_key]
+            return cast(tuple[list[TorrentSource], list[str]], result)
+
+        task = asyncio.create_task(self._find_by_query(query))
+        _ongoing_tasks[task_key] = task
+        try:
+            return await task
+        finally:
+            _ongoing_tasks.pop(task_key, None)
+
+    async def _find_by_query(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        (
+            indexer_torrents,
+            indexer_errors,
+        ) = await self._indexers_service.get_torrents_by_query(query)
+
+        torrent_files = await self._sync_torrent_files(indexer_torrents)
+
+        return torrent_files, indexer_errors
+
     async def find_by_torrent_id(
         self,
         torrent_id: str,
@@ -162,7 +191,7 @@ class TorrentSourceProviderService:
             for current_torrent_file in current_torrent_files
         }
 
-        download_tasks: list[Awaitable[TorrentFileModel | None]] = []
+        download_tasks: list[Awaitable[tuple[str, str, bytes] | None]] = []
         for indexer_torrent in indexer_torrents:
             if (
                 indexer_torrent.indexer_account.indexer_id,
@@ -170,17 +199,24 @@ class TorrentSourceProviderService:
             ) in current_torrent_files_map:
                 continue
 
-            download_tasks.append(self._download_and_save_torrent(indexer_torrent))
+            download_tasks.append(self._download_torrent_bytes(indexer_torrent))
 
         results = await asyncio.gather(*download_tasks, return_exceptions=True)
 
-        created_torrent_files: list[TorrentFileModel] = []
+        downloaded_items: list[tuple[str, str, bytes]] = []
         for result in results:
             if isinstance(result, BaseException):
                 logger.exception("⚠️ Hiba a torrent feldolgozása során", exc_info=result)
                 continue
             if result is not None:
-                created_torrent_files.append(result)
+                downloaded_items.append(result)
+
+        created_torrent_files: list[TorrentFileModel] = []
+        if downloaded_items:
+            created_torrent_files = await asyncio.to_thread(
+                self._isolated_torrent_files_service.create_many,
+                downloaded_items,
+            )
 
         torrent_files = current_torrent_files + created_torrent_files
 
@@ -214,6 +250,29 @@ class TorrentSourceProviderService:
             return torrent_sources[0] if torrent_sources else None
 
         return torrent_sources
+
+    async def _download_torrent_bytes(
+        self, indexer_torrent: IndexerTorrent
+    ) -> tuple[str, str, bytes] | None:
+        async with _torrent_provider_locks(
+            f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
+        ):
+            try:
+                downloaded_torrent_file = await self._indexers_service.download_torrent(
+                    indexer_torrent.indexer_account.indexer_id,
+                    indexer_torrent.torrent_id,
+                    indexer_torrent.download_url,
+                )
+                return (
+                    downloaded_torrent_file.indexer_id,
+                    downloaded_torrent_file.torrent_id,
+                    downloaded_torrent_file.torrent_bytes,
+                )
+            except InvalidTorrentFileException:
+                logger.warning(
+                    f"⚠️ Érvénytelen torrent fájl átugorva: indexer: {indexer_torrent.indexer_account.indexer_id}, torrent_id: {indexer_torrent.torrent_id}"
+                )
+                return None
 
     async def _download_and_save_torrent(
         self, indexer_torrent: IndexerTorrent

@@ -28,6 +28,8 @@
 > - **Eredeti GitHub repository:** [https://github.com/s4pp1/stremhu-source](https://github.com/s4pp1/stremhu-source)
 > - **Hivatalos weboldal & dokumentáció:** [https://stremhu.app](https://stremhu.app)
 > - **Hivatalos Docker Hub:** [s4pp1/stremhu-source](https://hub.docker.com/r/s4pp1/stremhu-source)
+>
+> A jelenlegi fork célja a több végpontos (LAN / Tailscale / Remote) manifest kiszolgálás, anime, TVDB, Kitsu támogatás és fejlett feloldási logikák biztosítása a Stremio, Nuvio és Kodi felhasználók számára.
 
 ---
 
@@ -108,6 +110,105 @@ graph TD
    - Dedikált beállítási kártya és integrációs link a Kodi kiegészítőhöz az adott végpontra szabva.
 3. **Rendszer Dashboard áttekintés**:
    - A rendszer főoldalán megjelenik az aktív hálózati végpontok listája és a hálózati beállítások közvetlen linkje.
+
+---
+
+## 🌸 Anime, TheTVDB & Kitsu támogatás (`feature/anime-tvdb-kitsu-support` branch)
+
+Ez a kiadás kiterjeszti a StremHU Source működését teljes körű anime és alternatív metaadat-kezeléssel, megoldva az anime rajongók legnagyobb problémáját: az anime címek, évadok és az abszolút vs. relatív epizódszámozások közötti eltéréseket a magyar és nemzetközi trackereken.
+
+### 🌟 Főbb új funkciók és működés
+
+#### 1. Kitsu és TheTVDB azonosítók natív kezelése
+- **Kitsu Stream ID-k**: `kitsu:{kitsu_id}:{episode}` formátumú kérések natív támogatása (pl. Nuvio, Stremio Anime Kitsu addonok).
+  - Lekéri a Kitsu API-ból az anime kanonikus és alternatív címeit, valamint a valódi évadszámot.
+- **TheTVDB Stream ID-k**: `tvdb:{tvdb_id}:{season}:{episode}` formátumú kérések automatikus feloldása és leképezése IMDb azonosítóra.
+- **Anime-Kitsu leképezési adatbázis**:
+  - Automatikusan feloldja a Kitsu bejegyzéseket a hivatalos IMDb ID-ra és kiszámítja a globális abszolút epizódszámokat (pl. *Attack on Titan Season 3 Ep 2* -> IMDb `tt2560140`, Abszolút Epizód: `39`).
+
+#### 2. Alternatív IMDb azonosítók párhuzamos lekérdezése (Aliasing)
+- Bizonyos klasszikus és hosszú sorozatok (különösen animék) több külön IMDb bejegyzéssel is futnak a magyar torrent trackereken.
+  - **Példa**: *Dragon Ball Z* esetén a trackereken megtalálható az eredeti 1989-es bejegyzés (`tt0121220`) és az 1996-os nemzetközi bejegyzés (`tt0214341`) is.
+  - A rendszer felismeri az ilyen kapcsolatokat, és párhuzamosan lekéri az összes alternatív IMDb azonosító forrásait a trackerekről, majd a seederszám és minőség szerint egyesíti és rangsorolja a találatokat.
+
+#### 3. Intelligens Anime Fájlfeloldó (`StreamFileResolver` & `SeriesParser`)
+- **Abszolút számozású animék támogatása**: Ha a torrentben a fájlok folyamatos sorszámozással vannak ellátva (pl. `One Piece - 1089.mkv`), a rendszer a Wano arc évad/epizód kérését (pl. S21E01) automatikusan hozzáilleszti az abszolút sorszámhoz (`1089`).
+- **Több évados pakkok és szezongyűjtemények**:
+  - Helyesen kezeli a `Season 1`, `S01-S03`, `S01-S09 BDRip`, vagy számozott mappa-struktúrákat (pl. `01. Noragami`, `02. Noragami Aragoto`).
+  - **Relatív prioritás későbbi évadoknál**: Megakadályozza, hogy a 2. évad mappájában lévő `13.mkv` fájlt tévesen a 2. évad 1. részének higgye pusztán az abszolút epizód indexelés miatt.
+
+#### 4. Teljesítmény-optimalizálások (Cold Start, Binge-Watching, Batch SQLite & Libtorrent)
+- **1. Tracker keresés és epizód-leképezés párhuzamosítása (Cold Start gyorsítás)**:
+  - A tracker keresés (`TorrentSourceProviderService.find_by_imdb_id`) azonnal, a `t = 0 ms` pillanatban elindul a háttérben, miközben a `TvdbResolver` lekéri a Cinemeta / Anime-Kitsu epizód-leképezéseket.
+  - Filmeknél (`movie`) és kanonikus Anime-Kitsu / élőszereplős sorozatoknál a rendszer automatikusan kihagyja a felesleges dinamikus Kitsu iker-IMDb lekérdezéseket.
+- **2. IMDb `TorrentSource` és `TorrentInfo` memória-gyorsítótár (Epizódváltás / Binge-Watching ~800ms -> ~15ms)**:
+  - Az IMDb azonosítóhoz tartozó tracker-találatokat a szerver rövid lejáratú (180 mp TTL) memóriabeli cache-ben, a dekódolt `.torrent` metaadatokat (`_TORRENT_INFO_CACHE`) és a tisztított torrentneveket (`@lru_cache`) pedig memóriában tartja, így sorozatnézéskor a következő epizódra váltás nem terheli újra a trackereket.
+- **3. Kötegelt (Batch) `.torrent` SQLite tranzakció (`create_many`)**:
+  - Az újonnan letöltött `.torrent` fájlokat a szerver párhuzamos HTTP letöltés után egyetlen kötegelt SQLite tranzakcióban és lemezre írással (`create_many`) menti el 20–40 különálló adatbázis-tranzakció helyett.
+- **4. Agresszívebb `libtorrent` piece-deadline ütemezés**:
+  - A videó indításakor és tekerésekor (seek) az aktuális piece `0 ms`, a közvetlenül következő piece `300 ms`, az előtöltött (prefetch) piece-ek pedig `1000 + távolság * 500 ms` határidőt kapnak a gyorsabb lejátszás-indítás érdekében.
+- **Negatív gyorsítótár védelem**: átmeneti hálózati kimaradás vagy timeout esetén a rendszer nem gyorsítótáraz hibás üres választ, így a következő lekérés azonnal megkísérli az újrapróbálkozást.
+
+---
+
+## 🔄 Hogyan működik a kérésfeldolgozás? (End-to-End Workflow)
+
+Amikor a kliensben (pl. **Stremio**, **Nuvio** vagy **Kodi**) kiválasztasz egy anime részt, a StremHU Source a háttérben több összetett lépésen keresztül oldja fel az eltérő számozásokat és trackereket.
+
+### 🎬 Gyakorlati példa: *One Piece* (Wano Arc – 1089. rész)
+
+Tegyük fel, hogy a Stremio vagy Nuvio felületén elindítod a **One Piece** 1089. részét:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Felhasználó (Stremio / Nuvio)
+    participant API as StremioRouter (/stream)
+    participant TVDB as TvdbResolver (Metaadatok)
+    participant Indexer as Tracker Kereső (nCore, stb.)
+    participant Resolver as StreamFileResolver (Fájlillesztés)
+    participant Engine as BitTorrent Streaming Engine
+
+    User->>API: Lekérés: kitsu:12:1089 vagy series:tt0388629:21:1
+    API->>TVDB: Metaadat és alternatív számozás lekérése
+    TVDB-->>API: IMDb: tt0388629, Évad: 21, Rész: 1, Alt. epizódok: [1089]
+    API->>Indexer: Keresés trackereken (IMDb ID és cím alapján)
+    Indexer-->>API: Visszaadott torrent találatok listája
+    API->>Resolver: Fájlok vizsgálata a torrenten belül
+    Note over Resolver: Felismeri: [SubsPlease] One Piece - 1089.mkv == S21E01!
+    Resolver-->>API: Kiválasztott videófájl
+    API-->>User: Lejátszható Stremio stream JSON válasz
+    User->>Engine: Közvetlen videófolyam indítása (P2P várakozás nélkül)
+```
+
+#### A folyamat lépésről lépésre:
+
+1. **Beérkező kliens kérés**:
+   - A kliens kérést küld a StremHU szervernek:
+     - Kitsu kiegészítő esetén: `kitsu:12:1089` (Kitsu sorozat ID `12`, epizód `1089`).
+     - IMDb / Cinemeta esetén: `series:tt0388629:21:1` (One Piece Wano Country Arc, Season 21 Episode 1).
+   - A `parse_stream_id` felismeri az azonosító típusát (`KITSU`, `TVDB` vagy `IMDB`).
+
+2. **Metaadat és számozás feloldása (`TvdbResolver`)**:
+   - **Kitsu feloldás**: A Kitsu API és az `anime-kitsu` mapping adatbázis segítségével a szerver megtalálja a sorozat hivatalos IMDb azonosítóját (`tt0388629`), a sorozat címét (*One Piece*), és kiszámítja a szezonális leképezést (Season 21 Episode 1).
+   - **Abszolút epizódszám csatolása**: Az anime kiadások a trackereken szinte kizárólag folyamatos számozást használnak (`1089`) a szezonális (`S21E01`) helyett. A resolver az alternatív epizódszámok közé felveszi az abszolút számot: `alternate_episodes = [1089]`.
+   - **Alternatív IMDb azonosítók (Aliasing)**: Megvizsgálja, tartozik-e másik IMDb ID a sorozathoz (pl. *Dragon Ball Z* esetén az 1989-es és 1996-os kiadás).
+
+3. **Torrent források felkutatása (`TorrentStreamsService`)**:
+   - A szerver párhuzamos lekérdezéseket indít a beállított trackerek (pl. nCore, BitHUmen, iNSANE) felé az IMDb azonosító(k) alapján: `find_by_imdb_id("tt0388629")`.
+   - *Fallback keresés*: Ha az IMDb ID-ra nincs találat, vagy a letöltött torrentpakkokban hiányzik az adott epizód, automatikus szöveges másodlagos keresés indul (pl. tisztított, ékezetmentes címekkel: `One Piece`).
+
+4. **Intelligens fájlfeloldás a torrenten belül (`StreamFileResolver` & `SeriesParser`)**:
+   - A beérkező torrentek fájllistájában a feloldó elemzi a struktúrát:
+     - **Heti különálló release**: Pl. `[SubsPlease] One Piece - 1089 (1080p) [98E7B28B].mkv`. A `SeriesParser` azonosítja a `- 1089` epizódszámot. A feloldó egyezteti: `1089` megegyezik a kért `alternate_episodes=[1089]` értékkel -> **Azonnali találat!**
+     - **Évadpakk (Season Pack)**: Pl. `One Piece S21 1080p/One Piece - E01.mkv`. A mappa alapján az évad 21, a fájl alapján az epizód 1 -> relatív évad/epizód egyezés -> **Találat!**
+     - **Több évados gyűjtemény**: A feloldó kizárja a menüket, extrákat (`00. Extrák`, `BD Menü`) és más évadok számozásait, biztosítva, hogy ne keveredjenek össze a részek.
+
+5. **Szűrés, rangsorolás és közvetlen streamelés**:
+   - A találatokat a szerver a felhasználó beállításai szerint rendezi (pl. seederszám, felbontás, minőség, kizárt kulcsszavak).
+   - Generálja a közvetlen stream hivatkozást a belső BitTorrent engine felé.
+   - A kliens megkapja a JSON választ, és a lejátszás várakozás és előzetes letöltés nélkül, azonnal elindul!
+>>>>>>> main
 
 ---
 

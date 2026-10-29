@@ -6,6 +6,7 @@ class ContentType(str, Enum):
     SERIES = "series"
     CHANNEL = "channel"
     TV = "tv"
+    ANIME = "anime"
 
 
 class ShortManifestResource(str, Enum):
@@ -39,8 +40,11 @@ class ManifestConfigType(str, Enum):
 class StreamIdType(str, Enum):
     TORRENT = "torrent"
     IMDB = "imdb"
+    TVDB = "tvdb"
+    KITSU = "kitsu"
 
 
 class MediaType(str, Enum):
     MOVIE = "movie"
     SERIES = "series"
+    ANIME = "anime"

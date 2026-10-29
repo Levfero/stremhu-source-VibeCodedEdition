@@ -190,7 +190,10 @@ class InsaneIndexerDefinition(BaseIndexerDefinition):
         )
 
     async def _fetch_torrents_by_query(
-        self, query: str, page: int | None = None
+        self,
+        query: str,
+        page: int | None = None,
+        media_type: str | None = None,
     ) -> IndexerDefinitionFindTorrentsResult:
         return await self._fetch_torrents(query, page)
 

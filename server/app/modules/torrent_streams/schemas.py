@@ -67,6 +67,7 @@ class TorrentStream(BaseModel):
         torrent_file: TorrentFileModel,
         app_url: str,
         user: UserModel,
+        file_index: int | None = None,
     ) -> list["TorrentStream"]:
         indexer_id = indexer_torrent.indexer_account.indexer_id
 
@@ -77,6 +78,9 @@ class TorrentStream(BaseModel):
                 continue
 
             if is_sample_or_trash(file.name):
+                continue
+
+            if file_index is not None and file.index != file_index:
                 continue
 
             playback_id = str(uuid.uuid4())

@@ -188,6 +188,7 @@ class StremioService:
                 indexer_id=parsed_id.indexer_id,
                 torrent_id=parsed_id.torrent_id,
                 user=user,
+                file_index=parsed_id.file_index,
             )
 
             return [

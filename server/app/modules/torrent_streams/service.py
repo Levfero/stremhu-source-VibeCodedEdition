@@ -286,6 +286,7 @@ class TorrentStreamsService:
         indexer_id: str,
         torrent_id: str,
         user: UserModel,
+        file_index: int | None = None,
     ) -> list[TorrentStream]:
 
         torrent_source = (
@@ -304,6 +305,7 @@ class TorrentStreamsService:
             torrent_file=torrent_source.torrent_file,
             app_url=app_url,
             user=user,
+            file_index=file_index,
         )
 
     def _is_torrent_stream_excluded(

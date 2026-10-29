@@ -22,8 +22,8 @@ import {
 import { Separator } from '@/shared/components/ui/separator'
 import { getSystemStatus } from '@/shared/queries/system'
 
-import { useNetworkAccessForm } from './-features/network-access/use-network-access-form'
 import { ManifestSettingsCard } from './-features/manifest-settings-card'
+import { useNetworkAccessForm } from './-features/network-access/use-network-access-form'
 import { DASHBOARD_SYSTEM_NETWORK_NAME } from './route'
 
 export const Route = createFileRoute('/_protected/dashboard/system/network/')({
@@ -57,13 +57,19 @@ function RouteComponent() {
 
             <CardContent className="grid gap-4">
               {systemStatus.isReverseProxy ? (
-                <Alert variant="default" className="border-primary/20 bg-primary/5">
+                <Alert
+                  variant="default"
+                  className="border-primary/20 bg-primary/5"
+                >
                   <InfoIcon className="text-primary" />
-                  <AlertTitle>Környezeti változó (Reverse Proxy) mód aktív</AlertTitle>
+                  <AlertTitle>
+                    Környezeti változó (Reverse Proxy) mód aktív
+                  </AlertTitle>
                   <AlertDescription>
-                    A fő nyilvános domaint a REVERSE_PROXY_DOMAIN környezeti változó
-                    vezérli. A kliens eléréseket (LAN, Tailscale és egyedi VPN) az
-                    alábbi kártyán tudod beállítani és testreszabni.
+                    A fő nyilvános domaint a REVERSE_PROXY_DOMAIN környezeti
+                    változó vezérli. A kliens eléréseket (LAN, Tailscale és
+                    egyedi VPN) az alábbi kártyán tudod beállítani és
+                    testreszabni.
                   </AlertDescription>
                 </Alert>
               ) : (

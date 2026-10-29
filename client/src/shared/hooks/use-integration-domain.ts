@@ -28,8 +28,7 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
 
   const manifests = useMemo<IntegrationManifestItem[]>(() => {
     const rawList =
-      systemStatus.manifestEndpoints ||
-      (systemStatus as any).manifest_endpoints
+      systemStatus.manifestEndpoints || (systemStatus as any).manifest_endpoints
     const filteredList = rawList?.filter(
       (ep: any) => ep.isEnabled !== false && ep.is_enabled !== false,
     )
@@ -42,7 +41,8 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
               name: 'Nyilvános',
               badge: 'Nyilvános',
               urlSuffix: 'stremio',
-              baseUrl: systemStatus.appUrl || (systemStatus as any).app_url || '',
+              baseUrl:
+                systemStatus.appUrl || (systemStatus as any).app_url || '',
               isEnabled: true,
             },
           ]
@@ -65,7 +65,15 @@ export function useIntegrationDomain(props: UseIntegrationDomainProps) {
 
       return {
         id: ep.id,
-        name: ep.name || (ep.id === 'default' ? 'Nyilvános' : ep.id === 'lan' ? 'Helyi hálózat (LAN)' : ep.id === 'tailscale' ? 'Tailscale' : ep.id),
+        name:
+          ep.name ||
+          (ep.id === 'default'
+            ? 'Nyilvános'
+            : ep.id === 'lan'
+              ? 'Helyi hálózat (LAN)'
+              : ep.id === 'tailscale'
+                ? 'Tailscale'
+                : ep.id),
         badge:
           ep.badge ||
           (ep.id === 'lan'

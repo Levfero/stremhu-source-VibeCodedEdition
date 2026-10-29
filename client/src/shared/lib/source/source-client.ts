@@ -199,8 +199,10 @@ export interface MeUpdateRequest {
   password?: string | null
   torrentSeed?: number | null
   enableSmartFilter?: boolean | null
+  enableStreamDeduplication?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
+  enableFallbackSubtitles?: boolean | null
 }
 
 export type MediaType = (typeof MediaType)[keyof typeof MediaType]
@@ -369,8 +371,10 @@ export interface UserResponse {
   createdAt: string
   torrentSeed: number | null
   enableSmartFilter: boolean
+  enableStreamDeduplication: boolean
   smartFilterGroupingPreferenceId: string | null
   smartFilterLimit: number
+  enableFallbackSubtitles: boolean
   maxConcurrentStreams: number | null
 }
 
@@ -554,9 +558,11 @@ export interface UserCreateRequest {
   username: string
   torrentSeed?: number | null
   enableSmartFilter?: boolean
+  enableStreamDeduplication?: boolean
   smartFilterGroupingPreferenceId?: string | null
   /** @minimum 1 */
   smartFilterLimit?: number
+  enableFallbackSubtitles?: boolean
   maxConcurrentStreams?: number | null
   password?: string | null
   roleId?: string
@@ -568,8 +574,10 @@ export interface UserUpdateRequest {
   roleId?: string | null
   torrentSeed?: number | null
   enableSmartFilter?: boolean | null
+  enableStreamDeduplication?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
+  enableFallbackSubtitles?: boolean | null
   maxConcurrentStreams?: number | null
 }
 

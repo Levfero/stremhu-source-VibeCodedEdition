@@ -169,10 +169,12 @@ def create_torrent_source(
         torrent_id=torrent_id,
         torrent_bytes=torrent_bytes,
     )
+    info_hash = hashlib.sha1(f"{indexer_id}:{torrent_id}".encode()).hexdigest()
+    torrent_file.info_hash = info_hash
     torrent_file._cached_info = create_torrent_info(
         name=name,
         files=torrent_files,
-        info_hash=hashlib.sha1(f"{indexer_id}:{torrent_id}".encode()).hexdigest(),
+        info_hash=info_hash,
     )
     # Időzóna nélkül a formázó a gép helyi idejét feltételezné,
     # és a snapshot gépenként más lenne.

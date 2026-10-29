@@ -147,7 +147,8 @@ export function ManifestSettingsCard() {
   const getEndpointIcon = (id: string) => {
     if (id === 'default') return <GlobeIcon className="size-4 text-primary" />
     if (id === 'lan') return <HardDriveIcon className="size-4 text-primary" />
-    if (id === 'tailscale') return <ShieldIcon className="size-4 text-primary" />
+    if (id === 'tailscale')
+      return <ShieldIcon className="size-4 text-primary" />
     return <NetworkIcon className="size-4 text-primary" />
   }
 
@@ -241,7 +242,12 @@ export function ManifestSettingsCard() {
                 disabled={isLoading}
               />
               <p className="text-[11px] text-muted-foreground">
-                Végpont: <code className="text-foreground">/api/[kulcs]/{ep.id === 'default' ? 'stremio' : `stremio-${ep.id}`}/manifest.json</code>
+                Végpont:{' '}
+                <code className="text-foreground">
+                  /api/[kulcs]/
+                  {ep.id === 'default' ? 'stremio' : `stremio-${ep.id}`}
+                  /manifest.json
+                </code>
               </p>
             </div>
           </div>

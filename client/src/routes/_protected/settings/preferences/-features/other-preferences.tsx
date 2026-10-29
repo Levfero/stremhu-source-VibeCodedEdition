@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 
 import { SmartFilterSettings } from '@/features/smart-filter/smart-filter-settings'
+import { SubtitleSettingsCard } from '@/features/subtitle-settings/subtitle-settings'
 import {
   Card,
   CardContent,
@@ -12,12 +13,14 @@ import {
 } from '@/shared/components/ui/card'
 import { Label } from '@/shared/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group'
+import { Switch } from '@/shared/components/ui/switch'
 import { SEED_OPTIONS } from '@/shared/constants'
 import { useAppForm } from '@/shared/contexts/form-context'
 import { assertExists, parseApiError } from '@/shared/lib/utils'
 import { getMe, useUpdateMe } from '@/shared/queries/me'
 import {
   enableSmartFilterSchema,
+  enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceIdSchema,
   smartFilterLimitSchema,
   torrentSeedSchema,
@@ -26,6 +29,7 @@ import {
 export const validatorSchema = z.object({
   torrentSeed: torrentSeedSchema,
   enableSmartFilter: enableSmartFilterSchema,
+  enableStreamDeduplication: enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceId: smartFilterGroupingPreferenceIdSchema,
   smartFilterLimit: smartFilterLimitSchema,
 })
@@ -42,6 +46,7 @@ export function OtherPreferences() {
     defaultValues: {
       torrentSeed: me.torrentSeed,
       enableSmartFilter: me.enableSmartFilter,
+      enableStreamDeduplication: me.enableStreamDeduplication,
       smartFilterGroupingPreferenceId: me.smartFilterGroupingPreferenceId,
       smartFilterLimit: me.smartFilterLimit,
     },
@@ -121,6 +126,34 @@ export function OtherPreferences() {
           </CardContent>
         </Card>
 
+        <Card className="break-inside-avoid mb-4">
+          <CardHeader>
+            <CardTitle>Találatok összevonása</CardTitle>
+            <CardDescription>
+              Több tracker (pl. nCore, HunTorrent, Majomparádé) azonos tartalmú
+              release-einek intelligens összevonása egyetlen találattá,
+              összesített seederekkel.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form.Field name="enableStreamDeduplication">
+              {(field) => (
+                <Label
+                  htmlFor={field.name}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
+                  <Switch
+                    id={field.name}
+                    checked={field.state.value}
+                    onCheckedChange={field.handleChange}
+                  />
+                  <span>Több-trackeres találatok összevonása</span>
+                </Label>
+              )}
+            </form.Field>
+          </CardContent>
+        </Card>
+
         <SmartFilterSettings
           form={form}
           fields={{
@@ -129,6 +162,8 @@ export function OtherPreferences() {
             smartFilterGroupingPreferenceId: 'smartFilterGroupingPreferenceId',
           }}
         />
+
+        <SubtitleSettingsCard />
       </div>
     </div>
   )

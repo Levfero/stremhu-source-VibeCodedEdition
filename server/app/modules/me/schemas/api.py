@@ -16,9 +16,13 @@ class MeUpdateRequest(BaseModel):
 
     enable_smart_filter: bool | None = None
 
+    enable_stream_deduplication: bool | None = None
+
     smart_filter_grouping_preference_id: str | None = None
 
     smart_filter_limit: int | None = Field(
         default=None,
         ge=1,
     )
+
+    enable_fallback_subtitles: bool | None = None

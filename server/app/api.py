@@ -12,7 +12,10 @@ from app.modules.pairings.router import router as pairings_router
 from app.modules.playbacks.router import router as playbacks_router
 from app.modules.preferences.router import router as preferences_router
 from app.modules.relay_settings.router import router as relay_settings_router
-from app.modules.stream.router import router as stream_router
+from app.modules.stream.router import (
+    router as stream_router,
+    subtitles_router,
+)
 from app.modules.stremio.router import (
     router as stremio_router,
     router_dynamic as stremio_dynamic_router,
@@ -61,6 +64,7 @@ api_router.include_router(
     include_in_schema=show_internal_routes(),
 )
 api_router.include_router(stream_router)
+api_router.include_router(subtitles_router)
 api_router.include_router(torznab_router)
 api_router.include_router(stremio_router)
 api_router.include_router(stremio_dynamic_router)

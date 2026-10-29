@@ -12,11 +12,19 @@ class BaseUser(BaseModel):
         default=False,
     )
 
+    enable_stream_deduplication: bool = Field(
+        default=True,
+    )
+
     smart_filter_grouping_preference_id: str | None = None
 
     smart_filter_limit: int = Field(
         default=1,
         ge=1,
+    )
+
+    enable_fallback_subtitles: bool = Field(
+        default=False,
     )
 
     max_concurrent_streams: int | None = Field(
@@ -42,12 +50,16 @@ class UserUpdate(BaseModel):
 
     enable_smart_filter: bool | None = None
 
+    enable_stream_deduplication: bool | None = None
+
     smart_filter_grouping_preference_id: str | None = None
 
     smart_filter_limit: int | None = Field(
         default=None,
         ge=1,
     )
+
+    enable_fallback_subtitles: bool | None = None
 
     max_concurrent_streams: int | None = Field(
         default=None,

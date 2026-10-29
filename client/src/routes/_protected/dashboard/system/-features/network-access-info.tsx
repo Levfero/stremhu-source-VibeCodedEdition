@@ -62,7 +62,10 @@ export function NetworkAccessInfo() {
             className="rounded-full shrink-0"
             asChild
           >
-            <Link to="/dashboard/system/network" title="Hálózati elérések és manifestek kezelése">
+            <Link
+              to="/dashboard/system/network"
+              title="Hálózati elérések és manifestek kezelése"
+            >
               <SettingsIcon />
             </Link>
           </Button>
@@ -100,27 +103,30 @@ export function NetworkAccessInfo() {
           )}
         </div>
 
-        {systemStatus.manifestEndpoints && systemStatus.manifestEndpoints.length > 0 && (
-          <>
-            <Separator />
-            <div className="grid gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Konfigurált kliens elérések
-              </span>
-              <div className="grid gap-1.5 text-xs font-mono">
-                {systemStatus.manifestEndpoints.map((ep) => (
-                  <div
-                    key={ep.id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/40"
-                  >
-                    <span className="font-medium font-sans">{ep.name}:</span>
-                    <span className="text-muted-foreground truncate">{ep.baseUrl}</span>
-                  </div>
-                ))}
+        {systemStatus.manifestEndpoints &&
+          systemStatus.manifestEndpoints.length > 0 && (
+            <>
+              <Separator />
+              <div className="grid gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Konfigurált kliens elérések
+                </span>
+                <div className="grid gap-1.5 text-xs font-mono">
+                  {systemStatus.manifestEndpoints.map((ep) => (
+                    <div
+                      key={ep.id}
+                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/40"
+                    >
+                      <span className="font-medium font-sans">{ep.name}:</span>
+                      <span className="text-muted-foreground truncate">
+                        {ep.baseUrl}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
         <Separator />
         <Item className="p-0 flex-nowrap">

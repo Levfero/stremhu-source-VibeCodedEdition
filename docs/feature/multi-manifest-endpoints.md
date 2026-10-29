@@ -14,7 +14,7 @@ Az eredeti `s4pp1/stremhu-source` egyetlen globális szervercímet (`app_url`) h
 
 A `feature/multi-manifest-endpoints` branch ezt oldja meg:
 - **Dinamikus többvégpontos Stremio / Nuvio / Kodi router (`/{api_key}/stremio-{endpoint_id}/...`):** Egyetlen szerver egyszerre tudja kiszolgálni az alapértelmezett (Nyilvános), a Helyi (`lan`), a Tailscale (`tailscale`) és bármilyen egyedi (`custom`) hálózati végpontot.
-- **Automatikus Stream URL átírás (`endpoint_type` szerint):** A válaszban visszaadott `/relay/...` lejátszási URL-ek automatikusan annak a végpontnak a `base_url`-jére íródnak át, amelyik manifest végponton keresztül a kliens csatlakozott.
+- **Automatikus Stream és Felirat URL átírás (`endpoint_type` szerint):** A válaszban visszaadott `/relay/...` és `/subtitles/...` hivatkozások automatikusan annak a végpontnak a `base_url`-jére íródnak át, amelyik manifest végponton keresztül a kliens csatlakozott.
 - **Automatikus hálózati interfész felderítés (`tailscale0`, `LAN_URL`, `TAILSCALE_URL`):** Linux `SIOCGIFADDR` ioctl hívással és környezeti változókból automatikusan felismeri a szerver helyi és Tailscale IP-címét.
 - **Teljes körű Web UI végpontkezelő és gyorsválasztó:** A `/dashboard/system/network` oldalon dinamikusan szerkeszthetők, ki-/bekapcsolhatók és létrehozhatók a hálózati végpontok, a főoldalon és a felhasználói adatlapon pedig egyetlen legördülő menüvel választható ki, melyik hálózathoz generálja a telepítő linkeket.
 
@@ -30,8 +30,8 @@ A `feature/multi-manifest-endpoints` branch ezt oldja meg:
 | [`server/app/modules/settings/schemas/internal.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/settings/schemas/internal.py) | **MÓDOSÍTOTT** | `NetworkEndpoint` séma (`id`, `name`, `base_url`, `enabled`, `is_builtin`). |
 | [`server/app/modules/settings/schemas/api.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/settings/schemas/api.py) | **MÓDOSÍTOTT** | API kérés/válasz sémák a hálózati végpontok lekérdezéséhez és mentéséhez. |
 | [`server/app/modules/settings/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/settings/service.py) | **MÓDOSÍTOTT** | `get_network_endpoints()`, `update_network_endpoints()`, `get_endpoint_by_id()`, `get_manifest_url()`, valamint `_detect_tailscale_ip()` automatikus interfész-felderítés. |
-| [`server/app/modules/stremio/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) | **MÓDOSÍTOTT** | `endpoint_type: str = "default"` paraméter továbbítása a `manifest.json` és `/stream/...` végpontokon. |
-| [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | Végpont-specifikus `addon_id` (`hu.stremhu-source.addon.{endpoint}`), `name` (`StremHU Source (LAN)`), `logo` és stream URL átírás; végpont-tudatos `_stream_cache` kulcs (`{user.id}:{endpoint_type}:{parsed_id}`). |
+| [`server/app/modules/stremio/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) | **MÓDOSÍTOTT** | `endpoint_type: str = "default"` paraméter továbbítása a `manifest.json`, `/stream/...` és `/subtitles/...` végpontokon. |
+| [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | Végpont-specifikus `addon_id` (`hu.stremhu-source.addon.{endpoint}`), `name` (`StremHU Source (LAN)`), `logo`, stream és felirat URL átírás; végpont-tudatos `_stream_cache` kulcs (`{user.id}:{endpoint_type}:{parsed_id}`). |
 | [`server/app/modules/system/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/system/router.py) | **MÓDOSÍTOTT** | `PUT /system/network-endpoints` végpont a hálózati végpontok adminisztrátori módosításához. |
 | [`server/app/modules/system/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/system/service.py) | **MÓDOSÍTOTT** | Rendszerállapot kiegészítése az aktív hálózati végpontokkal. |
 | [`client/src/routes/_protected/dashboard/system/network/-features/manifest-settings-card.tsx`](file:///d:/Git/stremhu-source-anime/client/src/routes/_protected/dashboard/system/network/-features/manifest-settings-card.tsx) | **ÚJ** | React komponens a hálózati végpontok szerkesztéséhez, ki-/bekapcsolásához és új végpontok felvételéhez. |
@@ -89,4 +89,4 @@ sequenceDiagram
 ```powershell
 $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-source-anime\server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
-- Unit tesztek száma ezen az ágon: **176 passed** (`test_multi_manifest.py` + `test_tvdb_streams.py` + meglévő tesztcsomag).
+- Unit tesztek száma ezen az ágon: **218 passed, 64 snapshots passed** (`test_multi_manifest.py`, `test_subtitles.py`, `test_tvdb_streams.py`, `test_stream_optimizations.py`, stb.).

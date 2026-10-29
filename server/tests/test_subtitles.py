@@ -146,7 +146,9 @@ async def test_get_subtitles_played_stream_matching_and_fallback():
 
     service.get_streams = mock_get_streams
 
-    parsed_id = ImdbStreamId(imdb_id="tt123456", season=1, episode=1)
+    parsed_id = ImdbStreamId(
+        imdb_id="tt123456", series_info=SeriesInfo(season=1, episode=1)
+    )
 
     # 1. Ha a video1-et játsszuk le: a saját feliratát adja vissza
     subs1 = await service.get_subtitles(
@@ -282,7 +284,7 @@ def test_manifest_includes_subtitles_resource():
     manifest = service.manifest(user)
 
     assert ShortManifestResource.SUBTITLES in manifest.resources
-    assert "subtitles" in [r.value for r in manifest.resources]
+    assert "subtitles" in [getattr(r, "value", r) for r in manifest.resources]
 
 
 @pytest.mark.anyio
@@ -660,9 +662,7 @@ def test_subtitle_memory_cache_and_range_support():
 
     _subtitle_content_cache.clear()
     key = ("ncore", "812207", 102, True)
-    sample_vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nTeszt felirat\n".encode(
-        "utf-8"
-    )
+    sample_vtt = b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nTeszt felirat\n"
 
     _put_cached_subtitle(key, "text/vtt; charset=utf-8", "01.vtt", sample_vtt)
     cached = _get_cached_subtitle(key)

@@ -33,7 +33,7 @@
 
 ## 💬 Torrent Feliratok Kezelése és Streaming (`feature/torrent-subtitles` branch)
 
-Ez a branch a **torrentben található feliratok intelligens felderítését, magyar nyelvre optimalizált szűrését, videóhoz illesztését, közvetlen streamelését, valós idejű WebVTT konverzióját, valamint hibatűrő fallback rendszerét** valósítja meg Stremio és Nuvio kliensek számára.
+Ez a branch a **torrentben található feliratok intelligens felderítését, magyar nyelvre optimalizált szűrését, videóhoz illesztését, közvetlen streamelését, valós idejű WebVTT konverzióját, valamint hibatűrő fallback rendszerét** valósítja meg Stremio és Nuvio kliensek számára (a `main` ágon lévő Anime, TheTVDB & Kitsu támogatásra és teljesítmény-optimalizációkra épülve).
 
 ---
 
@@ -148,12 +148,20 @@ sequenceDiagram
 
 #### 🎬 2. Fallback folyamat (ha a lejátszott torrentben nincs felirat)
 
+<<<<<<< HEAD
 ```mermaid
 sequenceDiagram
     autonumber
     actor Player as Lejátszó (Stremio / Nuvio)
     participant API as Stremio Router (/subtitles)
     participant Service as StremioService
+=======
+1. **Beérkező kliens kérés**:
+   - A kliens kérést küld a StremHU szervernek:
+     - Kitsu kiegészítő esetén: `kitsu:12:1089` (Kitsu sorozat ID `12`, epizód `1089`).
+     - IMDb / Cinemeta esetén: `series:tt0388629:21:1` (One Piece Wano Country Arc, Season 21 Episode 1).
+   - A `parse_stream_id` felismeri az azonosító típusát (`KITSU`, `TVDB` vagy `IMDB`).
+>>>>>>> main
 
     Player->>API: GET /subtitles/series/.../filename=Release_NoSubs.mkv
     API->>Service: get_subtitles(...)

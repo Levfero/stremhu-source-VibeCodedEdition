@@ -167,8 +167,10 @@ class Torrent:
                 for piece_index, piece_distance in pieces_to_fetch:
                     if piece_index == stream.current_stream_piece:
                         deadline = 0
+                    elif piece_distance == 1:
+                        deadline = 300
                     else:
-                        deadline = 2000 + (piece_distance * 1000)
+                        deadline = 1000 + (piece_distance * 500)
 
                     if (
                         piece_index not in target_deadlines

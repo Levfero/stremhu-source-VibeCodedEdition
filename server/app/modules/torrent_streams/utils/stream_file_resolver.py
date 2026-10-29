@@ -17,7 +17,6 @@ from app.modules.torrent_streams.utils.resolver_helpers import (
 )
 from app.modules.torrent_streams.utils.series_parser import SeriesParser
 
-
 _CLEAN_STEM_REGEX = re.compile(
     r"[\._\-\[]\s*(?:hun|hu|hungarian|magyar|eng|en|english|forced|hunsub|engsub)\b.*$",
     re.IGNORECASE,

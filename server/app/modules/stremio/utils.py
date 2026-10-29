@@ -112,14 +112,14 @@ def parse_stream_id(value: str) -> StreamId:
                 detail="Érvénytelen Kitsu stream azonosító formátum.",
             )
 
-        episode: int | None = None
+        episode = None
         if len(parts) > 1 and parts[1]:
             try:
                 episode = int(parts[1])
             except ValueError:
                 episode = None
 
-        series_info: SeriesInfo | None = None
+        series_info = None
         if episode is not None:
             series_info = SeriesInfo(
                 season=1,
@@ -150,21 +150,21 @@ def parse_stream_id(value: str) -> StreamId:
                 detail="Érvénytelen TMDB stream azonosító formátum.",
             )
 
-        season: int | None = None
+        season = None
         if len(parts) > 1 and parts[1]:
             try:
                 season = int(parts[1])
             except ValueError:
                 season = None
 
-        episode: int | None = None
+        episode = None
         if len(parts) > 2 and parts[2]:
             try:
                 episode = int(parts[2])
             except ValueError:
                 episode = None
 
-        series_info: SeriesInfo | None = None
+        series_info = None
         if season is not None and episode is not None:
             series_info = SeriesInfo(
                 season=season,
@@ -180,21 +180,21 @@ def parse_stream_id(value: str) -> StreamId:
     parts = value.split(":")
     imdb_id = parts[0]
 
-    season: int | None = None
+    season = None
     if len(parts) > 1 and parts[1]:
         try:
             season = int(parts[1])
         except ValueError:
             season = None
 
-    episode: int | None = None
+    episode = None
     if len(parts) > 2 and parts[2]:
         try:
             episode = int(parts[2])
         except ValueError:
             episode = None
 
-    series_info: SeriesInfo | None = None
+    series_info = None
     if season is not None and episode is not None:
         series_info = SeriesInfo(
             season=season,

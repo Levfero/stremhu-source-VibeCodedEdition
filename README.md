@@ -33,7 +33,7 @@
 
 ## 🔍 Keresési és Szűrési Továbbfejlesztések (`feature/search-filter-tmdb-tvdb` branch)
 
-Ez a branch a **TMDB azonosítók kezelését**, a **másodlagos többjelöltes szöveges fallback keresést**, az **nCore hibajavítást**, valamint az **Extrák és Menük intelligens szűrését** valósítja meg.
+Ez a branch a **TMDB azonosítók kezelését**, a **másodlagos többjelöltes szöveges fallback keresést**, az **nCore hibajavítást**, valamint az **Extrák és Menük intelligens szűrését** valósítja meg (a `main` ágon lévő Anime, TheTVDB & Kitsu támogatásra és teljesítmény-optimalizációkra épülve).
 
 ---
 

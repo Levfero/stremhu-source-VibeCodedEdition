@@ -48,7 +48,7 @@ class TorrentStreamsService:
     async def find_by_imdb(
         self,
         user: UserModel,
-        imdb_id: str,
+        imdb_id: str | None = None,
         series: SeriesInfo | None = None,
         fallback_title: str | Callable[[], Awaitable[str | None]] | None = None,
         alternate_imdb_ids: list[str] | None = None,

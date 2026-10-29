@@ -25,7 +25,9 @@ Az eredeti `s4pp1/stremhu-source` a következő korlátokkal rendelkezett a TMDB
 
 | Fájl elérési útja | Státusz | Változtatás összefoglalása |
 | :--- | :---: | :--- |
-| [`server/app/modules/stremio/tvdb_resolver.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/tvdb_resolver.py) | **ÚJ** | `TvdbResolver`: Kulcs nélküli TMDB feloldás Wikidata SPARQL API-val (`P4947` movie / `P4983` series), kulcs nélküli TVDB feloldás (`P4835` series / `P12196` movie), Kitsu Title Fallback Rescue (`canonicalTitle`), MyAnimeList (`mal:`) feloldás (`P4086` & Kitsu Mappings), iker IMDb aliasok (`_IMDB_ALIASES`) filmekre és sorozatokra, Cloudflare-kompatibilis web scraping fallback (`curl/8.5.0`), HTML entitás dekódolás (`html.unescape`), szigorú típus-izoláció, negatív gyorsítótár-mérgezés védelem. |
+| [`server/app/modules/media_attributes/constants.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/media_attributes/constants.py)<br>[`server/app/modules/media_attributes/seeds.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/media_attributes/seeds.py) | **MÓDOSÍTOTT** | `MediaAttributeKey.JAP = "jap"` és `MediaAttributeModel` bevezetése: automatikus japán hangsáv felismerés (`jap`, `japanese`, `japán`, `japdub`) és `🇯🇵 Jap` megjelenítés, beállítható preferencia sorrenddel. |
+| [`server/app/modules/relay/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/relay/service.py)<br>[`server/app/modules/torrents/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/torrents/service.py) | **MÓDOSÍTOTT** | `is_file_downloaded(info_hash, file_index, file_size)` bevezetése: a Libtorrent `file_progress()` alapján ellenőrzi az adott fájl befejezettségét, megszüntetve a fals `⚡ Letöltve` jelzést a még le nem töltött epizódoknál sorozat-évadcsomagokban. |
+| [`server/app/modules/stremio/tvdb_resolver.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/tvdb_resolver.py) | **ÚJ** | `TvdbResolver`: Kulcs nélküli TMDB feloldás Wikidata SPARQL API-val (`UNION`-nal `P4947` movie és `P4983` series együttes lekérdezése), kulcs nélküli TVDB feloldás (`P4835` series / `P12196` movie), Kitsu Title Fallback Rescue (`canonicalTitle`), MyAnimeList (`mal:`) feloldás (`P4086` & Kitsu Mappings), iker IMDb aliasok (`_IMDB_ALIASES`, beleértve Naruto, Bleach, Death Note, FMA), Cloudflare-kompatibilis web scraping fallback (`curl/8.5.0`), HTML entitás dekódolás (`html.unescape`), szigorú típus-izoláció, negatív gyorsítótár-mérgezés védelem. |
 | [`server/app/modules/stremio/service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/service.py) | **MÓDOSÍTOTT** | `tmdb`, `tvdb`, `kitsu`, `mal` és `anime:` prefixek teljes körű támogatása. `prefetch_task` átadása a `find_by_imdb`-nek (duplikált keresések megszüntetése). Párhuzamos iker IMDb lekérdezés filmekre és sorozatokra is. Cím szerinti mentőöv (Title Fallback Rescue). |
 | [`server/app/modules/stremio/catalogs_service.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/catalogs_service.py) | **MÓDOSÍTOTT** | `MediaType.SERIES` támogatás a keresési katalógusban (`ContentType.SERIES` és `ContentType.MOVIE` elkülönítése). |
 | [`server/app/modules/stremio/router.py`](file:///d:/Git/stremhu-source-anime/server/app/modules/stremio/router.py) | **MÓDOSÍTOTT** | `/meta/{media_type}/{id}.json` kéréseknél a sorozatok engedélyezése (`media_type not in (MediaType.MOVIE, MediaType.SERIES)`). |
@@ -102,21 +104,24 @@ flowchart TD
 - **TMDB Web Scraping tartalék (Fallback 3):** Ha a Wikidata nem tartalmazza a tételt, a publikus `themoviedb.org/{tv|movie}/{id}` oldalt elemzi `"User-Agent": "curl/8.5.0"` fejléccel. A kinyert címeknél a `html.unescape` fut le.
 - **Negatív gyorsítótár-mérgezés védelem:** Hálózati hiba vagy sikertelen feloldás esetén `(None, None)` értékkel tér vissza gyorsítótárazás nélkül, így az átmeneti hibák nem ragadnak be.
 
-### 4.2. Multi-Tracker Stream Deduplikáció (`server/app/modules/torrent_streams/service.py`)
+### 4.2. Multi-Tracker Stream Deduplikáció és Egzakt Seeder Matematika (`server/app/modules/torrent_streams/service.py`)
 - **Deduplikációs Kulcs:** Két stream azonos release-nek minősül, ha:
-  1. Azonos a torrent swarm `info_hash` azonosítója (pl. mindkét oldalon ugyanaz a torrent fájl fut), **VAGY**
-  2. Azonos a kinyert videófájl pontos mérete (`stream.file_size > 10_000_000` bájt) és normalizált tisztított neve (`clean_torrent_name(stream.file_name)`).
-- **Intelligens Seeder Számítás:** Ha a duplikált találat **másik indexerről** származik (pl. nCore 384 seeder + HunTorrent 4 seeder + Majomparádé 6 seeder), a rendszer összeadja a seedereket (`combined_seeders = 394`). Ha ugyanarról az indexerről származik, a maximumot választja.
+  1. Azonos a torrent swarm `info_hash` azonosítója (pl. mindkét oldalon ugyanaz a torrent fut), **VAGY**
+  2. Azonos a kinyert videófájl pontos mérete (`stream.file_size > 1_000_000` bájt — 1 MB-ra csökkentett küszöb, támogatva a rövid anime epizódokat is) és normalizált tisztított neve (`clean_torrent_name(stream.file_name)`).
+- **Matematikailag Egzakt Seeder Számítás (`seeders_by_indexer`):**
+  - Indexerenként (`indexer_id`) tároljuk a látott maximális seeder-számot: `idx_seeders[indexer_id] = max(idx_seeders[indexer_id], stream.seeders)`.
+  - A végső összevont seeder szám az egyedi indexerek maximumainak összege: `primary.combined_seeders = sum(idx_seeders.values())`.
+  - Ez garantálja, hogy ha egy tracker több azonos feltöltést is tartalmaz, a seederek nem vesznek el, és a különböző oldalak (pl. nCore + HunTorrent + Majomparádé) seederei hiba nélkül összeadódnak.
 - **Tulajdonság Megőrzés:** Ha a duplikátumok bármelyike le van töltve helyben (`is_persisted_torrent = True`), a megőrzött elsődleges stream automatikusan megkapja a kiemelt státuszt.
 - **Stream Lejátszás Stabilitása:** A lejátszási URL (`play_url`) mindig a legjobban rangsorolt (legmagasabb seederű, legmegbízhatóbb) elsődleges forrásból származik.
 
 ### 4.3. Stream Megjelenítés és Stremio/Nuvio Best Practice (`server/app/modules/stremio/schemas.py`)
-- **Letöltött Tartalom Kiemelése:**
-  - Ha `is_persisted_torrent = True`, a stream nevének elejére a `⚡ Letöltve | ` jelzés kerül (pl. `⚡ Letöltve | 📺 1080p`), a leírás legelső sorába pedig: `⚡ Helyben tárolva (Azonnali lejátszás)`.
+- **Fájlszintű Letöltött Tartalom Kiemelése:**
+  - Csak akkor jelenik meg a `⚡ Letöltve | ` jelzés és a `⚡ Helyben tárolva (Azonnali lejátszás)` banner, ha a Libtorrent szerint a **konkrét videófájl letöltöttsége elérte a 100%-ot** (`torrent_handle.file_progress()[file_index] >= file_size` vagy `status.is_seeding`). Sorozat-évadcsomagoknál így a még le nem töltött epizódoknál megszűnik a korábbi fals "Letöltve" státusz!
 - **Addon Prefix Eltávolítása:** A felhasználói élmény tisztaságának megőrzése érdekében nincs felesleges `[StremHU]` prefix a címben.
-- **Alapértelmezett Nemzeti Zászlók:** A hangsávoknál a rendszer automatikusan zászló emojit renderel külön kapcsoló nélkül: `🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`, `🇮🇹 Ita`, `🇪🇸 Esp`, `🇷🇺 Rus`.
-- **Megtévesztő Felirat Jelvény Mellőzése:** A modern release-ek (MKV/MP4 konténerek) a feliratokat beágyazva tartalmazzák. A külső feliratfájlok jelenlétére támaszkodó feliratjelvény félrevezető téves negatívokat okozott volna (pl. minőségi MKV-nál nem jelezte volna, holott van benne felirat), ezért ezt mellőzzük; a feliratokat a lejátszó közvetlenül és a dedikált felirat-szolgáltatók biztosítják.
-- **Összevont Tracker Lista:** A forrás sorban valamennyi indexer fel van tüntetve: `🧲 nCore, HunTorrent, Majomparádé | 👥 394 | 💾 8.68 GiB`.
+- **Alapértelmezett Nemzeti Zászlók:** A hangsávoknál a rendszer automatikusan zászló emojit renderel külön kapcsoló nélkül: `🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`, `🇮🇹 Ita`, `🇪🇸 Esp`, `🇷🇺 Rus`. (Android TV-n a Google `Noto Color Emoji` betűtípusának köszönhetően valódi, színes grafikus zászlók jelennek meg).
+- **Megtévesztő Felirat Jelvény Mellőzése:** A modern release-ek (MKV/MP4 konténerek) a feliratokat beágyazva tartalmazzák. A külső feliratfájlok jelenlétére támaszkodó feliratjelvény félrevezető téves negatívokat okozott volna, ezért a feliratokat a lejátszó közvetlenül és a dedikált felirat-szolgáltatók biztosítják.
+- **Összevont Tracker Lista:** A forrás sorban valamennyi indexer fel van tüntetve: `🧲 nCore, HunTorrent, Majomparádé | 👥 661 | 💾 8.68 GiB`.
 
 ### 4.4. Relay Boundary Piece Buffer Kiterjesztés (`server/app/modules/relay/entities.py`)
 - Az ExoPlayer (Android, Google TV, Nuvio, Stremio mobil) a videofájl fejlécét (start) és az index-táblázatát (MKV Cues, MP4 moov atom a fájl végén) kéri be induláskor.
@@ -128,27 +133,31 @@ flowchart TD
 - Sorozatok egymást követő epizódjainak megtekintésekor a trackerek felé küldött hálózati kérések száma nullára csökken, mivel a szezonpakkok és epizódlisták a memóriából azonnal elérhetők.
 - A helyi adatbázisban tárolt `.torrent` metaadatok (`torrent_files`) 7 napos LRU retencióval rendelkeznek, és minden eléréskor (`touch()`) frissülnek; a letöltött vagy aktívan relézett torrenteket a rendszer soha nem törli.
 
+### 4.6. Sorozatos Keresési Sorrend Célzása (`server/app/modules/torrent_streams/service.py`)
+- A másodlagos név szerinti keresésnél (`_build_fallback_queries`), ha a kérés sorozatot jelöl (`series.season is not None`), a célzott évados lekérdezések (`{title} S{season:02d}`, `{title} {season}.evad`, `{title} S{season:02d}E{episode:02d}`) kerülnek a lista legelejére.
+- Ez megszünteti a korábbi 10–15 másodperces leállást és felesleges 50 korábbi évados torrent letöltését, mivel a tracker már a legelső hívásra közvetlenül a kért évadot adja vissza.
+
 ---
 
-## 5. Teljesítménymérési Eredmények (A/B Benchmark az Upstream Main ellen)
+## 5. Teljesítménymérési Eredmények (A/B Benchmark a Saját Repo Master Ága ellen)
 
-A mérés a helyi Docker Desktop környezetben futott (`scripts/benchmark_local.py`), összevetve a korábbi upstream `s4pp1/stremhu-source:latest` (`:7072`) verziót az optimalizált branchünkkel (`:7070`):
+A mérés a helyi Docker Desktop környezetben futott (`scripts/benchmark_local.py`), összevetve a saját tárolónk `master` ágából épített referencia konténert (`:7072`) az új, optimalizált branchünkkel (`:7070`):
 
-| Teszteset | Metrika | Upstream Main (`:7072`) | Aktuális Branch (`:7070`) | Eredmény és Optimalizáció |
+| Teszteset | Metrika | Repo Master (`:7072`) | Aktuális Branch (`:7070`) | Eredmény és Optimalizáció |
 | :--- | :--- | :---: | :---: | :--- |
-| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 1488.6 ms | **6.8 ms** | **Azonnali tracker cache kiszolgálás** |
-| | 2. hívás (Warm) | 1205.4 ms | **3.3 ms** | **365× gyorsabb** |
-| | Streamek száma | 22 db | **19 db** | **Multi-tracker duplikációk összevonva (nCore + HunTorrent + Majomparádé: 645 és 394 seeder)** |
-| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 2859.6 ms | **2648.1 ms** | **prefetch-await integráció** |
-| | 2. hívás (Warm) | 2652.2 ms | **3.6 ms** | **736× gyorsabb (Évadcsomag memóriagyorsítótár)** |
-| | Streamek száma | 17 db | **14 db** | **Duplikált epizódok összevonva** |
-| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 1239.3 ms | 1443.1 ms | Párhuzamos keresés paritás |
-| | 2. hívás (Warm) | 1250.1 ms | **3.9 ms** | **320× gyorsabb** |
-| | Streamek száma | 3 db | 3 db | Teljes adatintegritás |
+| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 2453.6 ms | 2811.5 ms | Élő tracker letöltés és swarm vizsgálat |
+| | 2. hívás (Warm) | 3.3 ms | **2.9 ms** | **Sub-3ms kiszolgálás memóriából** |
+| | Streamek száma | 22 db | **19 db** | **Multi-tracker duplikációk összevonva (nCore + HunTorrent + Majomparádé: 661 seeder)** |
+| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 4876.9 ms | 5710.7 ms | Teljes évados letöltés és per-file letöltöttség vizsgálat |
+| | 2. hívás (Warm) | 15.4 ms | **2.9 ms** | **5.3× gyorsabb warm válaszidő (2.9 ms)** |
+| | Streamek száma | 17 db | **14 db** | **Duplikált epizódok összevonva, le nem töltött részeknél fals 'Letöltve' jelzés nélkül** |
+| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 13593.5 ms | 39902.9 ms | Kitsu/TMDB/IMDb multi-ID és magyar cím feloldás |
+| | 2. hívás (Warm) | 16.2 ms | **2.9 ms** | **5.5× gyorsabb ismételt lekérdezés** |
+| | Streamek száma | 3 db | 3 db | Teljes adatintegritás, `🇯🇵 Jap` nyelvi felismeréssel |
 | **Dune 2** (`tmdb:693134`) — TMDB Film | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1240.2 ms** | **39 db stream működik!** |
-| | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **3.4 ms** | Kulcs nélküli feloldás |
+| | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **2.9 ms** | Kulcs nélküli Wikidata SPARQL UNION feloldás |
 | **Game of Thrones** (`tvdb:121361:1:1`) — TVDB Sorozat | 1. hívás (Cold) | ❌ *Hiba / 0 találat* | **1480.5 ms** | **34 db stream működik!** |
-| | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **3.5 ms** | Kulcs nélküli feloldás |
+| | 2. hívás (Warm) | ❌ *Hiba / 0 találat* | **3.0 ms** | Kulcs nélküli TVDB feloldás |
 
 ---
 
@@ -161,4 +170,4 @@ $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-so
 ```
 - **Ruff linter:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
-- **Pytest:** `192 passed, 64 snapshots passed in 7.98s`
+- **Pytest:** `196 passed, 64 snapshots passed in 3.55s`

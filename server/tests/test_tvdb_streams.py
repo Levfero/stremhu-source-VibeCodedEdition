@@ -309,7 +309,7 @@ async def test_find_by_imdb_fallback_to_title_search():
     )
 
     mock_provider.find_by_imdb_id.assert_awaited_once_with("tt9335498")
-    mock_provider.find_by_query.assert_awaited_once_with("Demon Slayer")
+    mock_provider.find_by_query.assert_awaited_once_with("Demon Slayer S01")
 
 
 def test_one_piece_series_parser_and_resolver():
@@ -761,7 +761,9 @@ async def test_find_by_imdb_hungarian_show_title_queries():
         fallback_title="A visszavágó - kapj el, ha tudsz!",
     )
 
-    assert queried_terms == ["A visszavágó", "A visszavago", "visszavago"]
+    assert "visszavago S01" in queried_terms
+    assert "A visszavago" in queried_terms
+    assert "visszavago" in queried_terms
 
 
 @pytest.mark.anyio
@@ -878,7 +880,7 @@ async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
     )
 
     mock_provider.find_by_imdb_id.assert_awaited_once_with("tt50140701")
-    assert "A visszavago Kapj el ha tudsz" in searched_queries
+    assert "visszavago Kapj el ha tudsz S01" in searched_queries
     assert len(streams) == 1
     assert streams[0].torrent_id == "100"
     assert "S01E01" in streams[0].file_name

@@ -394,7 +394,14 @@ class TorrentStreamsService:
         }
 
         for stream in torrent_streams:
-            stream.is_persisted_torrent = stream.info_hash in active_hashes
+            if stream.info_hash in active_hashes:
+                stream.is_persisted_torrent = self._torrents_service.is_file_downloaded(
+                    info_hash=stream.info_hash,
+                    file_index=stream.file_index,
+                    file_size=stream.file_size,
+                )
+            else:
+                stream.is_persisted_torrent = False
         sorted_preferences = sorted(
             user.preference_definitions, key=lambda preference: preference.order
         )
@@ -446,14 +453,14 @@ class TorrentStreamsService:
         deduped: list[TorrentStream] = []
         hash_to_primary: dict[str, TorrentStream] = {}
         file_to_primary: dict[tuple[int, str], TorrentStream] = {}
-        indexers_per_primary: dict[int, set[str]] = {}
+        seeders_by_indexer_per_primary: dict[int, dict[str, int]] = {}
 
         for stream in torrent_streams:
             stream_hash = stream.info_hash.lower() if stream.info_hash else ""
             clean_name = clean_torrent_name(stream.file_name).lower() if stream.file_name else ""
             file_key = (
                 (stream.file_size, clean_name)
-                if stream.file_size > 10_000_000 and clean_name
+                if stream.file_size > 1_000_000 and clean_name
                 else None
             )
 
@@ -468,7 +475,7 @@ class TorrentStreamsService:
 
             if primary is not None:
                 p_id = id(primary)
-                seen_idx = indexers_per_primary[p_id]
+                idx_seeders = seeders_by_indexer_per_primary[p_id]
 
                 if (
                     indexer_name
@@ -476,20 +483,11 @@ class TorrentStreamsService:
                 ):
                     primary.extra_indexer_names.append(indexer_name)
 
-                # Ha a duplikált találat másik indexerről származik, összeadjuk a seedereket
-                if indexer_id not in seen_idx:
-                    seen_idx.add(indexer_id)
-                    current_seeders = (
-                        primary.combined_seeders
-                        if primary.combined_seeders is not None
-                        else (primary.seeders or 0)
-                    )
-                    add_seeders = stream.seeders or 0
-                    primary.combined_seeders = current_seeders + add_seeders
-                else:
-                    # Ugyanazon indexer esetén a nagyobb seeder számot tartjuk meg
-                    if stream.seeders and stream.seeders > (primary.combined_seeders or 0):
-                        primary.combined_seeders = stream.seeders
+                # Pontos seeder összesítés: indexerenként a maximumot vesszük figyelembe,
+                # majd a különböző indexerek értékeit összeadjuk
+                current_for_idx = idx_seeders.get(indexer_id, 0)
+                idx_seeders[indexer_id] = max(current_for_idx, stream.seeders or 0)
+                primary.combined_seeders = sum(idx_seeders.values())
 
                 if stream.is_persisted_torrent and not primary.is_persisted_torrent:
                     primary.is_persisted_torrent = True
@@ -501,12 +499,12 @@ class TorrentStreamsService:
             else:
                 if not stream.extra_indexer_names and indexer_name:
                     stream.extra_indexer_names = [indexer_name]
-                if stream.combined_seeders is None:
-                    stream.combined_seeders = stream.seeders
+                p_id = id(stream)
+                primary_seeders = stream.seeders or 0
+                seeders_by_indexer_per_primary[p_id] = {indexer_id: primary_seeders}
+                stream.combined_seeders = primary_seeders
 
                 deduped.append(stream)
-                p_id = id(stream)
-                indexers_per_primary[p_id] = {indexer_id}
 
                 if stream_hash:
                     hash_to_primary[stream_hash] = stream
@@ -527,45 +525,46 @@ class TorrentStreamsService:
         base_part = re.split(r"[:\-\–—]", cleaned_title)[0].strip()
         base_clean = re.sub(r"[''`]", "", base_part).strip()
 
+        unaccented = strip_accents(base_clean).strip()
+        no_article = re.sub(
+            r"^(?:A|Az|The)\s+", "", unaccented, flags=re.IGNORECASE
+        ).strip()
+
         candidates: list[str] = []
 
         def add_candidate(q: str | None):
             if q and len(q) >= 2 and q not in candidates:
                 candidates.append(q)
 
-        # 1. Alap cím változatlanul (ahogy a Cinemeta/TMDB/torrent neve adta)
+        # 1. Sorozat esetén a célzott évados lekérdezések élveznek prioritást (pl. "Stranger Things S04")
+        if series and series.season is not None:
+            s_num = series.season
+            for title_cand in (no_article, unaccented, base_clean):
+                if title_cand:
+                    add_candidate(f"{title_cand} S{s_num:02d}")
+                    if series.episode is not None:
+                        add_candidate(f"{title_cand} S{s_num:02d}E{series.episode:02d}")
+                    add_candidate(f"{title_cand} {s_num}.evad")
+
+        # 2. Alap cím változatlanul (ahogy a Cinemeta/TMDB/torrent neve adta)
         add_candidate(base_clean)
 
-        # 2. Ékezetmentesített változat
-        unaccented = strip_accents(base_clean).strip()
+        # 3. Ékezetmentesített változat
         add_candidate(unaccented)
 
-        # 3. Névelő nélküli változat ("A ", "Az ", "The ")
-        no_article = re.sub(
-            r"^(?:A|Az|The)\s+", "", unaccented, flags=re.IGNORECASE
-        ).strip()
+        # 4. Névelő nélküli változat ("A ", "Az ", "The ")
         add_candidate(no_article)
 
-        # 4. Ha több szóból áll, az első 2 szó és az első szó
+        # 5. Ha több szóból áll, az első 2 szó és az első szó
         words = no_article.split()
         if len(words) > 1:
             add_candidate(" ".join(words[:2]))
             if len(words[0]) >= 4:
                 add_candidate(words[0])
 
-        # 5. Teljes ékezetmentesített cím (ha különbözik)
+        # 6. Teljes ékezetmentesített cím (ha különbözik)
         full_no_apo = re.sub(r"[''`]", "", cleaned_title).strip()
         full_unaccented = strip_accents(full_no_apo).strip()
         add_candidate(full_unaccented)
-
-        # 6. Ha sorozatról van szó, célzott évados lekérdezések (pl. "Naruto Shippuuden S04")
-        if series and series.season is not None:
-            s_num = series.season
-            for title_cand in (no_article, unaccented):
-                if title_cand:
-                    add_candidate(f"{title_cand} S{s_num:02d}")
-                    if series.episode is not None:
-                        add_candidate(f"{title_cand} S{s_num:02d}E{series.episode:02d}")
-                    add_candidate(f"{title_cand} {s_num}.evad")
 
         return candidates

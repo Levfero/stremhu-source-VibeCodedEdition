@@ -216,3 +216,181 @@ def test_relay_file_boundary_priorities():
     assert target_deadlines.get(7) == 0
     assert target_deadlines.get(8) == 0
     assert 9 not in target_deadlines
+
+
+def test_fallback_queries_series_prioritization():
+    from app.common.schemas.internal import SeriesInfo
+
+    series = SeriesInfo(season=4, episode=1)
+    queries = TorrentStreamsService._build_fallback_queries("Stranger Things", series=series)
+
+    # A specifikus évados lekérdezéseknek meg kell előzniük az általános címet
+    assert "Stranger Things S04" in queries
+    assert "Stranger Things S04E01" in queries
+    s04_idx = queries.index("Stranger Things S04")
+    general_idx = queries.index("Stranger Things")
+    assert s04_idx < general_idx
+
+
+def test_deduplicate_seeders_calculation_exact():
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+    huntorrent_acc = _create_mock_indexer("huntorrent", "HunTorrent")
+    majom_acc = _create_mock_indexer("majomparade", "Majomparádé")
+
+    # 5 MB-os anime epizód (teszteli az 1 MB-os csökkentett küszöböt is)
+    file_size = 5_000_000
+    clean_name = "naruto_ep01.mkv"
+
+    # 1. nCore release: 100 seeder
+    stream1 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="hash1",
+        seeders=100,
+        torrent_name="Naruto.Ep01.1080p",
+        attributes=[],
+        file_name=clean_name,
+        file_size=file_size,
+        file_index=0,
+        play_url="http://localhost:7070/play/1",
+    )
+
+    # 2. nCore másik duplikált release: 80 seeder (nem szabad hozzáadni a 100-hoz, a max marad 100)
+    stream2 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t2",
+        info_hash="hash2",
+        seeders=80,
+        torrent_name="Naruto.Ep01.1080p.Dup",
+        attributes=[],
+        file_name=clean_name,
+        file_size=file_size,
+        file_index=0,
+        play_url="http://localhost:7070/play/2",
+    )
+
+    # 3. HunTorrent release: 50 seeder (össze kell adódnia: 100 + 50 = 150)
+    stream3 = TorrentStream(
+        indexer_account=huntorrent_acc,
+        torrent_id="t3",
+        info_hash="hash3",
+        seeders=50,
+        torrent_name="Naruto.Ep01.1080p.HT",
+        attributes=[],
+        file_name=clean_name,
+        file_size=file_size,
+        file_index=0,
+        play_url="http://localhost:7070/play/3",
+    )
+
+    # 4. Majomparádé release: 30 seeder (összeadódik: 150 + 30 = 180)
+    stream4 = TorrentStream(
+        indexer_account=majom_acc,
+        torrent_id="t4",
+        info_hash="hash4",
+        seeders=30,
+        torrent_name="Naruto.Ep01.1080p.MP",
+        attributes=[],
+        file_name=clean_name,
+        file_size=file_size,
+        file_index=0,
+        play_url="http://localhost:7070/play/4",
+    )
+
+    # 5. Újabb HunTorrent release: 70 seeder (frissíti a HunTorrentet 50 -> 70-re, új összeg: 100 + 70 + 30 = 200)
+    stream5 = TorrentStream(
+        indexer_account=huntorrent_acc,
+        torrent_id="t5",
+        info_hash="hash5",
+        seeders=70,
+        torrent_name="Naruto.Ep01.1080p.HT2",
+        attributes=[],
+        file_name=clean_name,
+        file_size=file_size,
+        file_index=0,
+        play_url="http://localhost:7070/play/5",
+    )
+
+    service = TorrentStreamsService(
+        db=MagicMock(),
+        torrent_source_provider_service=MagicMock(),
+        torrents_service=MagicMock(),
+        settings_service=MagicMock(),
+        preferences_service=MagicMock(),
+    )
+
+    deduped = service._deduplicate_torrent_streams(
+        [stream1, stream2, stream3, stream4, stream5]
+    )
+
+    assert len(deduped) == 1
+    res = deduped[0]
+    assert res.combined_seeders == 200
+    assert "nCore" in res.extra_indexer_names
+    assert "HunTorrent" in res.extra_indexer_names
+    assert "Majomparádé" in res.extra_indexer_names
+
+
+def test_is_file_downloaded_series_progress():
+    from app.modules.relay.service import RelayService
+
+    service = RelayService.__new__(RelayService)
+    service._torrents = {}
+
+    # Mock torrent handle és Torrent entity
+    torrent_entity = MagicMock()
+    torrent_handle = MagicMock()
+    torrent_entity.torrent_handle = torrent_handle
+
+    import libtorrent
+    sha1 = libtorrent.sha1_hash(bytes.fromhex("0123456789abcdef0123456789abcdef01234567"))
+    service._torrents[sha1] = torrent_entity
+
+    status_mock = MagicMock()
+    torrent_handle.status.return_value = status_mock
+
+    # 1. eset: A teljes torrent kész (seeding) -> mindig True
+    status_mock.is_seeding = True
+    assert service.is_file_downloaded("0123456789abcdef0123456789abcdef01234567", 0, 1000) is True
+
+    # 2. eset: Nem kész, ritka letöltés alatt áll
+    status_mock.is_seeding = False
+    # File 0: 2 GB kész, File 1: 500 MB (1 GB-ból, félkész), File 2: 0 MB kész (még nem nézett 3. rész)
+    torrent_handle.file_progress.return_value = [2_000_000_000, 500_000_000, 0]
+
+    # File 0 kész: 2 GB >= 2 GB -> True
+    assert service.is_file_downloaded("0123456789abcdef0123456789abcdef01234567", 0, 2_000_000_000) is True
+
+    # File 1 félkész: 500 MB < 1 GB -> False
+    assert service.is_file_downloaded("0123456789abcdef0123456789abcdef01234567", 1, 1_000_000_000) is False
+
+    # File 2 (3. rész a sorozatból) letöltetlen: 0 < 2 GB -> False! (kiküszöböli a fals 'Letöltve' jelzést)
+    assert service.is_file_downloaded("0123456789abcdef0123456789abcdef01234567", 2, 2_000_000_000) is False
+
+
+def test_japanese_language_attribute_detection():
+    from app.modules.media_attributes.constants import MediaAttributeKey
+    from app.modules.media_attributes.parser import parse_torrent_name
+    from app.modules.media_attributes.seeds import DEFAULT_ATTRIBUTES
+
+    attrs = parse_torrent_name("Attack.on.Titan.S04E01.1080p.JAP.DUB.x264", DEFAULT_ATTRIBUTES)
+    attr_ids = [a.id for a in attrs]
+    assert MediaAttributeKey.JAP in attr_ids
+
+    # Formázás ellenőrzése
+    jap_attr = next(a for a in attrs if a.id == MediaAttributeKey.JAP)
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+    stream = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="aabbcc",
+        seeders=10,
+        torrent_name="Attack on Titan",
+        attributes=[jap_attr],
+        file_name="aot.mkv",
+        file_size=500_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/aot",
+    )
+    stremio_stream = StremioStream.from_imdb_torrent_stream(stream)
+    assert "🇯🇵 Jap" in stremio_stream.description

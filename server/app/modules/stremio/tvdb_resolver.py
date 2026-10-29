@@ -43,6 +43,18 @@ _IMDB_ALIASES: dict[str, list[str]] = {
     # Rurouni Kenshin (1996: tt0115341 <-> 2000 Samurai X: tt0348924)
     "tt0115341": ["tt0348924"],
     "tt0348924": ["tt0115341"],
+    # Naruto (2002: tt0409591 <-> 2005 angol/nemzetközi: tt0371408)
+    "tt0409591": ["tt0371408"],
+    "tt0371408": ["tt0409591"],
+    # Bleach (2004: tt0434665 <-> 2006 angol/nemzetközi: tt0831290)
+    "tt0434665": ["tt0831290"],
+    "tt0831290": ["tt0434665"],
+    # Death Note (2006: tt0877057 <-> 2007 angol/nemzetközi: tt1049513)
+    "tt0877057": ["tt1049513"],
+    "tt1049513": ["tt0877057"],
+    # Fullmetal Alchemist (2003: tt0421357 <-> Brotherhood 2009: tt1370601)
+    "tt0421357": ["tt1370601"],
+    "tt1370601": ["tt0421357"],
 }
 
 
@@ -657,16 +669,13 @@ class TvdbResolver:
                         logger.debug(f"[TvdbResolver] TMDB API hiba ({clean_id}): {e}")
 
             # 2. Próbálkozás: Wikidata SPARQL API (ingyenes, gyors, pontos IMDb ID + hu/en cím)
+            # Mind a film (P4947), mind a sorozat (P4983) azonosítót ellenőrizzük UNION-nal,
+            # így az anime OVA-k, minisorozatok vagy kategória-eltérések is hibátlanul feloldódnak.
             try:
-                if is_series is True:
-                    prop_filter = f'?item wdt:P4983 "{clean_id}".'
-                elif is_series is False:
-                    prop_filter = f'?item wdt:P4947 "{clean_id}".'
-                else:
-                    prop_filter = (
-                        f'{{ ?item wdt:P4983 "{clean_id}". }} UNION '
-                        f'{{ ?item wdt:P4947 "{clean_id}". }}'
-                    )
+                prop_filter = (
+                    f'{{ ?item wdt:P4983 "{clean_id}". }} UNION '
+                    f'{{ ?item wdt:P4947 "{clean_id}". }}'
+                )
 
                 sparql = (
                     f"SELECT ?imdb ?labelHu ?labelEn WHERE {{ "

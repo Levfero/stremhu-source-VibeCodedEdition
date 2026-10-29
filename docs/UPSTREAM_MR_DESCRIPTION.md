@@ -141,6 +141,89 @@ Több beállított indexer (pl. nCore + HunTorrent + Majomparádé) esetén ugya
   - Kitsu és MAL anime azonosítók automatikus leképezése IMDb-re.
   - **Iker IMDb Alias Táblázat (`_IMDB_ALIASES`)**: Automatikus párhuzamos keresés a megosztott IMDb azonosítójú animéknél (*Dragon Ball Z*, *Naruto*, *Bleach*, *Sailor Moon*, *Fullmetal Alchemist*, *Death Note* stb.).
 
+#### 4.1. Metaadat és ID Feloldási Döntési Fa (Melyik API-t mikor hívja?)
+
+```mermaid
+flowchart TD
+    Req["Bejövő Stremio Kérés (ID)"] --> CheckPrefix{"Milyen típusú az ID formátuma?"}
+
+    %% TMDB ág
+    CheckPrefix -- "tmdb:{id}" --> CheckTmdbCache{"Szerepel a _tmdb_cache-ben?"}
+    CheckTmdbCache -- "Igen" --> ReturnImdb["IMDb ID + Kanonikus cím visszaadása"]
+    CheckTmdbCache -- "Nem" --> CallWikidataTMDB["Wikidata SPARQL lekérdezés (P4947 / P4983)"]
+    CallWikidataTMDB --> WikidataSuccess{"Sikeres Wikidata válasz?"}
+    WikidataSuccess -- "Igen" --> CacheAndReturnTMDB["Mentés _tmdb_cache-be"] --> ReturnImdb
+    WikidataSuccess -- "Nem" --> ScrapeTMDB["Cloudflare-mentes themoviedb.org HTML scraping"]
+    ScrapeTMDB --> TMDBScrapeSuccess{"Sikeres cím kinyerés?"}
+    TMDBScrapeSuccess -- "Igen" --> CacheAndReturnTMDB
+    TMDBScrapeSuccess -- "Nem" --> FailTMDB["0 találat"]
+
+    %% TVDB ág
+    CheckPrefix -- "tvdb:{id}" --> CheckTvdbCache{"Szerepel a _tvdb_cache-ben?"}
+    CheckTvdbCache -- "Igen" --> ReturnImdb
+    CheckTvdbCache -- "Nem" --> CallTVMaze["TVMaze API hívás (thetvdb={id})"]
+    CallTVMaze --> TVMazeSuccess{"Sikeres TVMaze válasz?"}
+    TVMazeSuccess -- "Igen" --> CacheAndReturnTVDB["Mentés _tvdb_cache-be"] --> ReturnImdb
+    TVMazeSuccess -- "Nem" --> CallWikidataTVDB["Wikidata SPARQL lekérdezés (P4835 / P1214)"]
+    CallWikidataTVDB --> ReturnImdb
+
+    %% Kitsu / MAL ág
+    CheckPrefix -- "kitsu:{id} / mal:{id}" --> CheckKitsuCache{"Szerepel a _kitsu_cache-ben?"}
+    CheckKitsuCache -- "Igen" --> ReturnImdb
+    CheckKitsuCache -- "Nem" --> CallKitsuAPI["Kitsu API edge/anime lekérdezés"]
+    CallKitsuAPI --> MapKitsu["Kanonikus cím + Kitsu -> IMDb / TVDB leképezés"]
+    MapKitsu --> ReturnImdb
+
+    %% IMDb ág
+    CheckPrefix -- "tt{id} (Natív IMDb)" --> CheckStaticAlias{"Szerepel a statikus _IMDB_ALIASES szótárban?"}
+    CheckStaticAlias -- "Igen (Pl. Dragon Ball, Bleach)" --> AddTwinAliases["Iker-IMDb ID-k hozzáadása a keresési listához"] --> ReturnImdb
+    CheckStaticAlias -- "Nem (Normál tartalom)" --> ReturnImdb
+```
+
+#### 4.2. Keresési és Smart Gating Döntési Fa (Hogyan jut el a listázásig?)
+
+```mermaid
+flowchart TD
+    Start["Feloldott IMDb ID(k) és Epizód infó"] --> IsSeries{"Film vagy Sorozat?"}
+
+    %% Film ág
+    IsSeries -- "Film" --> FastPath["Smart Anime Gating: allow_dynamic_search = False<br/>(Kitsu API HTTP hívás ÁTUGORVA! - 0.01 ms)"]
+    FastPath --> TrackerSearch["Párhuzamos keresés az indexereken<br/>(nCore, HunTorrent, Majomparádé, stb.)"]
+
+    %% Sorozat ág
+    IsSeries -- "Sorozat" --> CheckSeriesType{"Ismert Anime sorozat?"}
+    CheckSeriesType -- "Nem (Nyugati sorozat, pl. Stranger Things)" --> WesternBypass["Kitsu 404-Bypass: Közvetlen Cinemeta kumulatív epizódok<br/>(anime-kitsu.strem.fun kérés ÁTUGORVA! - 350 ms megtakarítás)"]
+    WesternBypass --> TrackerSearch
+    CheckSeriesType -- "Igen (Anime sorozat)" --> KitsuMapping["Cinemeta + Kitsu epizód leképezés<br/>(Abszolút vs Szezonális számozás feloldása)"]
+    KitsuMapping --> TrackerSearch
+
+    %% Tracker találatok feldolgozása
+    TrackerSearch --> AnyResults{"Érkezett legalább 1 torrent találat?"}
+    
+    %% Lazy Kitsu Fallback (0 találat esetén)
+    AnyResults -- "Nem (0 találat)" --> LazyFallback["Lusta Fallback: allow_dynamic_search = True<br/>Dinamikus Kitsu keresés indítása"]
+    LazyFallback --> StrictMatch{"Szigorú cím-illesztés egyezik?<br/>(False-positive és alcím védelem)"}
+    StrictMatch -- "Igen (Valódi iker-IMDb található)" --> SecondTrackerSearch["Másodlagos tracker keresés az iker-IMDb-vel"] --> MatchFiles
+    StrictMatch -- "Nem (Eltérő alcím, pl. The Cobol Job)" --> ReturnEmpty["0 találat visszaadása"]
+
+    %% Fájlok illesztése és szűrése
+    AnyResults -- "Igen" --> MatchFiles["StreamFileResolver: Videófájlok kiválasztása"]
+    MatchFiles --> ExtrasFilter{"Extrák és Menük szűrése"}
+    ExtrasFilter --> IsSpecial{"0. évad (Specials)?"}
+    IsSpecial -- "Nem (Normál rész)" --> FilterOutExtras["BD Menü, DVD Menu, NCED, Extras mappa KIZÁRVA"]
+    IsSpecial -- "Igen" --> KeepExtras["Különkiadások megtartása"]
+    
+    FilterOutExtras --> CheckDedup{"enable_stream_deduplication bekapcsolva?"}
+    KeepExtras --> CheckDedup
+
+    %% Deduplikáció
+    CheckDedup -- "Igen" --> Deduplicate["Összefésülés: Swarm Hash vagy Név + Méret alapján<br/>Seederek összeadása + Multi-tracker badge"]
+    CheckDedup -- "Nem" --> KeepAllStreams["Összes tracker streamjének megtartása külön"]
+
+    Deduplicate --> FinalList["Végleges Stream Lista kiszolgálása a kliensnek"]
+    KeepAllStreams --> FinalList
+```
+
 ---
 
 ### 5. Valós Letöltöttség és Lejátszási Élmény (Stremio / Nuvio Best Practice)

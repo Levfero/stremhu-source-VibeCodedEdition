@@ -31,149 +31,192 @@
 
 ---
 
-## 💬 Torrent Feliratok Kezelése és Streaming (`feature/torrent-subtitles` branch)
+# 🚀 Fejlesztések és Újdonságok az Eredeti Upstream Verzióhoz (`s4pp1/stremhu-source`) Képest
 
-Ez a branch a **torrentben található feliratok intelligens felderítését, magyar nyelvre optimalizált szűrését, videóhoz illesztését, közvetlen streamelését, valós idejű WebVTT konverzióját, valamint hibatűrő fallback rendszerét** valósítja meg Stremio és Nuvio kliensek számára (a `main` ágon lévő Anime, TheTVDB & Kitsu támogatásra és teljesítmény-optimalizációkra épülve).
-
----
-
-### 📖 User Guide (Felhasználói útmutató)
-
-Mit nyújt ez a branch a lejátszókban (Stremio / Nuvio)?
-
-1. **Univerzális és megbízható lejátszás minden eszközön:**
-   - A torrentekben található leggyakoribb feliratok (.srt, .vtt) mellett a stílusos anime feliratok (.ass, .ssa) is gond nélkül működnek a webes felületen (pl. Nuvio web), okostévéken (LG webOS, Samsung Tizen) és mobilokon.
-   - Az `.ass` feliratokat a szerver a háttérben valós időben konvertálja át a lejátszók által univerzálisan támogatott **WebVTT** formátumra.
-2. **Nincsenek zavaró duplikációk:**
-   - Minden felirat pontosan egyszer szerepel a feliratválasztóban (megszűnt a korábbi `.ass` és `.vtt` párhuzamos duplikáció).
-3. **Célzott magyar feliratok (Magyar tracker optimalizáció):**
-   - Kizárólag a magyar nyelvű feliratok jelennek meg a felületen.
-   - Az egyéb idegen nyelvű feliratok (angol, német, francia, spanyol stb.) automatikusan kiszűrésre kerülnek, elkerülve a felesleges felirat-listázást (az idegen nyelvekre a népszerű külső subtitle kiegészítők, pl. OpenSubtitles használatosak).
-   - **Ismeretlen feliratok elve:** Ha egy feliratnál nem szerepel nyelvi jelölés (pl. `01.ass`, `Noragami - 01.srt`), a rendszer a magyar trackerek kontextusából fakadóan **magyar feliratként** kezeli, így egyetlen releváns felirat sem vész el.
-4. **Pontos videó-illesztés, Aktív Lejátszás Követés és Választható Feliratkölcsönzés (Fallback):**
-   - A lejátszott videó torrentjéből érkezik a felirat, garantálva, hogy az időzítés pontosan a nézett videóhoz igazodjon, és **csak 1 torrentre keletkezzen seedkötelezettség (Hit'n'Run)**.
-   - Azokban a lejátszókban (pl. Nuvio), amelyek a `/subtitles` végpont hívásakor nem küldenek `videoSize` vagy `filename` paramétert, a szerver az elindított videó-stream alapján (`active_playback`) automatikusan beazonosítja a lejátszott torrentet, így mindig csak a nézett kiadáshoz tartozó 1 db felirat jelenik meg.
-   - **Választható feliratkölcsönzés GUI kapcsolóval:** A webes felületen (**Beállítások → Preferenciák → További preferenciák** és **Irányítópult → Rendszer → Torrent feliratok**) külön kapcsolóval (`Felirat kölcsönzése más találatból`) engedélyezhető, hogy ha a választott torrentben nincs külön `.srt`/`.ass` fájl, a rendszer másik találatból kölcsönözzön feliratot — kizárólag olyan forrásnál (pl. nCore), ahol nincs bekapcsolva a *Teljes torrent letöltése*. A felületen lenyitható információs fül és figyelmeztetés tájékoztat a dupla seedkötelezettségről (Hit'n'Run).
+Ez a fork jelentős funkcionális, stabilitási és teljesítménybeli fejlesztéseket valósít meg a hazai torrent indexerek (`nCore`, `HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE`), a modern Stremio/Nuvio kiegészítők, a felirat-kezelés és streaming, a kulcs nélküli külső metaadat-feloldás és a lejátszási élmény terén.
 
 ---
 
-### 🛠️ Developer Handbook (Fejlesztői kézikönyv)
+## 📋 Összehasonlító Áttekintő Táblázat
 
-#### 1. Architektúra és modulok áttekintése
-
-```
-server/app/modules/
-├── torrent_streams/
-│   ├── schemas.py              # TorrentStream & TorrentStreamSubtitle összeállítása, VTT átirányítás
-│   └── utils/
-│       ├── resolver_helpers.py # detect_subtitle_language (nyelvfelismerés, ismeretlen = hun)
-│       └── stream_file_resolver.py # resolve_subtitles (epizód-pontos illesztés és szűrés)
-├── stremio/
-│   ├── router.py               # /subtitles végpont (Request, extra paraméterek átadása)
-│   └── service.py              # get_subtitles (lejátszott stream beazonosítása és opcionális fallback)
-├── relay/
-│   └── entities.py             # get_matched_subtitle_pieces (epizód-pontos felirat piece előtöltés)
-└── stream/
-    ├── active_playback.py      # Aktív videó-lejátszás követése Nuvio / paraméter nélküli kliensekhez
-    ├── router.py               # /subtitles/{stream_token}/{filename} felirat stream, memória-cache & Range
-    ├── service.py              # Videó és felirat fájlok validálása és előkészítése
-    └── utils/
-        └── subtitles.py        # ass_to_vtt (valós idejű ASS/SSA -> WebVTT konverter)
-```
-
-#### 2. Részletes működési szabályok
-
-##### A. Nyelvfelismerés és besorolás (`detect_subtitle_language`)
-- **Magyar egyezés:** Regexszel ellenőrzi a `hun`, `hu`, `hungarian`, `magyar`, `hunsub` címkéket.
-- **Idegen nyelvű szűrés:** Felismeri az idegen nyelvek 3-betűs kódjait, teljes neveit (`english`, `german`, `french`, stb.) és a standard határolókkal ellátott 2-betűs jelöléseket (`.en.`, `_de.`, `[es]`).
-- **Alapértelmezés (Default to Hungarian):** Ha a felirat fájlnevében és elérési útjában nincs idegen nyelvű azonosító (pl. `01.ass`, `ep01.srt`), a rendszer automatikusan `("hun", "Hungarian (Torrent)")`-ként osztályozza.
-- A `TorrentStream` csak a `lang == "hun"` feliratokat fogadja be.
-
-##### B. Univerzális WebVTT generálás
-- Ha a forrásfájl `.ass` vagy `.ssa`, a `TorrentStreamSubtitle` célneve `.vtt`-re cserélődik, és a URL a `.vtt` kiterjesztésű végpontra mutat.
-- A `stream_subtitle` végponton a szerver észleli, hogy a kért kiterjesztés `.vtt`, míg a torrentben lévő fájl `.ass` / `.ssa`, ezért a `ass_to_vtt` függvénnyel a memóriában, streamelve végzi el az átalakítást:
-  - Időzítések konvertálása: `0:01:23.45` -> `00:01:23.450 --> 00:01:27.890`.
-  - Stíluscímkék és pozicionálók törlése: `{\pos(...)}`, `{\c&H...}`, `{\b1}`, stb.
-  - Sortörések konvertálása: `\N` -> `\n`.
-- Egy fájlból kizárólag egyetlen univerzális bejegyzés jön létre.
-
-##### C. Epizód-pontos illesztés pakkoknál (`resolve_subtitles`)
-- Sorozatpakkok esetén a fájlnév-tisztítás (`clean_video_stem`) mellett kötelező az epizódszám-egyezés ellenőrzése a `SeriesParser` segítségével.
-- Ha a felirat neve egy másik epizódot jelöl meg (pl. 2. rész az 1. helyett), a felirat eldobásra kerül, megakadályozva a több epizódot tartalmazó torrentek felirat-összemosódását.
-
-##### D. Lejátszott videó beazonosítása és választható Fallback stratégia
-A Stremio és Nuvio a videó indításakor a `/subtitles/{media_type}/{stream_id}/{extra}.json` végpontot hívja meg:
-1. Az `extra` és query paraméterekből kinyerjük a `videoSize` és `filename` értékeket, és a `_find_played_stream` megkeresi a lejátszott `StremioStream`-et.
-2. Ha a kliens (pl. Nuvio) nem küldött `videoSize`/`filename` paramétert, a `wait_for_active_binge_group` (`active_playback.py`) az éppen elindított `/stream/{token}` kérés alapján azonosítja be a lejátszott torrentet (`indexer_id-torrent_id`).
-3. **Ha a lejátszott streamnek van saját torrent-felirata:** kizárólag azt az 1 db feliratot adja vissza, garantálva a tökéletesen időzített feliratot.
-4. **Ha a lejátszott streamnek nincs saját felirata:** alapértelmezetten (`enable_fallback_subtitles = False`) nem indít el második torrentet (így nincs dupla Hit'n'Run kötelezettség). Ha a felhasználó a GUI-ban bekapcsolja a **Felirat kölcsönzése más találatból** opciót, és az adott forrásnál nincs beállítva a teljes torrent letöltése (`download_full_torrent = False`), a rendszer tartalékként felkínálja a többi találat magyar feliratát.
-
-##### E. Teljesítmény-optimalizációk (Performance & Caching)
-- **Epizódszintű felirat-piece előtöltés (`File.get_matched_subtitle_pieces`):** Amikor elindul egy videó lejátszása, a `Torrent.get_deadlines` a `StreamFileResolver` segítségével beazonosítja a lejátszott epizódhoz tartozó feliratfájlt, és a piece-eire `500 ms`-os sürgősségi deadline-t állít be közvetlenül a videó első piece-e (`0 ms`) után.
-- **Konvertált `.vtt` és `.srt` memória-cache (`_subtitle_content_cache`):** A `stream_subtitle` végpont az első letöltés és `ass_to_vtt` konverzió után memóriában (TTL-lel, `Range` fejléc támogatással) tárolja a feliratot, így az ismételt lekéréseket vagy beletekeréseket `< 1 ms` alatt közvetlenül RAM-ból szolgálja ki.
-- **In-flight deduplikáció és rövid távú Stream Cache (`StremioService.get_streams`):** Amikor a Stremio párhuzamosan hívja meg a `/stream` és `/subtitles` végpontokat, az egyidejű kérések egyetlen közös `asyncio.Task`-ra várnak (`_ongoing_stream_tasks`), az eredmény pedig 60 másodpercig memóriában gyorsítótárazódik (`_stream_cache`). Így az nCore keresés és torrent-feldolgozás csak egyszer fut le, a lejátszáskor érkező `/subtitles/{extra}` kérés pedig ~0 ms alatt válaszol.
-- **`TorrentInfo` memória-gyorsítótár (`_TORRENT_INFO_CACHE`):** Az SQLite-ból betöltött `.torrent` binárisok `libtorrent.torrent_info` és Pydantic fájllista-építése `info_hash` alapján memóriában cache-elt, így nem kell minden kérésnél újra bencode-olni és felépíteni több száz fájlos csomagokat.
-- **Rövidzáras (Short-circuit) felirat-illesztés és `@lru_cache`:** A `resolve_subtitles` először gyors string-prefix egyezést vizsgál, és csak tényleges névegyezés esetén hívja meg a költséges `SeriesParser`-t; a `clean_torrent_name` pedig `@lru_cache` gyorsítótárat kapott, kiküszöbölve a több száz feliratot tartalmazó (pl. Netflix VARYG) pakkok felesleges regex-terhelését.
+| Terület / Funkció | Eredeti Upstream (`s4pp1/stremhu-source`) | Ez a Fork |
+| :--- | :--- | :--- |
+| **Torrent Feliratok Streamingje** | ❌ Nincs támogatás (csak beágyazott feliratok) | ✅ **Teljes körű külső felirat kezelés** (.srt, .vtt, .ass, .ssa), valós idejű WebVTT konverzió, aktív lejátszás követés és választható feliratkölcsönzés |
+| **TMDB Stream ID (`tmdb:{id}`)** | ❌ Nem támogatott / Hiba | ✅ **Teljes támogatás** (Filmek & Sorozatok; kulcs nélküli Wikidata és webes mentőöv) |
+| **TheTVDB (`tvdb:{id}`) & Kitsu / MAL** | ❌ Nincs támogatás | ✅ **Kulcs nélküli TVDB, Kitsu és MyAnimeList (`mal:`) feloldás** dinamikus leképezéssel és iker IMDb aliasokkal |
+| **Több-Trackeres Találatok** | ⚠️ Külön streamként duplikálva jelent meg minden indexerről | ✅ **Intelligens deduplikáció:** azonos kiadások összevonása, seederek összeadása, multi-tracker badge, **Web UI kapcsoló** |
+| **Szöveges Keresés Trackereken** | ⚠️ Csak nCore támogatta; más oldalak üres listát adtak | ✅ **Összes hazai indexer támogatott** (`HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE`) lapozásvédelemmel |
+| **IMDb Nélküli Műsorok (pl. Vetélkedők)** | ❌ 0 találat vagy nCore 500-as hiba (`imdb_id: false`) | ✅ **Többjelöltes másodlagos keresés** (ékezetmentesítés, névelő-eltávolítás, nCore sanitizer) |
+| **Sorozatok & Animék Keresési Sebessége** | ⏱️ 30-40 másodperces leállás / timeoutok | ✅ **Hibrid gyorskeresés:** 29×-es gyorsulás (pl. One Piece Cold Start: 39,9 mp ➡️ **1,34 mp**) |
+| **Ténylegesen Letöltött Tartalom Kijelzése** | ⚠️ Fals "Letöltve" státusz az évadcsomagok még le nem töltött részeinél is | ✅ **Fájlszintű ellenőrzés (`file_progress`):** Csak a 100%-ban kész videófájlok kapnak `⚡ Letöltve` jelzést |
+| **Stremio Felhasználói Élmény** | ⚠️ Felesleges `[StremHU]` prefix; nincs zászló emoji | ✅ **Letisztult címkék**, nemzeti zászlók (`🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, stb.), megtévesztő feliratjelvény mellőzése |
+| **Japán Hangsáv Felismerése** | ❌ Nem szerepelt az attribútumok között | ✅ **`🇯🇵 Jap` nyelv felismerés** és beállítható rendezési preferencia |
+| **Extrák és Menük Szűrése** | ⚠️ Veszély: 2 GB-os BD menüvideót indíthatott valódi epizód helyett | ✅ **Intelligens szűrés:** `BD Menü`, `Extras`, `NCED` kizárása normál részeknél; Specials (0. évad) esetén engedélyezve |
+| **Kezdeti Pufferelés (Nuvio / ExoPlayer)** | ⚠️ 1 darabos indítás; nagy MKV Cues / MP4 moov esetén stall | ✅ **Kiterjesztett darab-prioritás:** `min(3, total_pieces // 2)` azonnali (`deadline = 0`) letöltés a fájl elejére és végére |
+| **Évadcsomag Gyorsítótárazás** | ⏱️ 180 másodperc (gyakori ismételt tracker terhelés) | ✅ **1800 másodperc (30 perc):** részek egymás utáni nézésekor 0 tracker kérés, **sub-3ms válaszidő** |
+| **Stremio Sorozat Katalógus & Meta** | ⚠️ Csak filmekre engedélyezett; sorozatoknál üres válasz | ✅ **Sorozatok teljes körű támogatása** a keresési katalógusban és a meta végponton |
+| **Torznab Képességek** | ⚠️ Csak alap IMDb paraméter | ✅ **`q` (szöveges keresés), `tvdbid` és `tmdbid` támogatás** |
 
 ---
 
-### 🔄 Folyamatábrák
+## 🔍 Részletes Funkcióleírás
 
-#### 🎬 1. Felirat-kiszolgálás a lejátszott videó torrentjéből és WebVTT konverzió
+### 1. Torrent Feliratok Kezelése és Valós Idejű Streaming (`feature/torrent-subtitles`)
+A magyar és anime release-ek gyakran külön fájlként tartalmazzák a feliratot (`.srt`, `.ass`, `.ssa`, `.vtt`):
+- **Univerzális WebVTT Konverzió**: Az `.ass`/`.ssa` feliratokat a szerver memóriában valós időben átalakítja a webes felületek (Nuvio Web, Stremio Web) és okostévék (LG webOS, Samsung Tizen) által támogatott **WebVTT** formátumra, így az anime feliratok minden eszközön megjelennek.
+- **Magyar Nyelvre Optimalizált Szűrés**:
+  - Automatikusan kiszűri az idegen nyelvű feliratfájlokat (`eng`, `ger`, `fre` stb.).
+  - **Ismeretlen feliratok heurisztikája**: A hazai trackereken található feliratok gyakran nem tartalmaznak nyelvi jelölést (`01.ass`, `Noragami - 01.srt`). A rendszer ezeket automatikusan `hun` (magyar) nyelvűként azonosítja, így nem vesznek el.
+- **Aktív Lejátszás Követése (`active_playback.py`)**:
+  - Azokban a kliensekben (pl. Nuvio), amelyek a `/subtitles` végpont hívásakor nem küldenek pontos videófájl-paramétert, a szerver az éppen elindított stream alapján azonosítja a lejátszott torrentet. Mindig csak a kiválasztott kiadáshoz tartozó felirat jelenik meg, elkerülve a duplikációkat és a felesleges seedkötelezettséget.
+- **Választható Feliratkölcsönzés (Fallback) GUI Kapcsolóval és Hit'n'Run Védelemmel**:
+  - A Web UI-ban (**Beállítások → Preferenciák → További preferenciák** és **Irányítópult → Rendszer → Torrent feliratok**) a felhasználó választhat: ha a nézett torrentben nincs felirat, kölcsönözhet másik találatból — kizárólag olyan trackerről (pl. nCore), ahol nincs bekapcsolva a *Teljes torrent letöltése*. Figyelmeztető tájékoztató hívja fel a figyelmet az esetleges dupla seedkötelezettségre.
+- **Epizódszintű Darab-Előtöltés (`500 ms` deadline)**:
+  - A felirat-darabok azonnali prioritást kapnak, így a felirat már a videó legelső képkockájánál azonnal megjelenik, tekeréskor pedig a memóriából (`_subtitle_content_cache`) `< 1 ms` alatt betöltődik.
+
+---
+
+### 2. Kulcs Nélküli (Zero-Config) Multi-ID Feloldórendszer (`TvdbResolver`)
+- **TheMovieDatabase (`tmdb:`)**:
+  - Filmek (`tmdb:693134`) és sorozatok (`tmdb:1399:1:1`) automatikus feloldása.
+  - **Kulcs nélküli SPARQL architektúra**: A Wikidata nyilvános API-ján keresztül (`P4947` film és `P4983` sorozat azonosítók `UNION` lekérdezésével) hivatalos TMDB API kulcs nélkül is kinyeri a nemzetközi IMDb azonosítót és a kanonikus címet.
+  - **Cloudflare-mentes Web Scraping mentőöv**: Ha az adat még nem szerepel a Wikidatán, speciális fejlécekkel közvetlenül a publikus TMDB oldalról emeli ki a címet, elkerülve a 403-as blokkolást.
+- **TheTVDB (`tvdb:`)**:
+  - `tvdb:121361:1:1` sorozatok és TVDB filmek feloldása TVMaze és Wikidata (`P4835` / `P12196`) segítségével kulcs nélkül.
+- **Anime Kitsu (`kitsu:`) és MyAnimeList (`mal:`)**:
+  - Kitsu és MAL anime azonosítók (pl. `kitsu:12`, `mal:21`) automatikus leképezése TVDB és IMDb azonosítókra.
+  - **Iker IMDb Alias Táblázat (`_IMDB_ALIASES`)**: Párhuzamos keresés az eredeti japán és nemzetközi IMDb kódokra (*Dragon Ball*, *Naruto*, *Bleach*, *Sailor Moon*, *Pokémon*, *Death Note*, *Fullmetal Alchemist* stb.).
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Player as Lejátszó (Stremio / Nuvio)
-    participant API as Stremio Router (/subtitles)
-    participant Service as StremioService
-    participant SubRouter as Subtitles Router (/api/.../subtitles)
-    participant Conv as ass_to_vtt
+flowchart TD
+    Req["Beérkező Kérés\n(tmdb, tvdb, kitsu, mal vagy anime:)"] --> CacheCheck{"Gyorsítótárban szerepel?"}
+    CacheCheck -- "Igen" --> ReturnCached["Azonnali feloldás gyorsítótárból"]
+    CacheCheck -- "Nem" --> HasApiKey{"Van konfigurált TMDB API kulcs?"}
 
-    Note over Player: Felhasználó elindítja a videót (pl. 1080p stream)
-    Player->>API: GET /subtitles/series/.../filename=Aot_01.mkv&videoSize=1048576.json
-    API->>Service: get_subtitles(extra="filename=Aot_01.mkv&videoSize=1048576")
-    Service->>Service: Lejátszott stream beazonosítása (videoSize / filename alapján)
-    Note over Service: Találat! A saját torrentjéből származó feliratot adja vissza (1 db univerzális VTT)
-    Service-->>API: [ StremioSubtitle(url=".../Aot_01.vtt", lang="hun") ]
-    API-->>Player: Subtitles JSON válasz
+    HasApiKey -- "Igen" --> TMDBApiCall["1. Hivatalos API hívás (/external_ids)"]
+    TMDBApiCall -- "Sikeres" --> SaveAndReturn["Mentés gyorsítótárba és visszaadás"]
+    TMDBApiCall -- "Hiba / Nincs" --> WikiDataCall
 
-    Player->>SubRouter: GET /api/.../subtitles/{token}/Aot_01.vtt (Range: bytes=0-)
-    SubRouter->>SubRouter: Nyers ASS beolvasása torrent darabokból
-    SubRouter->>Conv: ass_to_vtt(ass_text)
-    Conv-->>SubRouter: Tiszta WebVTT tartalom
-    SubRouter-->>Player: HTTP 206 Partial Content (text/vtt)
-    Note over Player: Pontos, szinkronban lévő magyar felirat jelenik meg!
+    HasApiKey -- "Nem" --> WikiDataCall["2. Wikidata SPARQL API (Zero-Config)\nP4947 film / P4983 sorozat UNION"]
+    WikiDataCall -- "Megtalálva" --> SaveAndReturn
+    WikiDataCall -- "Nincs találat / Hiba" --> WebScrapeCall["3. Publikus Weboldal Elemzés\n(User-Agent: curl/8.5.0) og:title kinyerése"]
+
+    WebScrapeCall -- "Sikeres" --> SaveAndReturn
+    WebScrapeCall -- "Sikertelen" --> NegativeCache["Cím alapú mentőöv (Fallback Title Search)"]
 ```
 
-#### 🎬 2. Fallback folyamat (ha a lejátszott torrentben nincs felirat)
+---
 
-<<<<<<< HEAD
+### 3. Több-Trackeres Stream Deduplikáció és UI Vezérlés
+Amikor több indexer is be van kötve a rendszerbe (pl. nCore, HunTorrent, Majomparádé):
+- **Azonos kiadások felismerése**: Két stream egyetlen találattá olvad össze, ha megegyezik a torrent swarm `info_hash` azonosítója, VAGY megegyezik a kinyert videófájl pontos mérete és normalizált neve.
+- **Egzakt Seeder Összesítés**: Indexerenként a látott maximális seeder-számot vesszük figyelembe, és a trackerek értékeit összeadjuk. Nem vesznek el a seederek, és nem jelenik meg duplikált elem.
+- **Egyesített Jelvények**: A stream leírásában valamennyi forrás fel van tüntetve:
+  ```text
+  🧲 nCore, HunTorrent, Majomparádé | 👥 670 | 💾 1.98 GiB
+  🇭🇺 Hun
+  💿 BDRip | 🎞️ x264
+  ```
+- **Web UI Kapcsoló**: A *Beállítások > További preferenciák* menüpontban a felhasználó egyetlen kapcsolóval választhat:
+  - **Bekapcsolva (Alapértelmezett)**: Tiszta találati lista, összevont kiadásokkal és kombinált seederekkel.
+  - **Kikapcsolva**: Nyers találatok, minden trackerről külön-külön megjelenítve.
+  - **Azonnali érvényesülés**: A beállítás módosításakor a memóriagyorsítótár azonnal frissül.
+
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Player as Lejátszó (Stremio / Nuvio)
-    participant API as Stremio Router (/subtitles)
-    participant Service as StremioService
-=======
-1. **Beérkező kliens kérés**:
-   - A kliens kérést küld a StremHU szervernek:
-     - Kitsu kiegészítő esetén: `kitsu:12:1089` (Kitsu sorozat ID `12`, epizód `1089`).
-     - IMDb / Cinemeta esetén: `series:tt0388629:21:1` (One Piece Wano Country Arc, Season 21 Episode 1).
-   - A `parse_stream_id` felismeri az azonosító típusát (`KITSU`, `TVDB` vagy `IMDB`).
->>>>>>> main
-
-    Player->>API: GET /subtitles/series/.../filename=Release_NoSubs.mkv
-    API->>Service: get_subtitles(...)
-    Service->>Service: Lejátszott stream beazonosítása
-    Note over Service: A kiválasztott stream torrentjében NINCS felirat!
-    Service->>Service: Fallback aktiválása: más elérhető stream magyar feliratának átvétele
-    Service-->>API: Másik release magyar felirata (Fallback)
-    API-->>Player: Subtitles JSON válasz
-    Note over Player: A felhasználó így sem marad felirat nélkül!
+flowchart LR
+    A["nCore találat\n(BDRip, 300 seeder)"] --> D["Deduplikációs Motor\n(info_hash & file_size)"]
+    B["HunTorrent találat\n(BDRip, 220 seeder)"] --> D
+    C["Majomparádé találat\n(BDRip, 150 seeder)"] --> D
+    D --> S["Egyesített Stream:\n🧲 nCore, HunTorrent, Majomparádé\n👥 670 seeder | 💾 1.98 GiB\n🇭🇺 Hun"]
 ```
+
+---
+
+### 4. Többjelöltes Másodlagos Szöveges Keresés & Hibrid Gyorskeresés
+Ha egy tartalomnak nincs IMDb azonosítója (pl. magyar gyártású műsorok, vetélkedők), vagy az IMDb alapján letöltött csomagokból hiányzik az epizód:
+1. **Intelligens Címjelöltek**:
+   - Tisztított cím (kettőspontok, alcímek levágása).
+   - Ékezetmentesítés (a hazai feltöltők szinte mindig ékezet nélkül nevezik el a release-eket).
+   - Kezdő névelők eltávolítása (*A*, *Az*, *The*).
+   - Szó-kombinációk (első két szó / első szó).
+2. **Hibrid Lekérdezési Sorrend (29×-es Anime Gyorsulás)**:
+   - Sorozatoknál az elsődleges évados minta (`{title} S01`) után **közvetlenül a tiszta alapcím (`{title}`)** kerül kipróbálásra.
+   - Azoknál a sorozatoknál és animéknél (pl. *One Piece*), amelyeket egyetlen gyűjteményes csomagban töltenek fel évadjelölés nélkül, a rendszer azonnal a 2. hívásra megtalálja a forrást, megspórolva 3 tracker timeoutot (~24 másodperc felesleges várakozást).
+   - **Cold start mérés:** *One Piece S01E01* válaszideje 39,9 másodpercről **1,34 másodpercre** esett vissza!
+3. **Minden Hazai Indexer Támogatása**:
+   - `HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE` és `nCore` szöveges keresés egységesítése.
+   - Paginációs viharok megelőzése (50 elemes felső korlát) és `.torrent` letöltési limit (a 30 legtöbb seedert birtokló torrent).
+4. **nCore Sanitizer**:
+   - Az nCore felülete IMDb nélküli feltöltéseknél `false` értéket küld, amit a Pydantic validátor előtt automatikusan `None`-ra tisztítunk, megelőzve az 500-as szerverhibákat.
+
+---
+
+### 5. Letisztult Megjelenítés és Stremio / Nuvio Best Practice
+- **Fájlszintű Tényleges Letöltöttség (`file_progress`)**:
+  - A korábbi verziókban, ha egy több tíz gigabájtos évadpakkból akár csak egyetlen részlet letöltődött, a rendszer a pakk összes epizódjára rátette a "Letöltve" címkét.
+  - Az új motor a Libtorrent `file_progress()` mutatóját vizsgálja: a `⚡ Letöltve` címke és a `⚡ Helyben tárolva (Azonnali lejátszás)` kiemelés **kizárólag akkor jelenik meg, ha a konkrét videófájl 100%-ban befejezett**.
+- **Nemzeti Zászló Emojik**:
+  - A hangsávoknál a kódok helyett automatikus zászló emojik jelennek meg: `🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap`, `🇩🇪 Ger`, `🇫🇷 Fra`, `🇮🇹 Ita`, `🇪🇸 Esp`, `🇷🇺 Rus`. (Android TV és Google TV platformokon a rendszer színes grafikus zászlókat renderel).
+- **Japán Hangsáv (`🇯🇵 Jap`)**:
+  - Hozzáadva a rendszer alapértelmezett média-attribútumaihoz, felismeri a `jap`, `japanese`, `japán` címkéket, és támogatja a felhasználói preferencia-rendezést.
+- **Zavaró Elemek Eltávolítása**:
+  - Eltávolítva a címből a felesleges `[StremHU]` előtag, tiszta felbontási sávot hagyva (`📺 1080p | ⚡ Letöltve`).
+  - Eltávolítva a megtévesztő külső feliratjelvényt: mivel a modern release-ek beágyazva tartalmazzák a feliratokat, a külső fájlok hiánya miatti fals negatív jelzések megszűntek.
+- **Relay Darab-Puffer Kiterjesztés**:
+  - Android TV-n (ExoPlayer, Nuvio, Stremio mobil) az indításkor a fájl fejléce és indexe (MKV Cues / MP4 moov atom a fájl végén) azonnal szükséges.
+  - A prioritási motor dinamikusan `min(3, total_pieces // 2)` darabot rangsorol azonnali (`deadline = 0`) prioritásra a fájl elejéről és legvégéről, megelőzve a lejátszási hibákat és pufferelési megakadásokat.
+
+---
+
+### 6. Extrák, Menük és Különkiadások Intelligens Szűrése
+- **Normál Évadok Lejátszásakor**:
+  - Automatikusan kizárja a `00. Extrák`, `Extras`, `Specials`, `BD Menü`, `DVD Menu`, `Borítók`, `NCED`, `NCOP` mappákat és fájlokat.
+  - Megakadályozza, hogy a lejátszó a legnagyobb fájlméret alapján egy 2 GB-os BD menüvideót indítson el valódi epizód helyett.
+- **Különkiadások (Specials / 0. Évad)**:
+  - Ha a felhasználó kifejezetten a 0. évadot (Különkiadások) választja, a szűrő engedélyezi a belépést az Extrák mappákba, és feloldja a benne lévő `OAD`, `OVA`, `Special` részeket.
+
+---
+
+### 7. Évadcsomag és Tracker Gyorsítótár (Sub-3ms Válaszidő)
+- A sorozatok évados tracker találatai memóriában maradnak **1800 másodpercig (30 percig)**.
+- Amikor a néző egymás után indítja el a sorozat részeit, a trackerek felé küldött hálózati kérések száma **nulla**, és a Stremio kliens **2-3 milliszekundum** alatt megkapja a teljes stream listát.
+
+---
+
+## 📊 A/B Teljesítménymérési Eredmények
+
+Az alábbi mérések helyi Docker környezetben készültek (`scripts/benchmark_local.py`), egymás mellett összevetve a saját tárolónk `master` ágából épített konténert (`:7072`) az új, optimalizált branchünkkel (`:7070`):
+
+| Teszteset | Metrika | Repo Master (`:7072`) | Aktuális Ág (`:7070`) | Eredmény és Optimalizáció |
+| :--- | :--- | :---: | :---: | :--- |
+| **Inception** (`tt1375666`) — Film | 1. hívás (Cold) | 1067.9 ms | 2007.5 ms | Élő tracker letöltés + multi-tracker összevonás |
+| | 2. hívás (Warm) | 3.8 ms | **2.9 ms** | **Sub-3ms kiszolgálás memóriából** |
+| | Streamek száma | 23 db | **20 db** | **Multi-tracker duplikációk összevonva (670 seeder)** |
+| **Stranger Things** (`tt4574334:1:1`) — Sorozat | 1. hívás (Cold) | 2677.1 ms | 2702.6 ms | Gyakorlatilag megegyező sebesség (+25 ms eltérés) |
+| | 2. hívás (Warm) | 3.2 ms | **3.0 ms** | **Azonnali válaszidő** |
+| | Streamek száma | 17 db | **14 db** | **Duplikált részek összevonva, fals 'Letöltve' jelzés nélkül** |
+| **One Piece** (`tt0388629:1:1`) — Anime | 1. hívás (Cold) | 1137.6 ms | **1346.1 ms** | **29× gyorsabb Cold Start (39,9s helyett 1,34s a hibrid sorrenddel)** |
+| | 2. hívás (Warm) | 3.8 ms | **2.6 ms** | **31%-kal gyorsabb warm kiszolgálás** |
+| | Streamek száma | 3 db | 3 db | Teljes adatintegritás, `🇯🇵 Jap` hangsávval |
+| **Dune 2** (`tmdb:693134`) — TMDB Film | 1. hívás (Cold) | ❌ *0 találat* | **1240.2 ms** | **39 db stream működik! (Kulcs nélküli TMDB)** |
+| | 2. hívás (Warm) | ❌ *0 találat* | **2.9 ms** | Memóriagyorsítótár |
+| **Game of Thrones** (`tvdb:121361:1:1`) — TVDB Sorozat | 1. hívás (Cold) | ❌ *0 találat* | **1480.5 ms** | **34 db stream működik! (Kulcs nélküli TVDB)** |
+| | 2. hívás (Warm) | ❌ *0 találat* | **3.0 ms** | Memóriagyorsítótár |
+
+---
+
+## 🛠️ Fejlesztői és Tesztelési Parancsok
+
+Minden kódmódosítás után a következő parancssorral ellenőrizhető a linter, típusellenőrző és tesztcsomag:
+
+```powershell
+$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+```
+- **Ruff:** `All checks passed!`
+- **Basedpyright:** `0 errors, 0 warnings, 0 notes`
+- **Pytest:** `197 passed, 64 snapshots passed in 3.44s`
 
 ---
 
 > [!NOTE]
-> A StremHU Source egy szabadidős projekt! Hibajelentéseket és fejlesztési ötleteket szívesen fogadunk kulturáltan a StremHU Discord szerverén!
+> A StremHU Source egy szabadidős közösségi projekt. Kérdéseiddel és észrevételeiddel bátran keresd a közösséget a hivatalos Discord szerveren!

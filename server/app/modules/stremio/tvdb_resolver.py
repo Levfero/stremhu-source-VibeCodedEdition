@@ -1,4 +1,7 @@
+import html
+import re
 from collections import defaultdict
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -40,6 +43,18 @@ _IMDB_ALIASES: dict[str, list[str]] = {
     # Rurouni Kenshin (1996: tt0115341 <-> 2000 Samurai X: tt0348924)
     "tt0115341": ["tt0348924"],
     "tt0348924": ["tt0115341"],
+    # Naruto (2002: tt0409591 <-> 2005 angol/nemzetközi: tt0371408)
+    "tt0409591": ["tt0371408"],
+    "tt0371408": ["tt0409591"],
+    # Bleach (2004: tt0434665 <-> 2006 angol/nemzetközi: tt0831290)
+    "tt0434665": ["tt0831290"],
+    "tt0831290": ["tt0434665"],
+    # Death Note (2006: tt0877057 <-> 2007 angol/nemzetközi: tt1049513)
+    "tt0877057": ["tt1049513"],
+    "tt1049513": ["tt0877057"],
+    # Fullmetal Alchemist (2003: tt0421357 <-> Brotherhood 2009: tt1370601)
+    "tt0421357": ["tt1370601"],
+    "tt1370601": ["tt0421357"],
 }
 
 
@@ -54,7 +69,7 @@ class TvdbResolver:
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
+        if self._client is None or self._client.is_closed is True:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
             self._client = httpx.AsyncClient(
                 timeout=8.0,
@@ -80,42 +95,136 @@ class TvdbResolver:
                 self._cache.pop(k, None)
         self._cache[key] = value
 
-    async def resolve_tvdb_to_imdb(self, tvdb_id: str) -> str | None:
+    async def resolve_tvdb(
+        self, tvdb_id: str, is_series: bool = True
+    ) -> tuple[str | None, str | None]:
         """
-        TVDB azonosító feloldása IMDb (tt...) azonosítóra.
-        Elsődleges forrásként a TVMaze ingyenes publikus API-ját használja.
-        Másodlagos forrásként a TMDB API-t használja, amennyiben meg van adva TMDB API kulcs.
+        TVDB azonosító feloldása (imdb_id, title) párra kulcs nélkül vagy TMDB kulccsal.
+        1. TVMaze API (sorozatokhoz, kulcs nélkül, visszaadja az IMDb ID-t és a címet)
+        2. Wikidata SPARQL API (kulcs nélkül, P4835 sorozathoz, P12196 filmhez)
+        3. TMDB API (ha van beállítva TMDB API kulcs)
         """
         if not tvdb_id:
-            return None
+            return None, None
 
         clean_id = tvdb_id.strip()
-        if clean_id in self._cache:
-            val = self._cache[clean_id]
-            return val if isinstance(val, str) else None
+        cache_key = f"tvdb_{clean_id}_{is_series}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, tuple):
+                return cached
 
-        async with self._lock(clean_id):
-            if clean_id in self._cache:
-                val = self._cache[clean_id]
-                return val if isinstance(val, str) else None
+        async with self._lock(cache_key):
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if isinstance(cached, tuple):
+                    return cached
 
-            # 1. Próbálkozás: TVMaze API (ingyenes, nem igényel API kulcsot)
-            imdb_id = await self._resolve_from_tvmaze(clean_id)
-            if imdb_id:
-                self._set_cache(clean_id, imdb_id)
-                return imdb_id
+            # 1. Próbálkozás: TVMaze API (ingyenes, nem igényel API kulcsot, adja a címet és IMDb ID-t)
+            if is_series:
+                tvmaze_res = await self._resolve_from_tvmaze_full(clean_id)
+                if tvmaze_res[0] or tvmaze_res[1]:
+                    self._set_cache(cache_key, tvmaze_res)
+                    if tvmaze_res[0] and tvmaze_res[1]:
+                        self._set_cache(f"title_{tvmaze_res[0]}", tvmaze_res[1])
+                    return tvmaze_res
 
-            # 2. Próbálkozás: TMDB API (ha van beállítva TMDB API kulcs)
+            # 2. Próbálkozás: Wikidata SPARQL API (ingyenes, pontos IMDb ID + hu/en cím)
+            try:
+                prop = "P4835" if is_series else "P12196"
+                sparql = (
+                    f"SELECT ?imdb ?labelHu ?labelEn WHERE {{ "
+                    f'{{ ?item wdt:{prop} "{clean_id}". }} '
+                    f"OPTIONAL {{ ?item wdt:P345 ?imdb. }} "
+                    f'OPTIONAL {{ ?item rdfs:label ?labelHu FILTER(LANG(?labelHu)="hu") }} '
+                    f'OPTIONAL {{ ?item rdfs:label ?labelEn FILTER(LANG(?labelEn)="en") }} '
+                    f"}} LIMIT 1"
+                )
+                sparql_url = f"https://query.wikidata.org/sparql?format=json&query={quote(sparql)}"
+                client = self._get_client()
+                wiki_resp = await client.get(
+                    sparql_url,
+                    headers={
+                        "User-Agent": "StremHUSource/1.0 (https://github.com/s4pp1/stremhu-source; admin@stremhu.local) httpx/0.28.1",
+                        "Accept": "application/json",
+                    },
+                    timeout=5.0,
+                )
+                if wiki_resp.status_code == 200:
+                    wiki_data = wiki_resp.json()
+                    bindings = wiki_data.get("results", {}).get("bindings", [])
+                    if bindings:
+                        row = bindings[0]
+                        w_imdb = row.get("imdb", {}).get("value")
+                        w_label_hu = row.get("labelHu", {}).get("value")
+                        w_label_en = row.get("labelEn", {}).get("value")
+                        found_imdb = (
+                            w_imdb
+                            if isinstance(w_imdb, str) and w_imdb.startswith("tt")
+                            else None
+                        )
+                        raw_title = w_label_hu or w_label_en
+                        found_title = html.unescape(raw_title) if raw_title else None
+                        if found_imdb or found_title:
+                            res = (found_imdb, found_title)
+                            self._set_cache(cache_key, res)
+                            if found_imdb and found_title:
+                                self._set_cache(f"title_{found_imdb}", found_title)
+                            return res
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Wikidata SPARQL hiba TVDB-re ({clean_id}): {e}")
+
+            # 3. Próbálkozás: TMDB API (ha van beállítva TMDB API kulcs)
             if config.tmdb_api_key:
                 imdb_id = await self._resolve_from_tmdb(clean_id)
                 if imdb_id:
-                    self._set_cache(clean_id, imdb_id)
-                    return imdb_id
+                    res = (imdb_id, None)
+                    self._set_cache(cache_key, res)
+                    return res
 
-            logger.warning(
-                f"[TvdbResolver] Nem sikerült IMDb azonosítót találni a TVDB ID-hoz: {clean_id}"
-            )
+            return None, None
+
+    async def resolve_tvdb_to_imdb(self, tvdb_id: str) -> str | None:
+        """
+        TVDB azonosító feloldása IMDb (tt...) azonosítóra (kompatibilitási wrapper).
+        """
+        if not tvdb_id:
             return None
+        clean_id = tvdb_id.strip()
+        if clean_id in self._cache:
+            val = self._cache[clean_id]
+            if isinstance(val, str):
+                return val
+        imdb_id, _ = await self.resolve_tvdb(tvdb_id, is_series=True)
+        if imdb_id:
+            self._set_cache(clean_id, imdb_id)
+        return imdb_id
+
+    async def _resolve_from_tvmaze_full(
+        self, tvdb_id: str
+    ) -> tuple[str | None, str | None]:
+        url = f"https://api.tvmaze.com/lookup/shows?thetvdb={tvdb_id}"
+        client = self._get_client()
+        try:
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                externals = data.get("externals", {})
+                imdb = externals.get("imdb")
+                name = data.get("name")
+                clean_imdb = (
+                    imdb if isinstance(imdb, str) and imdb.startswith("tt") else None
+                )
+                clean_title = str(name).strip() if name else None
+                if clean_imdb or clean_title:
+                    logger.info(
+                        f"[TvdbResolver] TVDB {tvdb_id} feloldva: IMDb={clean_imdb}, Cím={clean_title} (TVMaze)"
+                    )
+                    return clean_imdb, clean_title
+        except Exception as e:
+            logger.debug(f"[TvdbResolver] TVMaze feloldási hiba ({tvdb_id}): {e}")
+
+        return None, None
 
     async def _resolve_from_tvmaze(self, tvdb_id: str) -> str | None:
         url = f"https://api.tvmaze.com/lookup/shows?thetvdb={tvdb_id}"
@@ -185,26 +294,26 @@ class TvdbResolver:
 
         return None
 
-    async def resolve_kitsu_to_imdb(
-        self, kitsu_id: str, episode: int | None = None
-    ) -> tuple[str | None, int | None, int | None, list[int], list[int]]:
+    async def resolve_kitsu(
+        self, kitsu_id: str | int, episode: int | None = None
+    ) -> tuple[str | None, int | None, int | None, list[int], list[int], str | None]:
         """
-        Kitsu azonosító feloldása IMDb azonosítóra, valamint a megfelelő évad és epizód számra.
+        Kitsu azonosító feloldása IMDb azonosítóra, évad/epizód számra, valamint címre.
         """
         if not kitsu_id:
-            return None, None, None, [], []
+            return None, None, None, [], [], None
 
-        clean_id = kitsu_id.strip()
+        clean_id = str(kitsu_id).strip()
         cache_key = f"kitsu_{clean_id}_{episode}"
         if cache_key in self._cache:
             cached = self._cache[cache_key]
-            if isinstance(cached, tuple):
+            if isinstance(cached, tuple) and len(cached) == 6:
                 return cached
 
         async with self._lock(cache_key):
             if cache_key in self._cache:
                 cached = self._cache[cache_key]
-                if isinstance(cached, tuple):
+                if isinstance(cached, tuple) and len(cached) == 6:
                     return cached
 
             # 1. Próbálkozás: Anime Kitsu (strem.fun) - pontos IMDb ID és évad/epizód leképzés
@@ -215,18 +324,36 @@ class TvdbResolver:
 
             # 2. Próbálkozás: Kitsu API -> TVMaze
             res2 = await self._resolve_from_kitsu_tvmaze(clean_id, episode)
-            if res2[0]:
+            if res2[0] or res2[5]:
                 self._set_cache(cache_key, res2)
                 return res2
 
             logger.warning(
-                f"[TvdbResolver] Nem sikerült IMDb azonosítót találni a Kitsu ID-hoz: {clean_id}"
+                f"[TvdbResolver] Nem sikerült IMDb azonosítót vagy címet találni a Kitsu ID-hoz: {clean_id}"
             )
-            return None, None, None, [], []
+            return None, None, None, [], [], None
+
+    async def resolve_kitsu_to_imdb(
+        self, kitsu_id: str | int, episode: int | None = None
+    ) -> tuple[Any, ...]:
+        """
+        Kompatibilitási wrapper az 5 vagy 3 elemű visszatérési értéket váró hívóknak.
+        """
+        clean_id = str(kitsu_id).strip() if kitsu_id else ""
+        cache_key = f"kitsu_{clean_id}_{episode}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, tuple):
+                if len(cached) in (3, 5):
+                    return cached
+                if len(cached) == 6:
+                    return cached[0], cached[1], cached[2], cached[3], cached[4]
+        res = await self.resolve_kitsu(kitsu_id, episode)
+        return res[0], res[1], res[2], res[3], res[4]
 
     async def _resolve_from_anime_kitsu(
         self, kitsu_id: str, episode: int | None
-    ) -> tuple[str | None, int | None, int | None, list[int], list[int]]:
+    ) -> tuple[str | None, int | None, int | None, list[int], list[int], str | None]:
         client = self._get_client()
         for endpoint in [
             f"https://anime-kitsu.strem.fun/meta/series/kitsu:{kitsu_id}.json",
@@ -238,11 +365,12 @@ class TvdbResolver:
                     data = resp.json()
                     meta = data.get("meta", {})
                     imdb_id = meta.get("imdb_id")
+                    anime_name = meta.get("name")
                     if imdb_id and isinstance(imdb_id, str) and imdb_id.startswith("tt"):
                         season = 1
                         ep = episode
-                        alt_eps = []
-                        alt_seasons = []
+                        alt_eps: list[int] = []
+                        alt_seasons: list[int] = []
                         if episode is not None:
                             videos = meta.get("videos", [])
                             for v in videos:
@@ -256,24 +384,21 @@ class TvdbResolver:
                                         alt_eps.append(episode)
                                     v_s = v.get("season")
                                     if v_s and v_s != season and v_s not in alt_seasons:
-                                        # Kitsu belső indexelése season=1 az egyes anime bejegyzésekhez,
-                                        # még akkor is, ha az a franchise 2., 3. vagy későbbi évada.
-                                        # Ezt sosem szabad alternatív évadként megadni, ha a valódi IMDb évad > 1.
                                         if not (v_s == 1 and season > 1):
                                             alt_seasons.append(v_s)
                                     break
                         logger.info(
                             f"[TvdbResolver] Kitsu {kitsu_id} feloldva: {imdb_id} S{season}E{ep} alt_eps={alt_eps} (Anime-Kitsu)"
                         )
-                        return imdb_id, season, ep, alt_eps, alt_seasons
+                        return imdb_id, season, ep, alt_eps, alt_seasons, anime_name
             except Exception as e:
                 logger.debug(f"[TvdbResolver] Anime-Kitsu hiba ({kitsu_id}): {e}")
 
-        return None, None, None, [], []
+        return None, None, None, [], [], None
 
     async def _resolve_from_kitsu_tvmaze(
         self, kitsu_id: str, episode: int | None
-    ) -> tuple[str | None, int | None, int | None, list[int], list[int]]:
+    ) -> tuple[str | None, int | None, int | None, list[int], list[int], str | None]:
         url = f"https://kitsu.io/api/edge/anime/{kitsu_id}"
         client = self._get_client()
         try:
@@ -281,8 +406,9 @@ class TvdbResolver:
             if resp.status_code == 200:
                 data = resp.json()
                 attr = data.get("data", {}).get("attributes", {})
+                canonical = attr.get("canonicalTitle")
                 candidates = [
-                    attr.get("canonicalTitle"),
+                    canonical,
                     attr.get("titles", {}).get("en"),
                     attr.get("titles", {}).get("en_jp"),
                 ]
@@ -304,25 +430,155 @@ class TvdbResolver:
                                 logger.info(
                                     f"[TvdbResolver] Kitsu {kitsu_id} ({title}) feloldva IMDb-re: {imdb} (TVMaze)"
                                 )
-                                return imdb, 1, episode, [], []
+                                return imdb, 1, episode, [], [], canonical or title
                     except Exception:
                         continue
+
+                # Ha nem találtunk IMDb ID-t, a canonicalTitle mentőövként szolgál a szöveges kereséshez
+                if canonical:
+                    logger.info(
+                        f"[TvdbResolver] Kitsu {kitsu_id} cím kinyerve (IMDb nélkül): '{canonical}'"
+                    )
+                    return None, 1, episode, [], [], canonical
         except Exception as e:
             logger.debug(f"[TvdbResolver] Kitsu TVMaze feloldási hiba ({kitsu_id}): {e}")
 
-        return None, None, None, [], []
+        return None, None, None, [], [], None
 
-    async def get_title_by_imdb(self, imdb_id: str) -> str | None:
+    async def resolve_mal(
+        self, mal_id: str, episode: int | None = None
+    ) -> tuple[str | None, int | None, int | None, list[int], list[int], str | None]:
+        """
+        MyAnimeList azonosító feloldása (imdb_id, season, episode, alt_eps, alt_seasons, title).
+        1. Kitsu Mapping API: /mappings?filter[external_site]=myanimelist/anime&filter[external_id]={mal_id}
+           -> Kitsu ID kinyerése és delegálás a resolve_kitsu-nak (így teljes TVDB/Cinemeta leképzés jár hozzá!)
+        2. Wikidata SPARQL API (P4086 MyAnimeList ID) -> IMDb ID (P345) és hu/en cím
+        """
+        if not mal_id:
+            return None, None, None, [], [], None
+
+        clean_id = mal_id.strip()
+        cache_key = f"mal_{clean_id}_{episode}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, tuple) and len(cached) == 6:
+                return cached
+
+        async with self._lock(cache_key):
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if isinstance(cached, tuple) and len(cached) == 6:
+                    return cached
+
+            # 1. Próbálkozás: Kitsu Mapping API (MyAnimeList -> Kitsu -> IMDb + pontos évad/epizód leképezés!)
+            try:
+                kitsu_map_url = (
+                    f"https://kitsu.io/api/edge/mappings?"
+                    f"filter[external_site]=myanimelist/anime&filter[external_id]={clean_id}&include=item"
+                )
+                client = self._get_client()
+                resp = await client.get(
+                    kitsu_map_url,
+                    headers={"Accept": "application/vnd.api+json"},
+                    timeout=5.0,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    included = data.get("included", [])
+                    kitsu_id = None
+                    for item in included:
+                        if item.get("type") == "anime":
+                            kitsu_id = str(item.get("id"))
+                            break
+                    if not kitsu_id:
+                        data_items = data.get("data", [])
+                        if data_items:
+                            rel = (
+                                data_items[0]
+                                .get("relationships", {})
+                                .get("item", {})
+                                .get("data", {})
+                            )
+                            if rel.get("type") == "anime":
+                                kitsu_id = str(rel.get("id"))
+
+                    if kitsu_id:
+                        kitsu_res = await self.resolve_kitsu(kitsu_id, episode)
+                        if kitsu_res[0] or kitsu_res[5]:
+                            self._set_cache(cache_key, kitsu_res)
+                            return kitsu_res
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Kitsu MAL mapping hiba ({clean_id}): {e}")
+
+            # 2. Próbálkozás: Wikidata SPARQL API (P4086 MyAnimeList ID)
+            try:
+                sparql = (
+                    f"SELECT ?imdb ?labelHu ?labelEn WHERE {{ "
+                    f'?item wdt:P4086 "{clean_id}". '
+                    f"OPTIONAL {{ ?item wdt:P345 ?imdb. }} "
+                    f'OPTIONAL {{ ?item rdfs:label ?labelHu FILTER(LANG(?labelHu)="hu") }} '
+                    f'OPTIONAL {{ ?item rdfs:label ?labelEn FILTER(LANG(?labelEn)="en") }} '
+                    f"}} LIMIT 1"
+                )
+                sparql_url = f"https://query.wikidata.org/sparql?format=json&query={quote(sparql)}"
+                client = self._get_client()
+                wiki_resp = await client.get(
+                    sparql_url,
+                    headers={
+                        "User-Agent": "StremHUSource/1.0 (https://github.com/s4pp1/stremhu-source; admin@stremhu.local) httpx/0.28.1",
+                        "Accept": "application/json",
+                    },
+                    timeout=5.0,
+                )
+                if wiki_resp.status_code == 200:
+                    wiki_data = wiki_resp.json()
+                    bindings = wiki_data.get("results", {}).get("bindings", [])
+                    if bindings:
+                        row = bindings[0]
+                        w_imdb = row.get("imdb", {}).get("value")
+                        w_label_hu = row.get("labelHu", {}).get("value")
+                        w_label_en = row.get("labelEn", {}).get("value")
+                        found_imdb = (
+                            w_imdb
+                            if isinstance(w_imdb, str) and w_imdb.startswith("tt")
+                            else None
+                        )
+                        raw_title = w_label_hu or w_label_en
+                        found_title = html.unescape(raw_title) if raw_title else None
+                        if found_imdb or found_title:
+                            res = (found_imdb, 1, episode, [], [], found_title)
+                            self._set_cache(cache_key, res)
+                            if found_imdb and found_title:
+                                self._set_cache(f"title_{found_imdb}", found_title)
+                            return res
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Wikidata SPARQL hiba MAL-ra ({clean_id}): {e}")
+
+            return None, None, None, [], [], None
+
+    async def get_title_by_imdb(
+        self, imdb_id: str, is_series: bool | None = None
+    ) -> str | None:
         """Lekéri a média címét IMDb ID alapján Cinemeta API-n keresztül (másodlagos kereséshez)."""
-        if not imdb_id or not imdb_id.startswith("tt"):
+        if not imdb_id:
             return None
+        if not imdb_id.startswith("tt"):
+            # Ha nem 'tt' azonosító (pl. közvetlenül átadott cím vagy slug), használjuk címként
+            return imdb_id
         cache_key = f"title_{imdb_id}"
         if cache_key in self._cache:
             val = self._cache[cache_key]
             return val if isinstance(val, str) else None
 
         client = self._get_client()
-        for c_type in ["series", "movie"]:
+        if is_series is False:
+            c_types = ["movie", "series"]
+        elif is_series is True:
+            c_types = ["series", "movie"]
+        else:
+            c_types = ["series", "movie"]
+
+        for c_type in c_types:
             url = f"https://v3-cinemeta.strem.io/meta/{c_type}/{imdb_id}.json"
             try:
                 resp = await client.get(url, timeout=5.0)
@@ -335,6 +591,199 @@ class TvdbResolver:
             except Exception:
                 pass
         return None
+
+    async def resolve_tmdb(
+        self, tmdb_id: str, is_series: bool = False
+    ) -> tuple[str | None, str | None]:
+        """
+        TMDB azonosító feloldása (imdb_id, title) párra.
+        Amennyiben elérhető IMDb ID, azt adja vissza. Ha nincs IMDb ID (pl. hazai reality / magyar műsorok),
+        akkor a cím alapján történő másodlagos kereséshez biztosítja a címet.
+        """
+        if not tmdb_id:
+            return None, None
+
+        clean_id = tmdb_id.strip()
+        cache_key = f"tmdb_{clean_id}_{is_series}"
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            if isinstance(cached, tuple):
+                return cached
+
+        async with self._lock(cache_key):
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if isinstance(cached, tuple):
+                    return cached
+
+            # 1. Próbálkozás: TMDB API, ha be van állítva API kulcs
+            if config.tmdb_api_key:
+                endpoints = (
+                    [
+                        (
+                            "tv",
+                            f"https://api.themoviedb.org/3/tv/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                        (
+                            "movie",
+                            f"https://api.themoviedb.org/3/movie/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                    ]
+                    if is_series
+                    else [
+                        (
+                            "movie",
+                            f"https://api.themoviedb.org/3/movie/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                        (
+                            "tv",
+                            f"https://api.themoviedb.org/3/tv/{clean_id}?api_key={config.tmdb_api_key}&append_to_response=external_ids&language=hu-HU",
+                        ),
+                    ]
+                )
+                client = self._get_client()
+                for _, url in endpoints:
+                    try:
+                        resp = await client.get(url, timeout=5.0)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            ext_imdb = data.get("external_ids", {}).get("imdb_id")
+                            ext_imdb_clean = (
+                                ext_imdb
+                                if isinstance(ext_imdb, str) and ext_imdb.startswith("tt")
+                                else None
+                            )
+                            title = (
+                                data.get("name")
+                                or data.get("title")
+                                or data.get("original_name")
+                                or data.get("original_title")
+                            )
+                            if ext_imdb_clean or title:
+                                res = (ext_imdb_clean, str(title) if title else None)
+                                self._set_cache(cache_key, res)
+                                if ext_imdb_clean and title:
+                                    self._set_cache(f"title_{ext_imdb_clean}", str(title))
+                                return res
+                    except Exception as e:
+                        logger.debug(f"[TvdbResolver] TMDB API hiba ({clean_id}): {e}")
+
+            # 2. Próbálkozás: Wikidata SPARQL API (ingyenes, gyors, pontos IMDb ID + hu/en cím)
+            # Mind a film (P4947), mind a sorozat (P4983) azonosítót ellenőrizzük UNION-nal,
+            # így az anime OVA-k, minisorozatok vagy kategória-eltérések is hibátlanul feloldódnak.
+            try:
+                prop_filter = (
+                    f'{{ ?item wdt:P4983 "{clean_id}". }} UNION '
+                    f'{{ ?item wdt:P4947 "{clean_id}". }}'
+                )
+
+                sparql = (
+                    f"SELECT ?imdb ?labelHu ?labelEn WHERE {{ "
+                    f"{prop_filter} "
+                    f"OPTIONAL {{ ?item wdt:P345 ?imdb. }} "
+                    f'OPTIONAL {{ ?item rdfs:label ?labelHu FILTER(LANG(?labelHu)="hu") }} '
+                    f'OPTIONAL {{ ?item rdfs:label ?labelEn FILTER(LANG(?labelEn)="en") }} '
+                    f"}} LIMIT 1"
+                )
+                sparql_url = f"https://query.wikidata.org/sparql?format=json&query={quote(sparql)}"
+                client = self._get_client()
+                wiki_resp = await client.get(
+                    sparql_url,
+                    headers={
+                        "User-Agent": "StremHUSource/1.0 (https://github.com/s4pp1/stremhu-source; admin@stremhu.local) httpx/0.28.1",
+                        "Accept": "application/json",
+                    },
+                    timeout=5.0,
+                )
+                if wiki_resp.status_code == 200:
+                    wiki_data = wiki_resp.json()
+                    bindings = wiki_data.get("results", {}).get("bindings", [])
+                    if bindings:
+                        row = bindings[0]
+                        w_imdb = row.get("imdb", {}).get("value")
+                        w_label_hu = row.get("labelHu", {}).get("value")
+                        w_label_en = row.get("labelEn", {}).get("value")
+                        found_imdb = (
+                            w_imdb
+                            if isinstance(w_imdb, str) and w_imdb.startswith("tt")
+                            else None
+                        )
+                        raw_title = w_label_hu or w_label_en
+                        found_title = html.unescape(raw_title) if raw_title else None
+                        if found_imdb or found_title:
+                            res = (found_imdb, found_title)
+                            self._set_cache(cache_key, res)
+                            if found_imdb and found_title:
+                                self._set_cache(f"title_{found_imdb}", found_title)
+                            return res
+            except Exception as e:
+                logger.debug(f"[TvdbResolver] Wikidata SPARQL hiba ({clean_id}): {e}")
+
+            # 3. Próbálkozás: Publikus TMDB oldal lekérése és elemzése (curl UA-val Cloudflare védelem kikerüléséhez)
+            client = self._get_client()
+            url_types = ["tv", "movie"] if is_series else ["movie", "tv"]
+            for u_type in url_types:
+                url = f"https://www.themoviedb.org/{u_type}/{clean_id}"
+                try:
+                    resp = await client.get(
+                        url,
+                        headers={
+                            "User-Agent": "curl/8.5.0",
+                            "Accept": "text/html,*/*",
+                            "Accept-Language": "hu-HU,hu;q=0.9,en;q=0.8",
+                        },
+                        timeout=5.0,
+                    )
+                    if resp.status_code == 200:
+                        text = resp.text
+                        imdb_match = re.search(
+                            r'href=["\']https?://(?:www\.)?imdb\.com/title/(tt\d+)', text
+                        )
+                        found_imdb = imdb_match.group(1) if imdb_match else None
+
+                        og_match = re.search(
+                            r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']',
+                            text,
+                            re.I,
+                        )
+                        found_title = None
+                        if og_match:
+                            found_title = og_match.group(1).strip()
+                        else:
+                            title_tag = re.search(r"<title>(.*?)<\/title>", text, re.I)
+                            if title_tag:
+                                clean_t = (
+                                    title_tag.group(1)
+                                    .split("—")[0]
+                                    .split("&#8212;")[0]
+                                    .strip()
+                                )
+                                clean_t = re.sub(r"\s*\([^)]*\)$", "", clean_t).strip()
+                                if clean_t:
+                                    found_title = clean_t
+
+                        orig_m = re.search(
+                            r"(?:Eredeti\s+cím|Eredeti\s+név|Original\s+Title|Original\s+Name)\s*</strong>\s*([^<]+)</p>",
+                            text,
+                            re.I,
+                        )
+                        orig_title = orig_m.group(1).strip() if orig_m else None
+                        raw_chosen = found_title or orig_title
+                        chosen_title = html.unescape(raw_chosen) if raw_chosen else None
+
+                        if found_imdb or chosen_title:
+                            res = (found_imdb, chosen_title)
+                            self._set_cache(cache_key, res)
+                            if found_imdb and chosen_title:
+                                self._set_cache(f"title_{found_imdb}", chosen_title)
+                            return res
+                except Exception as e:
+                    logger.debug(
+                        f"[TvdbResolver] TMDB web scraping hiba ({clean_id}, {u_type}): {e}"
+                    )
+
+            # Ne mérgezzük a gyorsítótárat sikertelen hálózati kérés esetén
+            return (None, None)
 
     async def get_episode_mappings(
         self,

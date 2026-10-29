@@ -119,4 +119,3 @@ def detect_subtitle_language(filename: str, path: str = "") -> tuple[str, str]:
     if is_forced:
         return "hun", "Hungarian (Torrent) (Forced)"
     return "hun", "Hungarian (Torrent)"
-

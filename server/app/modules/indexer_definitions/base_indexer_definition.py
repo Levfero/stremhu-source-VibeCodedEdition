@@ -326,8 +326,11 @@ class BaseIndexerDefinition(ABC):
         page: int | None,
         accumulator: list[IndexerDefinitionTorrent],
     ) -> list[IndexerDefinitionTorrent]:
-        if len(accumulator) > _TORRENTS_LIMIT:
-            return accumulator
+        if len(accumulator) >= 50:
+            return pydash.uniq_by(
+                accumulator,
+                lambda torrent: torrent.torrent_id,
+            )
 
         try:
             result = await self._fetch_torrents_by_query(query, page)

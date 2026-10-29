@@ -5,6 +5,7 @@ from app.modules.stremio.constants import (
     SEARCH_ID,
 )
 from app.modules.stremio.enums import (
+    ContentType,
     MediaType,
 )
 from app.modules.stremio.schemas import (
@@ -36,7 +37,11 @@ class StremioCatalogsService:
         catalog_id: str,
         extra: ParsedExtra = ParsedExtra(),
     ):
-        if media_type != MediaType.MOVIE or catalog_id != SEARCH_ID or not extra.search:
+        if (
+            media_type not in (MediaType.MOVIE, MediaType.SERIES)
+            or catalog_id != SEARCH_ID
+            or not extra.search
+        ):
             return StremioCatalogResponse(metas=[])
 
         parts = extra.search.split("-", 1)
@@ -46,21 +51,31 @@ class StremioCatalogsService:
         torrent_id = parts[1]
 
         try:
-            meta_previews = await self.get_metas(torrent_id)
+            meta_previews = await self.get_metas(torrent_id, media_type=media_type)
         except Exception as e:
             logger.error("A lista lekérésénél hiba történt: %s", e)
             meta_previews = []
 
         return StremioCatalogResponse(metas=meta_previews)
 
-    async def get_metas(self, torrent_id: str) -> list[MetaPreview]:
+    async def get_metas(
+        self,
+        torrent_id: str,
+        media_type: MediaType = MediaType.MOVIE,
+    ) -> list[MetaPreview]:
         (
             torrent_sources,
             _,
         ) = await self._torrent_source_provider_service.find_by_torrent_id(torrent_id)
 
+        content_type = (
+            ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
+        )
         return [
-            MetaPreview.from_torrent_file(torrent_source.torrent_file)
+            MetaPreview.from_torrent_file(
+                torrent_source.torrent_file,
+                content_type=content_type,
+            )
             for torrent_source in torrent_sources
         ]
 
@@ -68,6 +83,7 @@ class StremioCatalogsService:
         self,
         indexer_id: str,
         torrent_id: str,
+        media_type: MediaType = MediaType.MOVIE,
     ) -> MetaDetail | None:
 
         self._isolated_torrent_files_service.touch(
@@ -97,4 +113,7 @@ class StremioCatalogsService:
         if not torrent_file:
             return None
 
-        return MetaDetail.from_torrent_file(torrent_file)
+        content_type = (
+            ContentType.SERIES if media_type == MediaType.SERIES else ContentType.MOVIE
+        )
+        return MetaDetail.from_torrent_file(torrent_file, content_type=content_type)

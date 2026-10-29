@@ -72,6 +72,12 @@ class UserModel(Base):
         default=False,
     )
 
+    enable_stream_deduplication: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        default=True,
+        server_default=sa.text("1"),
+    )
+
     smart_filter_grouping_preference_id: Mapped[str | None] = mapped_column(
         sa.ForeignKey("preferences.id", ondelete="SET NULL"),
         default=None,

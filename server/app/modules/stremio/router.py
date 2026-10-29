@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Request, status
 from fastapi.responses import RedirectResponse
 
+from app.common.logger import logger
 from app.modules.auth.dependencies import ApiKeyGuard
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.dependencies import (
@@ -67,6 +68,7 @@ async def streams(
     stremio_service: Annotated[StremioService, Depends(get_stremio_service)],
     user: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> StremioStreams:
+    logger.info(f"[StremioRouter] Stream kérés érkezett: {media_type=}, {parsed_id=}")
     streams = await stremio_service.get_streams(user, parsed_id)
     return StremioStreams(streams=streams)
 
@@ -149,12 +151,13 @@ async def meta(
     ],
     _: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> MetaResponse:
-    if media_type != MediaType.MOVIE or parsed_id is None:
+    if media_type not in (MediaType.MOVIE, MediaType.SERIES) or parsed_id is None:
         return MetaResponse(meta={})
 
     result = await stremio_catalogs_service.get_meta(
         indexer_id=parsed_id.indexer_id,
         torrent_id=parsed_id.torrent_id,
+        media_type=media_type,
     )
 
     if not result:

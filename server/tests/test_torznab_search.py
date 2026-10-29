@@ -47,6 +47,11 @@ class FakeTorrentSourceProviderService:
 
         return self._sources, []
 
+    async def find_by_query(self, query: str):
+        _ = query
+
+        return self._sources, []
+
 
 def create_client(sources: list[TorrentSource]) -> Iterator[TestClient]:
     app = FastAPI()
@@ -143,3 +148,13 @@ def test_tv_search_feed(series_client: TestClient, snapshot: SnapshotAssertion):
 
     assert response.status_code == status.HTTP_200_OK
     assert response.text == snapshot
+
+
+def test_search_with_q(movie_client: TestClient):
+    response = movie_client.get(
+        f"/api/torznab/api?t=search&q=Teszt.Film&apikey={API_KEY}"
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert "Teszt.Film" in response.text
+

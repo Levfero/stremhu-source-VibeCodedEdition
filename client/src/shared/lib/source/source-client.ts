@@ -199,6 +199,7 @@ export interface MeUpdateRequest {
   password?: string | null
   torrentSeed?: number | null
   enableSmartFilter?: boolean | null
+  enableStreamDeduplication?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
   enableFallbackSubtitles?: boolean | null
@@ -370,6 +371,7 @@ export interface UserResponse {
   createdAt: string
   torrentSeed: number | null
   enableSmartFilter: boolean
+  enableStreamDeduplication: boolean
   smartFilterGroupingPreferenceId: string | null
   smartFilterLimit: number
   enableFallbackSubtitles: boolean
@@ -530,6 +532,7 @@ export interface UserCreateRequest {
   username: string
   torrentSeed?: number | null
   enableSmartFilter?: boolean
+  enableStreamDeduplication?: boolean
   smartFilterGroupingPreferenceId?: string | null
   /** @minimum 1 */
   smartFilterLimit?: number
@@ -545,6 +548,7 @@ export interface UserUpdateRequest {
   roleId?: string | null
   torrentSeed?: number | null
   enableSmartFilter?: boolean | null
+  enableStreamDeduplication?: boolean | null
   smartFilterGroupingPreferenceId?: string | null
   smartFilterLimit?: number | null
   enableFallbackSubtitles?: boolean | null

@@ -42,6 +42,10 @@ class SeriesParser:
         r"\b(\d{1,2})(?:st|nd|rd|th)[ ._-]+seasons?[ ._-]*(?:e|ep|episode|[-–—]|\s)\s*(\d{1,4})(?:-(?:e|ep|episode)?[ ._-]?(\d{1,4}))?\b",
         re.IGNORECASE,
     )
+    PATTERN_SPECIAL_EPISODE = re.compile(
+        r"\b(?:oad|ova|sp|special)[ ._-]?(\d{1,4})(?:(?:[ ._-]?-?[ ._-]?(?:oad|ova|sp|special))?(\d{1,4}))?\b",
+        re.IGNORECASE,
+    )
 
     # Cleaners for standalone episode extraction
     PATTERN_CLEAN_RESOLUTIONS = re.compile(
@@ -171,6 +175,12 @@ class SeriesParser:
                 season = int(match.group(1))
                 episodes = self._expand_range(match.group(2), match.group(3))
                 return [season], episodes
+
+        spec_match = self.PATTERN_SPECIAL_EPISODE.search(self.name_lower)
+        if spec_match:
+            episodes = self._expand_range(spec_match.group(1), spec_match.group(2))
+            return [0], episodes
+
         return [], []
 
     def _extract_seasons(self, text: str) -> tuple[list[int], str]:

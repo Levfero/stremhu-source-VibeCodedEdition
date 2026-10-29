@@ -120,6 +120,10 @@ class StreamFileResolver:
             return []
 
         if isinstance(node, FileNode):
+            # Extrák/minta fájlok szűrése, kivéve ha kifejezetten a 0. évadot keressük
+            if 0 not in self.target_seasons and is_extra_file(node.name):
+                return []
+
             parser = SeriesParser(node.name)
             seasons, episodes = parser.parse(
                 context_seasons=[inherited_season] if inherited_season else None
@@ -140,18 +144,35 @@ class StreamFileResolver:
             return []
 
         elif isinstance(node, FolderNode):
-            parser = SeriesParser(node.name)
-            seasons, episodes = parser.parse(allow_standalone_episode=False)
+            seasons: list[int] = []
+            episodes: list[int] = []
 
-            folder_season = inherited_season
+            # Ha a mappa neve extrákra/különkiadásokra utal (pl. Extras, Specials, Bonus, NCED...)
+            if is_extra_folder(node.name):
+                if 0 not in self.target_seasons:
+                    return []
+                folder_season = 0
+            else:
+                parser = SeriesParser(node.name)
+                seasons, episodes = parser.parse(allow_standalone_episode=False)
 
-            if seasons and len(seasons) == 1:
-                folder_season = seasons[0]
+                folder_season = inherited_season
+
+                if seasons and len(seasons) == 1:
+                    folder_season = seasons[0]
+                elif not seasons:
+                    # Számozott évadmappa felismerése (pl. "01. Noragami" -> 1. évad, "02. Noragami Aragoto" -> 2. évad)
+                    lead_match = re.match(r"^0*([1-9]\d?)[ ._\-]+", node.name.strip())
+                    if lead_match:
+                        folder_season = int(lead_match.group(1))
 
             if folder_season is not None and folder_season not in self.target_seasons:
-                # Ha vannak alternatív epizódok (pl. anime/hosszú sorozatok abszolút számozása),
-                # nem vetjük el a mappát, mert a benne lévő fájlok megfelelhetnek az abszolút epizódszámnak!
-                if not self.alt_episodes_set:
+                if 0 in self.target_seasons:
+                    # Különkiadások (0. évad) keresésekor az évadmappákban is lehetnek Extrák almappák
+                    pass
+                elif folder_season == 0 or not self.alt_episodes_set:
+                    # Ha a mappa kifejezetten a 0. évad (extrák/specials), vagy nincs alternatív számozás,
+                    # akkor azonnal elvetjük (a különkiadások sosem kapnak abszolút TV anime számozást!)
                     return []
 
             # Először megnézzük, hogy az almappákban/fájlokban van-e közvetlen találat
@@ -197,14 +218,7 @@ class StreamFileResolver:
         if not self.series or not episodes:
             return False
 
-        # 1. Abszolút epizódszámozás egyezése (pl. anime: Ep 39)
-        # Ez évadtól függetlenül egyezik, mivel az anime abszolút epizódszámok globálisan egyediek.
-        if self.alt_episodes_set and any(
-            alt in self.alt_episodes_set for alt in episodes
-        ):
-            return True
-
-        # 2. Relatív epizód közvetlen egyezése (pl. E02)
+        # 1. Relatív epizód közvetlen egyezése a megfelelő évadban (pl. S02E01 vagy Season 2 mappában "01.mkv")
         if self.series.episode in episodes:
             if file_season is not None:
                 if file_season in self.target_seasons:
@@ -217,6 +231,23 @@ class StreamFileResolver:
                 # ha az 1. évadot keressük!
                 if self.series.season == 1 or 1 in self.target_seasons:
                     return True
+
+        # 2. Abszolút epizódszámozás egyezése (pl. anime: Ep 39 vagy flat pakkban Ep 13 ami S02E01)
+        # Csak akkor engedjük, ha nincsenek alternatív évadpárok (azokat a 3. pont kezeli)
+        # És ha a fájl egyértelműen egy későbbi évad (évad > 1) mappájában van, ott a számozás relatív,
+        # ezért a fájl 13. része nem lehet az 1. rész!
+        if (
+            not self.alt_seasons_set
+            and self.alt_episodes_set
+            and any(alt in self.alt_episodes_set for alt in episodes)
+        ):
+            if (
+                file_season is not None
+                and file_season > 1
+                and file_season in self.target_seasons
+            ):
+                return False
+            return True
 
         # 3. Alternatív évad és epizód párok egyezése (pl. One Piece S21E01 amikor S1E892 a kérés)
         if self.alt_seasons_set and self.alt_episodes_set:
@@ -259,6 +290,8 @@ class StreamFileResolver:
                     season_allowed = True
                 elif not torrent_episodes:
                     season_allowed = True
+            if not season_allowed and 0 in self.target_seasons and not torrent_episodes:
+                season_allowed = True
             if not season_allowed:
                 return None
 

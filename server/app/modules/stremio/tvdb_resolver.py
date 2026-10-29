@@ -389,7 +389,13 @@ class TvdbResolver:
                 resp = await client.get(kitsu_url, timeout=6.0)
                 if resp.status_code == 200:
                     data = resp.json()
-                    videos = data.get("meta", {}).get("videos", [])
+                    meta = data.get("meta", {})
+                    if meta.get("name"):
+                        self._set_cache(f"title_{c_imdb}", meta["name"])
+                    # Ha az Anime-Kitsu közvetlenül ismeri ezt az IMDb ID-t, akkor ez már a kanonikus
+                    # Anime-Kitsu IMDb azonosító, nincs szükség felesleges dinamikus Kitsu keresésre.
+                    self._set_cache(f"alt_imdb_{c_imdb}", [])
+                    videos = meta.get("videos", [])
 
                     # Sorozat-szintű index felépítése a jövőbeli epizód-lekérdezésekhez
                     if c_imdb not in self._series_epmap:
@@ -438,8 +444,15 @@ class TvdbResolver:
                     resp = await client.get(cinemeta_url, timeout=6.0)
                     if resp.status_code == 200:
                         data = resp.json()
+                        meta = data.get("meta", {})
+                        if meta.get("name"):
+                            self._set_cache(f"title_{imdb_id}", meta["name"])
+                        genres = [str(g).lower() for g in (meta.get("genres") or [])]
+                        if genres and "anime" not in genres and "animation" not in genres:
+                            # Élőszereplős sorozat esetén nem kell a Kitsu API-t hívni iker IMDb ID-ért
+                            self._set_cache(f"alt_imdb_{imdb_id}", [])
                         vids = [
-                            v for v in data.get("meta", {}).get("videos", [])
+                            v for v in meta.get("videos", [])
                             if v.get("season", 0) > 0
                         ]
                         s_counts = defaultdict(int)
@@ -480,6 +493,8 @@ class TvdbResolver:
             return []
 
         static_aliases = _IMDB_ALIASES.get(imdb_id, [])
+        if static_aliases:
+            return list(static_aliases)
 
         cache_key = f"alt_imdb_{imdb_id}"
         if cache_key in self._cache:
@@ -487,46 +502,52 @@ class TvdbResolver:
             if isinstance(cached, list):
                 return list(dict.fromkeys(static_aliases + cached))
 
-        dynamic_aliases: list[str] = []
-        try:
-            title = await self.get_title_by_imdb(imdb_id)
-            if title:
-                cleaned_title = title.split(":")[0].strip()
-                client = self._get_client()
-                kitsu_search_url = (
-                    f"https://kitsu.io/api/edge/anime?filter[text]={quote(cleaned_title)}"
-                )
-                resp = await client.get(
-                    kitsu_search_url,
-                    headers={"Accept": "application/vnd.api+json"},
-                    timeout=5.0,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    anime_list = data.get("data", [])
-                    if anime_list:
-                        top_kitsu_id = anime_list[0].get("id")
-                        if top_kitsu_id:
-                            ak_url = f"https://anime-kitsu.strem.fun/meta/series/kitsu:{top_kitsu_id}.json"
-                            ak_resp = await client.get(ak_url, timeout=5.0)
-                            if ak_resp.status_code == 200:
-                                ak_meta = ak_resp.json().get("meta", {})
-                                discovered_imdb = ak_meta.get("imdb_id")
-                                if (
-                                    discovered_imdb
-                                    and isinstance(discovered_imdb, str)
-                                    and discovered_imdb.startswith("tt")
-                                    and discovered_imdb != imdb_id
-                                    and discovered_imdb not in static_aliases
-                                ):
-                                    dynamic_aliases.append(discovered_imdb)
-        except Exception as e:
-            logger.debug(
-                f"[TvdbResolver] Dinamikus IMDb alias keresési hiba ({imdb_id}): {e}"
-            )
+        async with self._lock(cache_key):
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if isinstance(cached, list):
+                    return list(dict.fromkeys(static_aliases + cached))
 
-        self._set_cache(cache_key, dynamic_aliases)
-        return list(dict.fromkeys(static_aliases + dynamic_aliases))
+            dynamic_aliases: list[str] = []
+            try:
+                title = await self.get_title_by_imdb(imdb_id)
+                if title:
+                    cleaned_title = title.split(":")[0].strip()
+                    client = self._get_client()
+                    kitsu_search_url = (
+                        f"https://kitsu.io/api/edge/anime?filter[text]={quote(cleaned_title)}"
+                    )
+                    resp = await client.get(
+                        kitsu_search_url,
+                        headers={"Accept": "application/vnd.api+json"},
+                        timeout=5.0,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        anime_list = data.get("data", [])
+                        if anime_list:
+                            top_kitsu_id = anime_list[0].get("id")
+                            if top_kitsu_id:
+                                ak_url = f"https://anime-kitsu.strem.fun/meta/series/kitsu:{top_kitsu_id}.json"
+                                ak_resp = await client.get(ak_url, timeout=5.0)
+                                if ak_resp.status_code == 200:
+                                    ak_meta = ak_resp.json().get("meta", {})
+                                    discovered_imdb = ak_meta.get("imdb_id")
+                                    if (
+                                        discovered_imdb
+                                        and isinstance(discovered_imdb, str)
+                                        and discovered_imdb.startswith("tt")
+                                        and discovered_imdb != imdb_id
+                                        and discovered_imdb not in static_aliases
+                                    ):
+                                        dynamic_aliases.append(discovered_imdb)
+            except Exception as e:
+                logger.debug(
+                    f"[TvdbResolver] Dinamikus IMDb alias keresési hiba ({imdb_id}): {e}"
+                )
+
+            self._set_cache(cache_key, dynamic_aliases)
+            return list(dict.fromkeys(static_aliases + dynamic_aliases))
 
 
 

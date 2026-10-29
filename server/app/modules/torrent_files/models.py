@@ -12,6 +12,10 @@ from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrents.models import TorrentModel
 
 
+_TORRENT_INFO_CACHE: dict[str, TorrentInfo] = {}
+_MAX_TORRENT_INFO_CACHE = 2000
+
+
 class TorrentFileModel(Base):
     __tablename__ = "torrent_files"
 
@@ -64,12 +68,22 @@ class TorrentFileModel(Base):
 
     @property
     def info(self) -> TorrentInfo:
-        if self._cached_info is None:
-            self._cached_info = self._torrent_info(self.torrent_bytes)
+        if getattr(self, "_cached_info", None) is not None:
+            return self._cached_info  # type: ignore[return-value]
+        info_hash = getattr(self, "info_hash", None)
+        if info_hash and info_hash in _TORRENT_INFO_CACHE:
+            self._cached_info = _TORRENT_INFO_CACHE[info_hash]
+            return self._cached_info
+        self._cached_info = self._torrent_info(self.torrent_bytes)
         return self._cached_info
 
     def _torrent_info(self, torrent: bytes | libtorrent.torrent_info) -> TorrentInfo:
         try:
-            return parse_torrent_info(torrent)
+            parsed = parse_torrent_info(torrent)
+            if len(_TORRENT_INFO_CACHE) >= _MAX_TORRENT_INFO_CACHE:
+                for old_k in list(_TORRENT_INFO_CACHE.keys())[:250]:
+                    _TORRENT_INFO_CACHE.pop(old_k, None)
+            _TORRENT_INFO_CACHE[parsed.info_hash] = parsed
+            return parsed
         except Exception:
             raise InvalidTorrentFileException()

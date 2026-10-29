@@ -659,6 +659,113 @@ async def test_find_by_imdb_searches_alternate_imdb_ids():
     assert streams[1].seeders == 14
 
 
+@pytest.mark.anyio
+async def test_batch_torrent_download_and_save_single_transaction():
+    from app.modules.indexers.schemas.internal import (
+        DownloadedTorrentFile,
+        IndexerTorrent,
+    )
+    from app.modules.torrent_source_provider.service import TorrentSourceProviderService
+
+    mock_indexers = AsyncMock()
+    mock_torrent_files = MagicMock()
+    mock_torrent_files.find_list.return_value = []
+    mock_isolated_files = MagicMock()
+
+    async def fake_download(indexer_id: str, torrent_id: str, url: str):
+        return DownloadedTorrentFile(
+            indexer_id=indexer_id,
+            torrent_id=torrent_id,
+            torrent_bytes=f"bytes-{torrent_id}".encode(),
+        )
+
+    mock_indexers.download_torrent.side_effect = fake_download
+
+    from tests.helpers import create_torrent_source
+
+    sources_by_id = {
+        tid: create_torrent_source(
+            indexer_id="ncore",
+            indexer_name="nCore",
+            torrent_id=tid,
+            name=f"Torrent.{tid}",
+        )
+        for tid in ["101", "102", "103"]
+    }
+    mock_isolated_files.create_many.return_value = [
+        s.torrent_file for s in sources_by_id.values()
+    ]
+
+    provider = TorrentSourceProviderService(
+        indexers_service=mock_indexers,
+        torrent_files_service=mock_torrent_files,
+        isolated_torrent_files_service=mock_isolated_files,
+    )
+
+    torrents = [s.indexer_torrent for s in sources_by_id.values()]
+
+    sources = await provider._sync_torrent_files(torrents)
+    assert len(sources) == 3
+    # Egyetlen kötegelt create_many tranzakció futott le 3 külön create helyett
+    mock_isolated_files.create_many.assert_called_once()
+    batch_arg = mock_isolated_files.create_many.call_args.args[0]
+    assert len(batch_arg) == 3
+    assert [item[1] for item in batch_arg] == ["101", "102", "103"]
+
+
+def test_relay_tighter_piece_deadlines():
+    from app.common.torrent_info import TorrentFileInfo
+    from app.modules.relay.entities import File, Stream, Torrent
+
+    mock_handle = MagicMock()
+    mock_handle.have_piece.return_value = False
+    mock_handle.piece_priorities.return_value = [0] * 20
+
+    torrent = object.__new__(Torrent)
+    torrent.info_hash = "deadbeef"
+    torrent.piece_size = 1000
+    torrent.pieces_count = 20
+    torrent.prefetch_piece_count = 5
+    torrent.critical_piece_count = 2
+    torrent.torrent_handle = mock_handle
+    torrent.files = {}
+    torrent.download_full_torrent = False
+
+    file_info = TorrentFileInfo(
+        index=0,
+        path="video.mkv",
+        name="video.mkv",
+        size=15000,
+        offset=0,
+        start_piece_index=0,
+        end_piece_index=14,
+        is_video=True,
+    )
+    f = File(file_info=file_info, torrent=torrent)
+    torrent.files[0] = f
+
+    stream = Stream(
+        stream_id="s1",
+        playback_id="p1",
+        user_id="u1",
+        torrent=torrent,
+        file=f,
+        stream_start_byte=2000,
+        stream_end_byte=12000,
+    )
+    assert stream.current_stream_piece == 2
+
+    deadlines = torrent.get_deadlines()
+    # Fájlhatárok (0 és 14) -> 0 ms, aktuális piece (2) -> 0 ms
+    assert deadlines[2] == 0
+    # Következő piece (3, distance=1) -> 300 ms
+    assert deadlines[3] == 300
+    # További előtöltött piece-ek: 1000 + distance * 500 ms
+    assert deadlines[4] == 2000  # distance=2 -> 1000 + 2*500
+    assert deadlines[5] == 2500  # distance=3 -> 1000 + 3*500
+
+
+
 
 
 

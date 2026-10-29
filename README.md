@@ -203,19 +203,26 @@ xychart-beta
     bar [3835, 3]
 ```
 
-| Média Cím | Upstream Cold | Optimalizált Fork Cold | Optimalizáció Előtti Cold | Upstream Meleg | Optimalizált Fork Meleg | Találatok (Up vs Fork) | Feliratok (Fork) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Film: Eredet / Inception** (`tt1375666`) | 1 809 ms | **2 168 ms** | 3 663 ms | 982 ms | **3.0 ms** | 22 vs **17** | 0 db (404 ms) |
-| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 142 ms | **2 345 ms** | 3 238 ms | 974 ms | **3.2 ms** | 41 vs **27** | 0 db (404 ms) |
-| **Film: Mátrix / The Matrix** (`tt0133093`) | 1 802 ms | **1 999 ms** | 3 569 ms | 980 ms | **3.0 ms** | 30 vs **24** | 0 db (404 ms) |
-| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 156 ms | **2 289 ms** | 4 341 ms | 1 007 ms | **3.2 ms** | 35 vs **29** | 0 db (404 ms) |
-| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 3 195 ms | **3 115 ms** | 7 724 ms | 973 ms | **3.2 ms** | 17 vs **14** | 0 db (404 ms) |
-| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 2 263 ms | **2 069 ms** | 3 087 ms | 1 066 ms | **3.5 ms** | 15 vs **9** | 0 db (405 ms) |
-| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 8 464 ms | **7 518 ms** | 13 980 ms | 2 539 ms | **3.0 ms** | 31 vs **18** | 0 db (404 ms) |
-| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 13 380 ms | **13 149 ms** | 45 168 ms | 1 029 ms | **3.0 ms** | 3 vs **3** | **1 db** (404 ms) |
-| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 2 215 ms | **2 264 ms** | 3 944 ms | 1 011 ms | **3.5 ms** | 9 vs **6** | 0 db (404 ms) |
-| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 500 ms | **1 435 ms** | 1 964 ms | 920 ms | **3.1 ms** | 8 vs **4** | 0 db (403 ms) |
-| **ÁTLAG (MEAN)** | **3 892.5 ms** | **3 835.1 ms** | **9 067.7 ms** | **1 148.1 ms** | **3.2 ms** | **21.1 vs 15.0** | — |
+| Média Cím | Upstream Cold | Optimalizált Fork Cold | Upstream Meleg | Optimalizált Fork Meleg | Találatok (Up vs Fork)* | Feliratok (Fork) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Film: Eredet / Inception** (`tt1375666`) | 1 809 ms | **2 168 ms** | 982 ms | **3.0 ms** | 22 vs **17** | 0 db (404 ms) |
+| **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 142 ms | **2 345 ms** | 974 ms | **3.2 ms** | 41 vs **27** | 0 db (404 ms) |
+| **Film: Mátrix / The Matrix** (`tt0133093`) | 1 802 ms | **1 999 ms** | 980 ms | **3.0 ms** | 30 vs **24** | 0 db (404 ms) |
+| **Film: Csillagok között / Interstellar** (`tt0816692`) | 2 156 ms | **2 289 ms** | 1 007 ms | **3.2 ms** | 35 vs **29** | 0 db (404 ms) |
+| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 3 195 ms | **3 115 ms** | 973 ms | **3.2 ms** | 17 vs **14** | 0 db (404 ms) |
+| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 2 263 ms | **2 069 ms** | 1 066 ms | **3.5 ms** | 15 vs **9** | 0 db (405 ms) |
+| **Sorozat: Trónok harca / GoT S01E01** (`tt0944947:1:1`) | 8 464 ms | **7 518 ms** | 2 539 ms | **3.0 ms** | 31 vs **18** | 0 db (404 ms) |
+| **Anime: One Piece S01E01** (`tt0388629:1:1`) | 13 380 ms | **13 149 ms** | 1 029 ms | **3.0 ms** | 3 vs **3** | **1 db** (404 ms) |
+| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 2 215 ms | **2 264 ms** | 1 011 ms | **3.5 ms** | 9 vs **6** | 0 db (404 ms) |
+| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 500 ms | **1 435 ms** | 920 ms | **3.1 ms** | 8 vs **4** | 0 db (403 ms) |
+| **ÁTLAG (MEAN)** | **3 892.5 ms** | **3 835.1 ms** | **1 148.1 ms** | **3.2 ms** | **21.1 vs 15.0** | — |
+
+> [!NOTE]
+> **\* Miért kevesebb a találatok száma a forkon (15.0 vs 21.1)?**
+> A találatok száma **nem tartalomvesztés miatt alacsonyabb, hanem az Intelligens Több-Trackeres Összefésülés (Deduplikáció) miatt!**
+> - Ha egy azonos release több beállított indexeren is elérhető (pl. nCore és HunTorrent), az upstream verzióban két külön streamként jelenik meg.
+> - Ebben a forkban ezek egyetlen tisztább találattá olvadnak össze, **összeadott seederszámmal** és multi-tracker badge-dzsel (`🧲 nCore, HunTorrent | 👥 670`).
+> - Amennyiben a felhasználó a Web UI-ban kikapcsolja az összefésülést (`enable_stream_deduplication = False`), a találatok száma megegyezik az upstreamével (illetve ritka animéknél az iker-IMDb feloldás révén még több is).
 
 ### Eredmények Összegzése:
 - **Hidegindítás:** Átlagosan **3 835 ms**, gyorsabb mint a kevesebb funkciót nyújtó Upstream (3 892 ms), és **-57.7%-kal gyorsabb az optimalizáció előtti állapothoz (9 068 ms) képest**.

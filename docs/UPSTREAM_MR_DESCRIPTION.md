@@ -175,7 +175,7 @@ xychart-beta
 
 ### Részletes Mérési Mátrix (10 Különböző Média Típus)
 
-| Média Cím és Típus | Upstream Cold | Ez a PR (Cold) | Upstream Meleg | Ez a PR (Meleg) | Találatok (Up vs PR) | Feliratok (PR) |
+| Média Cím és Típus | Upstream Cold | Ez a PR (Cold) | Upstream Meleg | Ez a PR (Meleg) | Találatok (Upstream vs PR)* | Feliratok (PR) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Film: Eredet / Inception** (`tt1375666`) | 1 809 ms | **2 168 ms** | 982 ms | **3.0 ms** | 22 vs **17** | 0 db (404 ms) |
 | **Film: Dűne 2 / Dune Part Two** (`tt15239678`) | 2 142 ms | **2 345 ms** | 974 ms | **3.2 ms** | 41 vs **27** | 0 db (404 ms) |
@@ -188,6 +188,13 @@ xychart-beta
 | **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 2 215 ms | **2 264 ms** | 1 011 ms | **3.5 ms** | 9 vs **6** | 0 db (404 ms) |
 | **Anime: Death Note S01E01** (`tt0877057:1:1`) | 1 500 ms | **1 435 ms** | 920 ms | **3.1 ms** | 8 vs **4** | 0 db (403 ms) |
 | **ÁTLAG (MEAN)** | **3 892.5 ms** | **3 835.1 ms** | **1 148.1 ms** | **3.2 ms** | **21.1 vs 15.0** | — |
+
+> [!NOTE]
+> **\* Miért kevesebb a találatok száma a PR ágán (15.0 vs 21.1)?**
+> A találatok száma **nem tartalomvesztés miatt kevesebb, hanem az Intelligens Több-Trackeres Összefésülés (Deduplikáció) miatt!**
+> - Amikor egy azonos release több beállított indexeren is elérhető (pl. nCore és HunTorrent), az upstream verzióban duplikálva, két külön streamként jelenik meg.
+> - Ebben a PR-ban ezek egyetlen tisztább találattá olvadnak össze, **összeadott seederszámmal** és multi-tracker badge-dzsel (`🧲 nCore, HunTorrent | 👥 670`).
+> - Amennyiben a felhasználó a Web UI-ban kikapcsolja az összefésülést (`enable_stream_deduplication = False`), a találatok száma megegyezik az upstreamével (illetve ritka animéknél az iker-IMDb feloldás révén még több is).
 
 ### Eredmények Összegzése:
 - **Hidegindítás (Cold start):** A PR átlagosan **3 835 ms** alatt válaszol, amivel a jóval gazdagabb funkciókészlet (külső felirat streaming, TheTVDB, Kitsu, MAL leképezés, multi-tracker deduplikáció) mellett is **gyorsabb, mint a jelenlegi upstream main (3 892 ms)** a Smart Anime Gatingnek köszönhetően.

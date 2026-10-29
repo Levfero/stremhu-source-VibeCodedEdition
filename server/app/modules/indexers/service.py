@@ -29,9 +29,13 @@ from app.modules.settings.service import SettingsService
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
 
-_IMDB_TRACKER_CACHE_TTL = 180.0
+_IMDB_TRACKER_CACHE_TTL = 1800.0
 _IMDB_TRACKER_CACHE_MAX = 1000
 _imdb_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
+
+_QUERY_TRACKER_CACHE_TTL = 300.0
+_QUERY_TRACKER_CACHE_MAX = 1000
+_query_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 
 
 class IndexersService:
@@ -256,7 +260,7 @@ class IndexersService:
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
         ) -> list[IndexerTorrent]:
-            cache_key = (indexer_account.indexer_id, imdb_id)
+            cache_key = (indexer_account.indexer_id, imdb_id.strip().lower())
             now = time.monotonic()
             indexer_definition_torrents: list[Any] | None = None
             cached = _imdb_tracker_cache.get(cache_key)
@@ -338,12 +342,34 @@ class IndexersService:
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
         ) -> list[IndexerTorrent]:
-            indexer_definition = self._indexer_definitions_service.get_by_id(
-                indexer_account.indexer_id
-            )
-            indexer_definition_torrents = (
-                await indexer_definition.find_torrents_by_query(query)
-            )
+            cache_key = (indexer_account.indexer_id, query.strip().lower())
+            now = time.monotonic()
+            indexer_definition_torrents: list[Any] | None = None
+            cached = _query_tracker_cache.get(cache_key)
+            if cached is not None:
+                ts, cached_def_torrents = cached
+                if now - ts < _QUERY_TRACKER_CACHE_TTL:
+                    indexer_definition_torrents = cached_def_torrents
+                else:
+                    _query_tracker_cache.pop(cache_key, None)
+
+            if indexer_definition_torrents is None:
+                indexer_definition = self._indexer_definitions_service.get_by_id(
+                    indexer_account.indexer_id
+                )
+                indexer_definition_torrents = (
+                    await indexer_definition.find_torrents_by_query(query)
+                )
+                if len(_query_tracker_cache) >= _QUERY_TRACKER_CACHE_MAX:
+                    oldest_key = min(
+                        _query_tracker_cache, key=lambda k: _query_tracker_cache[k][0]
+                    )
+                    _query_tracker_cache.pop(oldest_key, None)
+                _query_tracker_cache[cache_key] = (
+                    now,
+                    list(indexer_definition_torrents),
+                )
+
             return [
                 IndexerTorrent(
                     indexer_account=indexer_account,

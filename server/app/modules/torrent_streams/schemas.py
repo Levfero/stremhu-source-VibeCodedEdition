@@ -34,7 +34,9 @@ class TorrentStream(BaseModel):
     play_url: str
     seeders: int | None = None
     attributes: list[MediaAttributeModel | IndexerDefinitionModel] = []
-    is_persisted_torrent: bool
+    is_persisted_torrent: bool = False
+    extra_indexer_names: list[str] = []
+    combined_seeders: int | None = None
 
     @classmethod
     def from_torrent_id(
@@ -168,10 +170,17 @@ class TorrentStream(BaseModel):
             )
         )
 
+        indexer_name = indexer_torrent.indexer_account.indexer_definition.name
+        real_info_hash = (
+            torrent_file.info.info_hash
+            if getattr(torrent_file, "info", None) and torrent_file.info.info_hash
+            else getattr(torrent_file, "info_hash", "")
+        )
+
         return TorrentStream(
             indexer_account=indexer_torrent.indexer_account,
             torrent_id=torrent_id,
-            info_hash=torrent_file.info_hash,
+            info_hash=real_info_hash,
             seeders=indexer_torrent.seeders,
             torrent_name=torrent_file.info.name,
             attributes=[
@@ -183,4 +192,6 @@ class TorrentStream(BaseModel):
             file_index=file_index,
             play_url=f"{app_url}/api/{user.api_key}/stream/{stream_token}",
             is_persisted_torrent=False,
+            extra_indexer_names=[indexer_name] if indexer_name else [],
+            combined_seeders=indexer_torrent.seeders,
         )

@@ -12,6 +12,10 @@ class BaseUser(BaseModel):
         default=False,
     )
 
+    enable_stream_deduplication: bool = Field(
+        default=True,
+    )
+
     smart_filter_grouping_preference_id: str | None = None
 
     smart_filter_limit: int = Field(
@@ -41,6 +45,8 @@ class UserUpdate(BaseModel):
     torrent_seed: int | None = None
 
     enable_smart_filter: bool | None = None
+
+    enable_stream_deduplication: bool | None = None
 
     smart_filter_grouping_preference_id: str | None = None
 

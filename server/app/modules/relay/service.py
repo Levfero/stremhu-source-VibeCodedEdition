@@ -269,6 +269,30 @@ class RelayService:
 
         return RelayTorrent.from_libtorrent_handle(torrent_handle)
 
+    def is_file_downloaded(
+        self,
+        info_hash: str,
+        file_index: int,
+        file_size: int,
+    ) -> bool:
+        sha1_info_hash = self._parse_info_hash(info_hash)
+        torrent = self._torrents.get(sha1_info_hash)
+        if torrent is None or not torrent.torrent_handle.is_valid():
+            return False
+
+        status = torrent.torrent_handle.status()
+        if status.is_seeding:
+            return True
+
+        try:
+            progress = torrent.torrent_handle.file_progress()
+            if 0 <= file_index < len(progress):
+                return file_size > 0 and progress[file_index] >= file_size
+        except Exception:
+            return False
+
+        return False
+
     def get_torrent_or_raise(
         self,
         info_hash: str,

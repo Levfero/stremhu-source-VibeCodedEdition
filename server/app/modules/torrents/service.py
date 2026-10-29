@@ -97,6 +97,18 @@ class TorrentsService:
 
         return TorrentWithRelay(torrent=torrent, relay=relay_torrent)
 
+    def is_file_downloaded(
+        self,
+        info_hash: str,
+        file_index: int,
+        file_size: int,
+    ) -> bool:
+        return self._relay_service.is_file_downloaded(
+            info_hash=info_hash,
+            file_index=file_index,
+            file_size=file_size,
+        )
+
     def update(
         self,
         info_hash: str,

@@ -124,9 +124,15 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
 
         for torrent in data.get("results", []):
             category = torrent.get("category", "")
+            raw_imdb = torrent.get("imdb_id")
+            imdb_id = (
+                raw_imdb
+                if isinstance(raw_imdb, str) and raw_imdb.strip()
+                else None
+            )
             torrents.append(
                 IndexerDefinitionTorrent(
-                    imdb_id=torrent.get("imdb_id"),
+                    imdb_id=imdb_id,
                     torrent_id=str(torrent["torrent_id"]),
                     seeders=int(torrent.get("seeders", 0)),
                     download_url=torrent["download_url"],

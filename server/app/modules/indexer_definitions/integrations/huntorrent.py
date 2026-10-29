@@ -231,6 +231,11 @@ class HunTorrentIndexerDefinition(BaseIndexerDefinition):
             next_page=self._resolve_next_page(tree, current_page),
         )
 
+    async def _fetch_torrents_by_query(
+        self, query: str, page: int | None = None
+    ) -> IndexerDefinitionFindTorrentsResult:
+        return await self._fetch_torrents(query, page)
+
     def _parse_table_rows(
         self, tree: LexborHTMLParser
     ) -> list[IndexerDefinitionTorrent]:

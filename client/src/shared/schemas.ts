@@ -6,4 +6,3 @@ export const enableStreamDeduplicationSchema = z.boolean()
 export const smartFilterLimitSchema = z.number().min(1).max(50)
 export const smartFilterGroupingPreferenceIdSchema = z.string().nullable()
 export const enableFallbackSubtitlesSchema = z.boolean()
-

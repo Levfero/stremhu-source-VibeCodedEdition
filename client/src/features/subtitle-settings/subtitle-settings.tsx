@@ -8,7 +8,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/shared/components/ui/accordion'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/shared/components/ui/alert'
 import {
   Card,
   CardContent,
@@ -45,8 +49,8 @@ export function SubtitleSettingsCard() {
       <CardHeader>
         <CardTitle>Torrent feliratok</CardTitle>
         <CardDescription>
-          Külső feliratfájlok (.srt, .ass) kezelése, ha a kiválasztott
-          torrent nem tartalmaz saját különálló feliratot.
+          Külső feliratfájlok (.srt, .ass) kezelése, ha a kiválasztott torrent
+          nem tartalmaz saját különálló feliratot.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -79,13 +83,18 @@ export function SubtitleSettingsCard() {
               <p>
                 Amikor a rendszer egy másik találati torrentből tölti be a
                 feliratot, a videó torrentje mellett a feliratot adó torrent is
-                elindul, így <strong>két torrent jelenik meg mint seedkötelezett</strong>!
+                elindul, így{' '}
+                <strong>két torrent jelenik meg mint seedkötelezett</strong>!
               </p>
             </AlertDescription>
           </Alert>
         )}
 
-        <Accordion type="single" collapsible className="w-full border rounded-md px-3">
+        <Accordion
+          type="single"
+          collapsible
+          className="w-full border rounded-md px-3"
+        >
           <AccordionItem value="info">
             <AccordionTrigger className="py-2.5 text-xs font-medium text-muted-foreground hover:no-underline">
               <span className="flex items-center gap-2">
@@ -96,9 +105,9 @@ export function SubtitleSettingsCard() {
             <AccordionContent className="text-xs text-muted-foreground space-y-2 pb-3">
               <p>
                 <strong>Hogyan működik?</strong> Ha az elindított torrentben
-                nincs különálló feliratfájl (<code>.srt</code>, <code>.ass</code>),
-                a bekapcsolt opcióval a StremHU megpróbál magyar feliratot
-                kölcsönözni a többi találati torrent egyikéből.
+                nincs különálló feliratfájl (<code>.srt</code>,{' '}
+                <code>.ass</code>), a bekapcsolt opcióval a StremHU megpróbál
+                magyar feliratot kölcsönözni a többi találati torrent egyikéből.
               </p>
               <p>
                 <strong>Teljes torrent letöltése védelem:</strong> A kölcsönzés
@@ -120,4 +129,3 @@ export function SubtitleSettingsCard() {
     </Card>
   )
 }
-

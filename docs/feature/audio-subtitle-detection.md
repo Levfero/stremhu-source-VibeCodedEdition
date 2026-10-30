@@ -204,3 +204,29 @@ A helyi Docker tesztkonténeren (`https://192-168-1-23.local-ip.medicmobile.org:
      - **`🇬🇧 Eng, 🇯🇵 Jap | 💬 🇭🇺 Felirat | 🎵 FLAC | 💿 Blu-ray`** (pontosan megegyezik az nCore NFO-val és a CoolTeam Anime leírásával).
    - `01.mkv` (magyar szinkronos): **`🇭🇺 Hun | 🔊 5.1 | 💿 BDRip`**.
 
+### 5.3. Háromutas A/B/C Teljesítmény-összehasonlítás (Benchmark)
+
+A tesztkörnyezetben elvégzett független, szekvenciális A/B/C mérés az alábbi 3 környezetet hasonlította össze:
+- **A (Upstream Base):** `s4pp1/stremhu-source:latest` (`:7073`)
+- **B (Fork Master):** `stremhu-source:repo-master` (`:7072`)
+- **C (Feature Branch):** `feature/audio-subtitle-detection` (`:7070`)
+
+| Média / Lekérdezés | A Cold (Upstream) | B Cold (Fork Master) | C Cold (Feature Branch) | A Warm | B Warm | C Warm | Találatok (A vs B vs C) | C Értéknövelt Kártya Információ |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Film: Eredet** (`tt1375666`) | 3345.2 ms | 3422.3 ms | 3834.9 ms | 3118.2 ms | 3.3 ms | 3.8 ms | 18 vs 16 vs 16 | 💬 3 Magyar Felirat |
+| **Film: Mátrix** (`tt0133093`) | 4073.7 ms | 3141.3 ms | 3517.0 ms | 2615.0 ms | 2.9 ms | 2.8 ms | 22 vs 20 vs 20 | 💬 2 Magyar Felirat |
+| **Film: Csillagok között** (`tt0816692`) | 3703.4 ms | 3842.9 ms | 4078.7 ms | 2455.9 ms | 3.1 ms | 3.1 ms | 27 vs 25 vs 25 | 💬 9 Magyar Felirat |
+| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 5004.5 ms | 4752.9 ms | 5922.6 ms | 3108.6 ms | 3.0 ms | 3.0 ms | 12 vs 12 vs 12 | 💬 1 Magyar Felirat |
+| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 3476.0 ms | 3451.5 ms | 4386.6 ms | 4179.3 ms | 3.2 ms | 3.1 ms | 11 vs 9 vs 9 | 💬 2 Magyar Felirat |
+| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 4119.8 ms | 3473.3 ms | 4336.8 ms | 2241.7 ms | 3.1 ms | 3.0 ms | 8 vs 6 vs 6 | 🇯🇵 5 Japán Hang, 💬 3 Felirat |
+| **Anime: Fullmetal Alchemist S01E01** (`tt1355642:1:1`) | 1202.4 ms | 1299.7 ms | 1827.0 ms | 781.2 ms | 3.3 ms | 3.0 ms | 5 vs 5 vs 5 | 🇯🇵 3 Japán Hang, 💬 2 Felirat |
+| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 2576.5 ms | 3592.0 ms | 3404.4 ms | 2517.5 ms | 3.0 ms | 3.0 ms | 5 vs 4 vs 4 | 🇯🇵 2 Japán Hang, 💬 1 Felirat |
+| **ÁTLAG (MEAN)** | **3437.7 ms** | **3372.0 ms** | **3913.5 ms** | **2627.2 ms** | **3.1 ms** | **3.1 ms** | — | — |
+
+#### Értékelés és Konklúzió:
+1. **Meleg gyorsítótár (Warm Cache):** Mindkét fork ág (B és C) átlagosan **3.1 ms** alatt válaszol memóriából, szemben az upstream **2627.2 ms**-os idejével.
+2. **Hideg lekérdezés (Cold Start):** A dúsítás (Tech Info és leírás HTML letöltése + MediaInfo elemzés) mindössze átlagosan **~540 ms** (16%) többletidőt jelent a Master ághoz képest, miközben:
+   - Anime címeknél a korábbi téves `Eng` helyett **100%-ban megjelent a valós japán hangsáv** (`🇯🇵 Jap`).
+   - Valamennyi kategóriában megjelent a **magyar felirat jelölése** (`💬 🇭🇺 Felirat`), így a felhasználó azonnal látja, mely release-ek tartalmaznak magyar feliratot.
+3. **Deduplikáció:** A Master és Feature ág megbízhatóan szűri a duplikált és azonos release-eket (pl. Inception 18 -> 16, Mátrix 22 -> 20, Breaking Bad 11 -> 9).
+

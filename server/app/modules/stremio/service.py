@@ -18,6 +18,7 @@ from app.modules.stremio.enums import (
     ShortManifestResource,
 )
 from app.modules.stremio.schemas import (
+    FullManifestResource,
     KitsuStreamId,
     MalStreamId,
     Manifest,
@@ -83,42 +84,49 @@ class StremioService:
             addon_id = f"{addon_id}.dev"
             name = f"{name} (DEV)"
 
-        catalogs: list[ManifestCatalog] = [
-            ManifestCatalog(
-                id=SEARCH_ID,
-                name="🔍 Torrent - StremHU",
-                type=ContentType.MOVIE,
-                extra=[
-                    ManifestExtra(
-                        name=ExtraName.SEARCH,
-                        is_required=True,
-                    )
-                ],
-            ),
-            ManifestCatalog(
-                id=SEARCH_ID,
-                name="🔍 Torrent - StremHU",
-                type=ContentType.SERIES,
-                extra=[
-                    ManifestExtra(
-                        name=ExtraName.SEARCH,
-                        is_required=True,
-                    )
-                ],
-            ),
+        enable_catalog = getattr(user, "enable_catalog_search", True)
+
+        catalogs: list[ManifestCatalog] = []
+        if enable_catalog:
+            catalogs = [
+                ManifestCatalog(
+                    id=SEARCH_ID,
+                    name="🔍 Torrent - StremHU",
+                    type=ContentType.MOVIE,
+                    extra=[
+                        ManifestExtra(
+                            name=ExtraName.SEARCH,
+                            is_required=True,
+                        )
+                    ],
+                ),
+                ManifestCatalog(
+                    id=SEARCH_ID,
+                    name="🔍 Torrent - StremHU",
+                    type=ContentType.SERIES,
+                    extra=[
+                        ManifestExtra(
+                            name=ExtraName.SEARCH,
+                            is_required=True,
+                        )
+                    ],
+                ),
+            ]
+
+        resources: list[ShortManifestResource | FullManifestResource] = [
+            ShortManifestResource.STREAM,
+            ShortManifestResource.META,
+            ShortManifestResource.SUBTITLES,
         ]
+        if enable_catalog:
+            resources.insert(1, ShortManifestResource.CATALOG)
 
         return Manifest(
             id=addon_id,
             version=version,
             name=name,
             description=config.description,
-            resources=[
-                ShortManifestResource.STREAM,
-                ShortManifestResource.CATALOG,
-                ShortManifestResource.META,
-                ShortManifestResource.SUBTITLES,
-            ],
+            resources=resources,
             types=[ContentType.MOVIE, ContentType.SERIES, ContentType.ANIME],
             id_prefixes=[
                 "tt",

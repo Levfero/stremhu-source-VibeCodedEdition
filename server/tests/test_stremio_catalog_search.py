@@ -385,3 +385,67 @@ def test_stremio_catalog_api_search_endpoint(mock_torrent_file):
         assert data["metas"][0]["type"] == "series"
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_catalog_disabled_for_user():
+    mock_files_service = MagicMock(spec=TorrentFilesService)
+    mock_isolated_service = MagicMock(spec=IsolatedTorrentFilesService)
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+
+    catalogs_service = StremioCatalogsService(
+        torrent_files_service=mock_files_service,
+        isolated_torrent_files_service=mock_isolated_service,
+        torrent_source_provider_service=mock_provider,
+    )
+
+    user_disabled = UserModel(
+        id="user_dis",
+        username="disabled_user",
+        enable_catalog_search=False,
+    )
+
+    # When enable_catalog_search is False, get_catalog returns empty metas without calling provider
+    res = await catalogs_service.get_catalog(
+        media_type=MediaType.SERIES,
+        catalog_id="search",
+        extra=ParsedExtra(search="Lupin"),
+        user=user_disabled,
+    )
+    assert res.metas == []
+    mock_provider.find_by_query.assert_not_called()
+
+
+def test_manifest_catalog_gating():
+    from app.modules.settings.service import SettingsService
+    from app.modules.stremio.enums import ShortManifestResource
+    from app.modules.stremio.service import StremioService
+    from app.modules.torrent_streams.service import TorrentStreamsService
+
+    mock_torrent_streams = MagicMock(spec=TorrentStreamsService)
+    mock_settings = MagicMock(spec=SettingsService)
+    stremio_service = StremioService(
+        torrent_streams_service=mock_torrent_streams,
+        settings_service=mock_settings,
+    )
+
+    # 1. User with catalog search enabled
+    user_enabled = UserModel(
+        id="user_en",
+        username="enabled_user",
+        enable_catalog_search=True,
+    )
+    manifest_en = stremio_service.manifest(user_enabled)
+    assert ShortManifestResource.CATALOG in manifest_en.resources
+    assert len(manifest_en.catalogs) == 2
+
+    # 2. User with catalog search disabled
+    user_disabled = UserModel(
+        id="user_dis",
+        username="disabled_user",
+        enable_catalog_search=False,
+    )
+    manifest_dis = stremio_service.manifest(user_disabled)
+    assert ShortManifestResource.CATALOG not in manifest_dis.resources
+    assert len(manifest_dis.catalogs) == 0
+

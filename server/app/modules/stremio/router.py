@@ -120,11 +120,12 @@ def create_stremio_router(endpoint_type: str = "default") -> APIRouter:
         stremio_catalogs_service: Annotated[
             StremioCatalogsService, Depends(get_stremio_catalogs_service)
         ],
-        _: Annotated[UserModel, Depends(ApiKeyGuard())],
+        user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> StremioCatalogResponse:
         return await stremio_catalogs_service.get_catalog(
             media_type,
             catalog_id,
+            user=user,
         )
 
     @r.get(
@@ -138,12 +139,13 @@ def create_stremio_router(endpoint_type: str = "default") -> APIRouter:
         stremio_catalogs_service: Annotated[
             StremioCatalogsService, Depends(get_stremio_catalogs_service)
         ],
-        _: Annotated[UserModel, Depends(ApiKeyGuard())],
+        user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> StremioCatalogResponse:
         return await stremio_catalogs_service.get_catalog(
             media_type,
             catalog_id,
             parsed_extra,
+            user=user,
         )
 
     @r.get(
@@ -261,11 +263,12 @@ def create_dynamic_stremio_router() -> APIRouter:
         stremio_catalogs_service: Annotated[
             StremioCatalogsService, Depends(get_stremio_catalogs_service)
         ],
-        _: Annotated[UserModel, Depends(ApiKeyGuard())],
+        user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> StremioCatalogResponse:
         return await stremio_catalogs_service.get_catalog(
             media_type,
             catalog_id,
+            user=user,
         )
 
     @r.get(
@@ -280,12 +283,13 @@ def create_dynamic_stremio_router() -> APIRouter:
         stremio_catalogs_service: Annotated[
             StremioCatalogsService, Depends(get_stremio_catalogs_service)
         ],
-        _: Annotated[UserModel, Depends(ApiKeyGuard())],
+        user: Annotated[UserModel, Depends(ApiKeyGuard())],
     ) -> StremioCatalogResponse:
         return await stremio_catalogs_service.get_catalog(
             media_type,
             catalog_id,
             parsed_extra,
+            user=user,
         )
 
     @r.get(

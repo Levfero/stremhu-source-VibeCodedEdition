@@ -337,17 +337,33 @@ class TorrentStreamsService:
         if not torrent_streams or self._indexer_definitions_service is None:
             return torrent_streams
 
-        # Legfeljebb az első 15 streamet gazdagítjuk párhuzamosan a terhelés minimalizálása érdekében
-        candidates = torrent_streams[:15]
+        # Célzott dúsítás: csak olyan streamekre hívjuk meg, ahol:
+        # 1. még nem ismert a magyar felirat megléte, VAGY
+        # 2. nem egyértelmű magyar szinkronos tartalom (anime / idegen nyelvű film, ahol a valós hangsávot kell kideríteni)
+        candidates = [
+            ts
+            for ts in torrent_streams
+            if not (
+                ts.has_hungarian_sub
+                and any(
+                    isinstance(a, MediaAttributeModel)
+                    and a.id == MediaAttributeKey.HUN
+                    for a in ts.attributes
+                )
+            )
+        ][:10]
+
+        if not candidates:
+            return torrent_streams
 
         tasks = [self._enrich_single_stream(ts) for ts in candidates]
         try:
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=2.0,
+                timeout=1.5,
             )
         except asyncio.TimeoutError:
-            logger.debug("[TorrentStreamsService] Tech info dúsítás időtúllépés (2.0s).")
+            logger.debug("[TorrentStreamsService] Tech info dúsítás időtúllépés (1.5s).")
         except Exception as e:
             logger.debug(f"[TorrentStreamsService] Tech info dúsítási hiba: {e}")
 

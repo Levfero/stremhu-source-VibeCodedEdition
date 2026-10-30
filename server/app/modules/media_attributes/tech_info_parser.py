@@ -134,3 +134,4 @@ def parse_tech_info_metadata(
                 meta.has_hungarian_sub = True
 
     return meta
+

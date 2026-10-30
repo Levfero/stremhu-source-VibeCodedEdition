@@ -3,7 +3,6 @@
 @website https://stremhu.hu
 """
 
-import asyncio
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -269,23 +268,29 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         drop_text: str | None = None
 
         try:
-            r_nfo, r_drop = await asyncio.gather(
-                self._client.get(
-                    "/ajax.php",
-                    params={"action": "nfo", "id": torrent_id},
-                    timeout=2.0,
-                ),
-                self._client.get(
+            r_nfo = await self._client.get(
+                "/ajax.php",
+                params={"action": "nfo", "id": torrent_id},
+                timeout=1.5,
+            )
+            if r_nfo.status_code == 200 and r_nfo.text.strip():
+                nfo_text = r_nfo.text
+
+            # Ha az NFO nem elérhető, vagy nem tartalmaz magyar feliratot, lekérjük a leírást is fallbackként
+            need_drop = True
+            if nfo_text:
+                lower_nfo = nfo_text.lower()
+                if "hungarian" in lower_nfo or "magyar" in lower_nfo:
+                    need_drop = False
+
+            if need_drop:
+                r_drop = await self._client.get(
                     "/ajax.php",
                     params={"action": "torrent_drop", "id": torrent_id},
-                    timeout=2.0,
-                ),
-                return_exceptions=True,
-            )
-            if isinstance(r_nfo, httpx.Response) and r_nfo.status_code == 200:
-                nfo_text = r_nfo.text
-            if isinstance(r_drop, httpx.Response) and r_drop.status_code == 200:
-                drop_text = r_drop.text
+                    timeout=1.5,
+                )
+                if r_drop.status_code == 200 and r_drop.text.strip():
+                    drop_text = r_drop.text
         except Exception as e:
             self.logger.debug(f"[nCore] fetch_tech_info hiba ({torrent_id}): {e}")
 

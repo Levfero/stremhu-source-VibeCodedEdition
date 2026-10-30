@@ -203,3 +203,4 @@ A helyi Docker tesztkonténeren (`https://192-168-1-23.local-ip.medicmobile.org:
    - `[Coalgirls] Fullmetal Alchemist Brotherhood 01 (Blu-ray FLAC)` (nCore ID 812207):
      - **`🇬🇧 Eng, 🇯🇵 Jap | 💬 🇭🇺 Felirat | 🎵 FLAC | 💿 Blu-ray`** (pontosan megegyezik az nCore NFO-val és a CoolTeam Anime leírásával).
    - `01.mkv` (magyar szinkronos): **`🇭🇺 Hun | 🔊 5.1 | 💿 BDRip`**.
+

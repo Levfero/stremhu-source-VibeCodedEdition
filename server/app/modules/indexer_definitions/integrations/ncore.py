@@ -3,6 +3,7 @@
 @website https://stremhu.hu
 """
 
+import asyncio
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -262,3 +263,31 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         if "hun" in category:
             return MediaAttributeKey.HUN
         return MediaAttributeKey.ENG
+
+    async def fetch_tech_info(self, torrent_id: str) -> tuple[str | None, str | None]:
+        nfo_text: str | None = None
+        drop_text: str | None = None
+
+        try:
+            r_nfo, r_drop = await asyncio.gather(
+                self._client.get(
+                    "/ajax.php",
+                    params={"action": "nfo", "id": torrent_id},
+                    timeout=2.0,
+                ),
+                self._client.get(
+                    "/ajax.php",
+                    params={"action": "torrent_drop", "id": torrent_id},
+                    timeout=2.0,
+                ),
+                return_exceptions=True,
+            )
+            if isinstance(r_nfo, httpx.Response) and r_nfo.status_code == 200:
+                nfo_text = r_nfo.text
+            if isinstance(r_drop, httpx.Response) and r_drop.status_code == 200:
+                drop_text = r_drop.text
+        except Exception as e:
+            self.logger.debug(f"[nCore] fetch_tech_info hiba ({torrent_id}): {e}")
+
+        return nfo_text, drop_text
+

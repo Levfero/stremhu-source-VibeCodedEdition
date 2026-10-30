@@ -11,7 +11,16 @@ from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentInfo
 from app.modules.attributes.models import AttributeModel
+from app.modules.indexer_definitions.service import IndexerDefinitionsService
+from app.modules.media_attributes.constants import MediaAttributeKey
+from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
+from app.modules.media_attributes.seeds import DEFAULT_ATTRIBUTES
+from app.modules.media_attributes.tech_info_parser import (
+    TechInfoMetadata,
+    parse_tech_info_metadata,
+)
+from app.modules.preferences.constants import PreferenceKey
 from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
 from app.modules.torrent_source_provider.service import (
@@ -24,6 +33,12 @@ from app.modules.torrent_streams.utils.series_parser import SeriesParser
 from app.modules.torrents.schemas.internal import TorrentWithRelay
 from app.modules.torrents.service import TorrentsService
 from app.modules.users.models import UserModel
+
+_DEFAULT_ATTRIBUTES_MAP: dict[str, MediaAttributeModel] = {
+    attr.id: attr for attr in DEFAULT_ATTRIBUTES
+}
+_TECH_INFO_CACHE: dict[tuple[str, str], TechInfoMetadata] = {}
+_TECH_INFO_CACHE_MAX = 5000
 
 
 def strip_accents(text: str) -> str:
@@ -42,12 +57,14 @@ class TorrentStreamsService:
         torrents_service: TorrentsService,
         settings_service: SettingsService,
         preferences_service: PreferencesService,
+        indexer_definitions_service: IndexerDefinitionsService | None = None,
     ):
         self.db = db
         self._torrent_source_provider_service = torrent_source_provider_service
         self._torrents_service = torrents_service
         self._settings_service = settings_service
         self._preferences_service = preferences_service
+        self._indexer_definitions_service = indexer_definitions_service
 
     async def find_by_imdb(
         self,
@@ -240,6 +257,10 @@ class TorrentStreamsService:
                             break
 
 
+        torrent_streams = await self._enrich_torrent_streams_with_tech_info(
+            torrent_streams
+        )
+
         filtered_torrent_streams = self._filter_torrent_streams(torrent_streams, user)
         sorted_torrent_streams = self._sort_torrent_streams(
             filtered_torrent_streams, user
@@ -300,13 +321,111 @@ class TorrentStreamsService:
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
 
-        return TorrentStream.from_torrent_id(
+        streams = TorrentStream.from_torrent_id(
             indexer_torrent=torrent_source.indexer_torrent,
             torrent_file=torrent_source.torrent_file,
             app_url=app_url,
             user=user,
             file_index=file_index,
         )
+        return await self._enrich_torrent_streams_with_tech_info(streams)
+
+    async def _enrich_torrent_streams_with_tech_info(
+        self,
+        torrent_streams: list[TorrentStream],
+    ) -> list[TorrentStream]:
+        if not torrent_streams or self._indexer_definitions_service is None:
+            return torrent_streams
+
+        # Legfeljebb az első 15 streamet gazdagítjuk párhuzamosan a terhelés minimalizálása érdekében
+        candidates = torrent_streams[:15]
+
+        tasks = [self._enrich_single_stream(ts) for ts in candidates]
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=2.0,
+            )
+        except asyncio.TimeoutError:
+            logger.debug("[TorrentStreamsService] Tech info dúsítás időtúllépés (2.0s).")
+        except Exception as e:
+            logger.debug(f"[TorrentStreamsService] Tech info dúsítási hiba: {e}")
+
+        return torrent_streams
+
+    async def _enrich_single_stream(self, ts: TorrentStream) -> None:
+        try:
+            indexer_id = ts.indexer_account.indexer_id
+            torrent_id = ts.torrent_id
+            cache_key = (indexer_id, torrent_id)
+
+            meta = _TECH_INFO_CACHE.get(cache_key)
+            if meta is None:
+                if not self._indexer_definitions_service:
+                    return
+                indexer_def = self._indexer_definitions_service.get_by_id(indexer_id)
+                if not indexer_def:
+                    return
+                nfo_text, desc_text = await indexer_def.fetch_tech_info(torrent_id)
+                meta = parse_tech_info_metadata(nfo_text or "", desc_text or "")
+                if len(_TECH_INFO_CACHE) >= _TECH_INFO_CACHE_MAX:
+                    _TECH_INFO_CACHE.pop(next(iter(_TECH_INFO_CACHE)), None)
+                _TECH_INFO_CACHE[cache_key] = meta
+
+            # 1. Magyar felirat meglétének átvétele
+            if meta.has_hungarian_sub:
+                ts.has_hungarian_sub = True
+
+            # 2. Valós hangsávok alkalmazása és téves fallback felülírása
+            if meta.audio_languages:
+                current_langs = {
+                    attr.id
+                    for attr in ts.attributes
+                    if isinstance(attr, MediaAttributeModel)
+                    and attr.preference_id == PreferenceKey.LANGUAGE
+                }
+
+                # Ha japán hangsáv van a Tech Info / MediaInfo szerint
+                if "jap" in meta.audio_languages:
+                    jap_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.JAP)
+                    if jap_attr and MediaAttributeKey.JAP not in current_langs:
+                        ts.attributes.append(jap_attr)
+                        current_langs.add(MediaAttributeKey.JAP)
+
+                    # Ha nincs angol hangsáv a Tech Info szerint, de az nCore kategória fallback miatt
+                    # rákerült az ENG jelölés, eltávolítjuk a téves angol attribútumot
+                    if (
+                        "eng" not in meta.audio_languages
+                        and MediaAttributeKey.ENG in current_langs
+                    ):
+                        ts.attributes = [
+                            attr
+                            for attr in ts.attributes
+                            if not (
+                                isinstance(attr, MediaAttributeModel)
+                                and attr.id == MediaAttributeKey.ENG
+                            )
+                        ]
+                        current_langs.discard(MediaAttributeKey.ENG)
+
+                # Ha magyar hangsáv van
+                if "hun" in meta.audio_languages:
+                    hun_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.HUN)
+                    if hun_attr and MediaAttributeKey.HUN not in current_langs:
+                        ts.attributes.append(hun_attr)
+                        current_langs.add(MediaAttributeKey.HUN)
+
+                # Ha angol hangsáv van (pl. Dual-Audio esetén)
+                if "eng" in meta.audio_languages:
+                    eng_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.ENG)
+                    if eng_attr and MediaAttributeKey.ENG not in current_langs:
+                        ts.attributes.append(eng_attr)
+                        current_langs.add(MediaAttributeKey.ENG)
+        except Exception as e:
+            logger.debug(
+                f"[TorrentStreamsService] Nem sikerült a stream ({ts.torrent_id}) dúsítása: {e}"
+            )
+
 
     def _is_torrent_stream_excluded(
         self,

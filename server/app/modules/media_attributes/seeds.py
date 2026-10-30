@@ -23,7 +23,7 @@ DEFAULT_ATTRIBUTES = [
         name="japán",
         short_name="Jap",
         preference_id=PreferenceKey.LANGUAGE,
-        pattern=r"\b(jap(?:[-_. ]?dub)?|japanese|japán)\b",
+        pattern=r"\b(jap(?:[-_. ]?dub)?|japanese|japán|jpn|ja[-_]jp|dual[-_. ]audio|multi[-_. ]audio)\b",
     ),
     # Resolutions
     MediaAttributeModel(

@@ -51,7 +51,7 @@ export function OtherPreferences() {
       enableStreamDeduplication: me.enableStreamDeduplication,
       smartFilterGroupingPreferenceId: me.smartFilterGroupingPreferenceId,
       smartFilterLimit: me.smartFilterLimit,
-      enableCatalogSearch: me.enableCatalogSearch ?? true,
+      enableCatalogSearch: me.enableCatalogSearch,
     },
     validators: {
       onChange: validatorSchema,
@@ -161,7 +161,10 @@ export function OtherPreferences() {
           <CardHeader>
             <CardTitle>Katalógus keresés</CardTitle>
             <CardDescription>
-              A Stremio és Nuvio közvetlen keresőmezőjének kiszolgálása az nCore torrent-katalógusából. Kikapcsolva az addon nem jelenik meg a Discover/Keresés katalógusok listájában, csak stream forrásként működik.
+              A Stremio és Nuvio közvetlen keresőmezőjének kiszolgálása az nCore
+              torrent-katalógusából. Kikapcsolva az addon nem jelenik meg a
+              Discover/Keresés katalógusok listájában, csak stream forrásként
+              működik.
             </CardDescription>
           </CardHeader>
           <CardContent>

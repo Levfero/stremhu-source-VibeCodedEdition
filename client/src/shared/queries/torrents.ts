@@ -18,7 +18,7 @@ export const getTorrents = queryOptions({
     const list = query.state.data
     // M15: Adaptív lekérdezés: aktív letöltésnél sűrűbb (1.5s), nyugalmi állapotban kímélő (5s)
     const hasActive = list?.some(
-      (t) => t.downloadSpeed > 0 || (t.total > 0 && t.downloaded < t.total)
+      (t) => t.downloadSpeed > 0 || (t.total > 0 && t.downloaded < t.total),
     )
     return hasActive ? 1500 : 5000
   },

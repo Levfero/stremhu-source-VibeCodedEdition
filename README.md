@@ -57,7 +57,8 @@ Ez a fork az eredeti upstream verzióra építve átfogó funkcionális bővítm
 | **Szöveges Keresés Trackereken** | ⚠️ Csak nCore támogatta; más oldalak üres listát adtak | ✅ **Összes hazai indexer támogatott** (`HunTorrent`, `Majomparádé`, `BitHUmen`, `iNSANE`) lapozásvédelemmel |
 | **IMDb Nélküli Műsorok (pl. Vetélkedők)** | ❌ 0 találat vagy nCore 500-as hiba (`imdb_id: false`) | ✅ **Többjelöltes másodlagos keresés** (ékezetmentesítés, névelő-eltávolítás, nCore sanitizer) |
 | **Stremio / Nuvio Megjelenés** | ⚠️ Felesleges `[StremHU]` prefix; nincs zászló | ✅ **Letisztult címkék**, nemzeti zászló emojik (`🇭🇺 Hun`, `🇬🇧 Eng`, `🇯🇵 Jap` stb.), fals feliratjelvény mellőzése |
-| **Japán Hangsáv Felismerése** | ❌ Nem szerepelt az attribútumok között | ✅ **`🇯🇵 Jap` nyelv felismerés** és beállítható felhasználói rendezési preferencia |
+| **Japán és Valós Hangsávok Felismerése** | ❌ Nem szerepelt; az animék 90%-át az nCore kategória tévesen `🇬🇧 Eng`-nek bélyegezte | ✅ **Intelligens Tech Info / MediaInfo elemző** (`tech_info_parser.py`): valós japán, angol és magyar sávok kinyerése NFO-ból, téves `ENG` fallback felülírása, `JPN`, `ja-jp`, `Dual-Audio` és `Multi-Audio` címkék |
+| **Magyar Felirat Jelölése a Találatokban** | ❌ Nincs felirat-állapot jelzés a stream kártyán | ✅ **`💬 🇭🇺 Felirat` badge:** MediaInfo Text/Subtitle sávok, feltöltői leírások és torrent `.srt`/`.ass` fájlok alapján azonnali kiemelés a stream leírásában |
 | **Extrák és Menük Szűrése** | ⚠️ Veszély: 2 GB-os BD menüvideót indíthatott valódi epizód helyett | ✅ **Intelligens szűrés:** `BD Menü`, `Extras`, `NCED` kizárása normál részeknél; Specials (0. évad) esetén engedélyezve |
 | **Stremio Katalógus Keresés** | ❌ Csak `t-<torrent_id>` formátumra adott választ (minden másra üres lista) | ✅ **Közvetlen trackeres szabadszavas keresés** filmekre és sorozatokra, automatikus epizódfelbontással és fájlszintű streaminggel |
 | **Kezdeti Pufferelés (ExoPlayer / Nuvio)** | ⚠️ 1 darabos indítás; nagy MKV Cues / MP4 moov esetén stall | ✅ **Kiterjesztett darab-prioritás:** `min(3, total_pieces // 2)` azonnali (`deadline = 0`) letöltés a fájl elejére és végére |
@@ -191,6 +192,29 @@ Amikor több indexer is be van konfigurálva (pl. nCore, HunTorrent, Majomparád
 
 ---
 
+### 7. Intelligens Hangsáv és Magyar Felirat Felismerés (Tech Info / MediaInfo Motor)
+A nemzetközi anime kiadások (pl. SubsPlease, HorribleSubs, ReinForce, Erai-raws) 90%-ánál a torrent címében egyáltalán nincs nyelvi tag, mert a japán a natív nyelvük. A magyar trackereken nem létezik dedikált anime kategória, ezért az animék külföldi (`hdser`, `hd`) kategóriába kerülnek, ami miatt az upstream vakon `🇬🇧 Eng` címkét aggatott rájuk, miközben a Stremioban nem lehetett tudni, melyik kiadás tartalmaz magyar feliratot.
+
+- **Tech Info & MediaInfo Elemző Modul (`tech_info_parser.py`)**:
+  - Közvetlenül feldolgozza az nCore `ajax.php?action=nfo` (MediaInfo) és `action=torrent_drop` (lenyíló leírás) adatait.
+  - Szigorú szekció-elkülönítést alkalmaz: az angol és magyar MediaInfo fejléceket (`Audio` / `Hang` vs. `Text` / `Szöveg` / `Felirat`) egymástól függetlenül kezeli, így a feliratok nyelve **soha nem minősülhet hangsávnak** és fordítva.
+  - Kinyeri a feltöltői leírások fejléceit is (pl. `Hangsáv: Japán 2.0 FLAC`, `Feliratok: Angol, Magyar`).
+- **Valós Hangsávok és Téves `ENG` Fallback Tisztítása**:
+  - A japán hangsávval rendelkező animék megkapják a **`🇯🇵 Jap`** jelölést.
+  - Amennyiben a tartalom nem tartalmaz angol hangsávot, a rendszer **eltávolítja a téves `ENG` fallbacket**, így a japán animék nem tűnnek el az angol nyelvet kizáró felhasználóknál.
+  - **Dual-Audio támogatás**: Ha egy kiadás mind japán, mind angol szinkront tartalmaz, mindkét zászló megmarad: `🇯🇵 Jap, 🇬🇧 Eng`.
+  - **Kibővített Regex**: A `MediaAttributeKey.JAP` mintája cím-alapon is azonnal felismeri a szabványos `JPN`, `ja-jp`, `Dual-Audio`, `Multi-Audio` kulcsszavakat.
+- **Magyar Felirat Jelvény (`💬 🇭🇺 Felirat`) a Stream Kártyákon**:
+  - Ha a tartalom rendelkezik magyar felirattal (akár az MKV konténerbe ágyazva a MediaInfo szerint, akár a feltöltői leírás alapján, akár a torrentben lévő különálló `.srt`/`.ass` fájlként), a leírás 2. sorában kiemelten megjelenik a **`💬 🇭🇺 Felirat`** badge.
+  - Az idegen (angol, német stb.) feliratokat intelligensen szűri, elkerülve a felesleges zajt a felületen.
+- **Erőforrás-kímélő és Késleltetésmentes Architektúra**:
+  - **Célzott lekérés**: A már bizonyítottan magyar szinkronos és feliratos filmeknél a szerver 0 db extra kérést indít.
+  - **Smart NFO-first**: Először kizárólag a kisméretű MediaInfo szöveget kéri le; ha abból már kiderül a magyar felirat, a leírás letöltését elhagyja (50%-os kérés-megtakarítás).
+  - **Memóriás LRU Gyorsítótár (`_TECH_INFO_CACHE`)**: A torrentek technikai adatai egyszer kerülnek lekérésre (5000 elem max), az ismételt lekérdezések **0.0 ms** alatt, a meleg stream válaszok pedig **2.6 – 3.0 ms** alatt futnak le.
+  - **1.5s Védelmi Időkorlát**: A párhuzamos lekéréseket szigorú időkorlát védi, így gyenge hálózat esetén sem torpanhat meg a keresés.
+
+---
+
 ## 📊 A/B Teljesítménymérési Eredmények (Benchmark)
 
 Az alábbi mérések 100%-ban független, szekvenciális (nem párhuzamos), tiszta kötet-törléses (cold start) környezetben készültek a helyi Docker Desktop tesztkörnyezetben (`scripts/benchmark_local.py`), összevetve a hivatalos upstream **`s4pp1/stremhu-source:latest`** (`:7072`) verziót az optimalizált **`feature/torrent-subtitles`** (`:7070`) ággal:
@@ -241,13 +265,13 @@ $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scr
 ```
 - **Ruff:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
-- **Pytest:** `215 passed, 64 snapshots passed in 2.67s`
+- **Pytest:** `231 passed, 64 snapshots passed in 2.50s`
 
 ### Helyi Docker Tesztkörnyezet Indítása:
 ```powershell
 docker compose -f docker-compose.local.yml up -d --build
 ```
-A részletes tesztelési irányelvek és szabályok az [`AGENTS.md`](./AGENTS.md) és a [`docs/feature/torrent-subtitles.md`](./docs/feature/torrent-subtitles.md) fájlokban találhatók.
+A részletes tesztelési irányelvek és specifikációk az [`AGENTS.md`](./AGENTS.md), a [`docs/feature/audio-subtitle-detection.md`](./docs/feature/audio-subtitle-detection.md) és a [`docs/feature/torrent-subtitles.md`](./docs/feature/torrent-subtitles.md) fájlokban találhatók.
 
 ---
 

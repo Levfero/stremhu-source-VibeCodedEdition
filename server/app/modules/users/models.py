@@ -99,6 +99,12 @@ class UserModel(Base):
         server_default=sa.text("0"),
     )
 
+    enable_catalog_search: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        default=True,
+        server_default=sa.text("1"),
+    )
+
     max_concurrent_streams: Mapped[int | None] = mapped_column(
         sa.Integer,
         default=None,

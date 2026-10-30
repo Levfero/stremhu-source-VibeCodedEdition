@@ -18,6 +18,7 @@ from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesServi
 from app.modules.torrent_files.schemas import TorrentFileIdentifier
 from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.service import TorrentSourceProviderService
+from app.modules.users.models import UserModel
 
 _TORRENT_IMDB_CACHE: dict[tuple[str, str], str] = {}
 _MAX_TORRENT_IMDB_CACHE = 2000
@@ -39,11 +40,13 @@ class StremioCatalogsService:
         media_type: MediaType,
         catalog_id: str,
         extra: ParsedExtra = ParsedExtra(),
+        user: UserModel | None = None,
     ):
         if (
             media_type not in (MediaType.MOVIE, MediaType.SERIES)
             or catalog_id != SEARCH_ID
             or not extra.search
+            or (user is not None and not getattr(user, "enable_catalog_search", True))
         ):
             return StremioCatalogResponse(metas=[])
 

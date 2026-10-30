@@ -27,6 +27,10 @@ class BaseUser(BaseModel):
         default=False,
     )
 
+    enable_catalog_search: bool = Field(
+        default=True,
+    )
+
     max_concurrent_streams: int | None = Field(
         default=None,
         gt=0,
@@ -60,6 +64,8 @@ class UserUpdate(BaseModel):
     )
 
     enable_fallback_subtitles: bool | None = None
+
+    enable_catalog_search: bool | None = None
 
     max_concurrent_streams: int | None = Field(
         default=None,

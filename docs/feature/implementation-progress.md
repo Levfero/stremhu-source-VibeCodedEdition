@@ -1,6 +1,6 @@
 # Implementációs állapot – 2026-10-30 (M01 – M18 lezárva)
 
-A stabilitási és teljesítményjavítási terv valamennyi modulja implementálásra került és éles adatos háromutas A/B/C benchmarkkal validálva lett.
+A stabilitási és teljesítményjavítási terv ([`docs/stremhu-implementation-plan.md`](../stremhu-implementation-plan.md)) valamennyi modulja implementálásra került és éles adatos háromutas A/B/C benchmarkkal validálva lett.
 
 ## Elkészült fejlesztési és stabilitási modulok
 

@@ -113,7 +113,7 @@ sequenceDiagram
 
 ### 4.1. Unit Tesztek és Linter Eredmények
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
 - **Ruff:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
@@ -123,17 +123,17 @@ $env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scr
 - **Bekapcsolt állapotban (`enable_catalog_search = True`):**
   - **Manifest lekérés:**
     ```powershell
-    Invoke-RestMethod -Uri "https://192-168-1-23.local-ip.medicmobile.org:7070/api/b97de43f-eb45-42e7-ad77-5033ca74506b/stremio/manifest.json"
+    Invoke-RestMethod -Uri "https://<LOCAL_IP_DNS>:7070/api/<STREMHU_API_KEY>/stremio/manifest.json"
     ```
     *Eredmény:* `resources: [stream, catalog, meta, subtitles]`, `catalogs: 2 db` (Filmek és Sorozatok).
   - **Sorozatok keresés:**
     ```powershell
-    Invoke-RestMethod -Uri "https://192-168-1-23.local-ip.medicmobile.org:7070/api/b97de43f-eb45-42e7-ad77-5033ca74506b/stremio/catalog/series/search/search=Lupin.json"
+    Invoke-RestMethod -Uri "https://<LOCAL_IP_DNS>:7070/api/<STREMHU_API_KEY>/stremio/catalog/series/search/search=Lupin.json"
     ```
     *Eredmény:* 30 db tiszta sorozat találat (`Lupin.S04...`, `Lupin.S01...`), mindegyikhez `imdbId="tt2531336"` és `poster="https://images.metahub.space/poster/medium/tt2531336/img"`.
   - **Filmek keresés:**
     ```powershell
-    Invoke-RestMethod -Uri "https://192-168-1-23.local-ip.medicmobile.org:7070/api/b97de43f-eb45-42e7-ad77-5033ca74506b/stremio/catalog/movie/search/search=Lupin.json"
+    Invoke-RestMethod -Uri "https://<LOCAL_IP_DNS>:7070/api/<STREMHU_API_KEY>/stremio/catalog/movie/search/search=Lupin.json"
     ```
     *Eredmény:* 14 db tiszta mozifilm találat (`Arsene.Lupin.2004...`, `Lupin.III.Cagliostro...`), mindegyikhez saját `imdbId` (`tt0373690`, `tt0079833`) és hivatalos borítókép.
 - **Kikapcsolt állapotban (`enable_catalog_search = False`):**

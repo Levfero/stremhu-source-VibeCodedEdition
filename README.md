@@ -195,7 +195,7 @@ xychart-beta
 Minden kódmódosítás után a következő parancssorral futtatható a teljes linter, típusellenőrző és tesztcsomag:
 
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
 - **Ruff:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`
@@ -211,7 +211,7 @@ docker compose -f docker-compose.local.yml up -d
 server\.venv\Scripts\python scripts\benchmark_local.py
 ```
 
-A részletes technikai specifikációk az [`AGENTS.md`](./AGENTS.md), a [`docs/feature/audio-subtitle-detection.md`](./docs/feature/audio-subtitle-detection.md) és a [`docs/feature/implementation-progress.md`](./docs/feature/implementation-progress.md) dokumentumokban találhatók.
+A részletes technikai specifikációk az [`AGENTS.md`](./AGENTS.md), a [`docs/feature/audio-subtitle-detection.md`](./docs/feature/audio-subtitle-detection.md), a [`docs/stremhu-implementation-plan.md`](./docs/stremhu-implementation-plan.md) és a [`docs/feature/implementation-progress.md`](./docs/feature/implementation-progress.md) dokumentumokban találhatók.
 
 ---
 

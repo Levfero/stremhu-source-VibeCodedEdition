@@ -181,14 +181,14 @@ A `server/tests/test_audio_subtitle_detection.py` tesztcsomag lefedte az összes
 
 **Futtatási eredmény:**
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-source-anime\server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
 - `ruff check`: **0 hiba (All checks passed)**
 - `basedpyright`: **0 errors, 0 warnings, 0 notes**
 - `pytest`: **231 passed, 0 failed in 2.50s**
 
 ### 5.2. Élő Docker Desktop Teszt Éles Tracker Adatokkal
-A helyi Docker tesztkonténeren (`https://192-168-1-23.local-ip.medicmobile.org:7070`) végrehajtott valós lekérdezések eredménye:
+A helyi Docker tesztkonténeren (`https://<LOCAL_IP_DNS>:7070`) végrehajtott valós lekérdezések eredménye:
 
 1. **Attack on Titan S01E01 (`tt2560140:1:1`):**
    - *Korábban:* Mind a 6 nCore release tévesen `🇬🇧 Eng` címkét kapott, felirat-információ nélkül.

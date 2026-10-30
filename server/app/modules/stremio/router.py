@@ -111,11 +111,12 @@ async def catalog(
     stremio_catalogs_service: Annotated[
         StremioCatalogsService, Depends(get_stremio_catalogs_service)
     ],
-    _: Annotated[UserModel, Depends(ApiKeyGuard())],
+    user: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> StremioCatalogResponse:
     return await stremio_catalogs_service.get_catalog(
         media_type,
         catalog_id,
+        user=user,
     )
 
 
@@ -130,12 +131,13 @@ async def catalog_with_extra(
     stremio_catalogs_service: Annotated[
         StremioCatalogsService, Depends(get_stremio_catalogs_service)
     ],
-    _: Annotated[UserModel, Depends(ApiKeyGuard())],
+    user: Annotated[UserModel, Depends(ApiKeyGuard())],
 ) -> StremioCatalogResponse:
     return await stremio_catalogs_service.get_catalog(
         media_type,
         catalog_id,
         parsed_extra,
+        user=user,
     )
 
 

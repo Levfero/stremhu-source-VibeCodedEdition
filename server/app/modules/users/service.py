@@ -62,6 +62,7 @@ class UsersService:
             torrent_seed=payload.torrent_seed,
             enable_smart_filter=payload.enable_smart_filter,
             enable_stream_deduplication=payload.enable_stream_deduplication,
+            enable_catalog_search=payload.enable_catalog_search,
         )
 
         return self._users_repository.create(user)

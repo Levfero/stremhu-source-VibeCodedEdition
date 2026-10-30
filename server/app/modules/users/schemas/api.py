@@ -43,4 +43,5 @@ class UserResponse(BaseModel):
     smart_filter_grouping_preference_id: str | None
     smart_filter_limit: int
     enable_fallback_subtitles: bool = False
+    enable_catalog_search: bool = True
     max_concurrent_streams: int | None

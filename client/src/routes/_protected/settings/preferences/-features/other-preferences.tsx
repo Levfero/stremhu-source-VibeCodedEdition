@@ -19,6 +19,7 @@ import { useAppForm } from '@/shared/contexts/form-context'
 import { assertExists, parseApiError } from '@/shared/lib/utils'
 import { getMe, useUpdateMe } from '@/shared/queries/me'
 import {
+  enableCatalogSearchSchema,
   enableSmartFilterSchema,
   enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceIdSchema,
@@ -32,6 +33,7 @@ export const validatorSchema = z.object({
   enableStreamDeduplication: enableStreamDeduplicationSchema,
   smartFilterGroupingPreferenceId: smartFilterGroupingPreferenceIdSchema,
   smartFilterLimit: smartFilterLimitSchema,
+  enableCatalogSearch: enableCatalogSearchSchema,
 })
 
 export function OtherPreferences() {
@@ -49,6 +51,7 @@ export function OtherPreferences() {
       enableStreamDeduplication: me.enableStreamDeduplication,
       smartFilterGroupingPreferenceId: me.smartFilterGroupingPreferenceId,
       smartFilterLimit: me.smartFilterLimit,
+      enableCatalogSearch: me.enableCatalogSearch,
     },
     validators: {
       onChange: validatorSchema,
@@ -148,6 +151,35 @@ export function OtherPreferences() {
                     onCheckedChange={field.handleChange}
                   />
                   <span>Több-trackeres találatok összevonása</span>
+                </Label>
+              )}
+            </form.Field>
+          </CardContent>
+        </Card>
+
+        <Card className="break-inside-avoid mb-4">
+          <CardHeader>
+            <CardTitle>Katalógus keresés</CardTitle>
+            <CardDescription>
+              A Stremio és Nuvio közvetlen keresőmezőjének kiszolgálása az nCore
+              torrent-katalógusából. Kikapcsolva az addon nem jelenik meg a
+              Discover/Keresés katalógusok listájában, csak stream forrásként
+              működik.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form.Field name="enableCatalogSearch">
+              {(field) => (
+                <Label
+                  htmlFor={field.name}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
+                  <Switch
+                    id={field.name}
+                    checked={field.state.value}
+                    onCheckedChange={field.handleChange}
+                  />
+                  <span>Közvetlen Stremio katalógus-keresés engedélyezése</span>
                 </Label>
               )}
             </form.Field>

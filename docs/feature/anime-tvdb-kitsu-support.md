@@ -352,7 +352,7 @@ Az éles tracker-hívásokkal (nCore + HunTorrent + Majomparádé) végzett hely
 Minden módosítás után kötelező lefuttatni a `server/tests/test_tvdb_streams.py` és a teljes `pytest` tesztcsomagot:
 
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-source-anime\server; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m pytest tests
 ```
 
 ### Fontos teszt-invariánsok (`server/tests/test_tvdb_streams.py`):

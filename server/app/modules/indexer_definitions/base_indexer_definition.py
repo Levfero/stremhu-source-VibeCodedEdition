@@ -358,6 +358,13 @@ class BaseIndexerDefinition(ABC):
             self.logger.exception(error_msg)
             raise IndexerDefinitionException(error_msg) from e
 
+    async def fetch_tech_info(self, torrent_id: str) -> tuple[str | None, str | None]:
+        """
+        Opcionális Tech Info / NFO és leírás lekérés a torrenthez.
+        Alapértelmezésben (None, None).
+        """
+        return None, None
+
     async def relogin(self) -> None:
         """
         Kezeli a párhuzamos újra-bejelentkezések összevonását.

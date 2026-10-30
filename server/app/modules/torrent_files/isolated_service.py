@@ -96,9 +96,11 @@ class IsolatedTorrentFilesService:
                     )
 
             if to_insert:
-                repo.create_many(to_insert)
+                repo.create_many_ignore_duplicates(to_insert)
 
-            all_models = list(existing_map.values()) + to_insert
+            all_models = repo.find_list(
+                filter=TorrentFilesFilter(identifiers=identifiers)
+            )
             for model in all_models:
                 local_db.expunge(model)
             return all_models

@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 import unicodedata
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -11,7 +12,16 @@ from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentInfo
 from app.modules.attributes.models import AttributeModel
+from app.modules.indexer_definitions.service import IndexerDefinitionsService
+from app.modules.media_attributes.constants import MediaAttributeKey
+from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
+from app.modules.media_attributes.seeds import DEFAULT_ATTRIBUTES
+from app.modules.media_attributes.tech_info_parser import (
+    TechInfoMetadata,
+    parse_tech_info_metadata,
+)
+from app.modules.preferences.constants import PreferenceKey
 from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
 from app.modules.torrent_source_provider.service import (
@@ -21,9 +31,19 @@ from app.modules.torrent_streams.schemas import (
     TorrentStream,
 )
 from app.modules.torrent_streams.utils.series_parser import SeriesParser
-from app.modules.torrents.schemas.internal import TorrentWithRelay
 from app.modules.torrents.service import TorrentsService
 from app.modules.users.models import UserModel
+
+_DEFAULT_ATTRIBUTES_MAP: dict[str, MediaAttributeModel] = {
+    attr.id: attr for attr in DEFAULT_ATTRIBUTES
+}
+_HUN_SUB_REGEX = re.compile(
+    r"\b(hun[-_. ]?sub|sub[-_. ]?hun|hungarian[-_. ]?sub|magyar[-_. ]?felirat|feliratos)\b",
+    re.IGNORECASE,
+)
+_TECH_INFO_CACHE: dict[tuple[str, str], tuple[float, TechInfoMetadata]] = {}
+_TECH_INFO_CACHE_TTL = 3600.0
+_TECH_INFO_CACHE_MAX = 5000
 
 
 def strip_accents(text: str) -> str:
@@ -42,12 +62,14 @@ class TorrentStreamsService:
         torrents_service: TorrentsService,
         settings_service: SettingsService,
         preferences_service: PreferencesService,
+        indexer_definitions_service: IndexerDefinitionsService | None = None,
     ):
         self.db = db
         self._torrent_source_provider_service = torrent_source_provider_service
         self._torrents_service = torrents_service
         self._settings_service = settings_service
         self._preferences_service = preferences_service
+        self._indexer_definitions_service = indexer_definitions_service
 
     async def find_by_imdb(
         self,
@@ -117,6 +139,7 @@ class TorrentStreamsService:
                             torrent_sources.append(s)
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
+        search_start_time = time.monotonic()
 
         torrent_streams: list[TorrentStream] = []
 
@@ -185,6 +208,13 @@ class TorrentStreamsService:
                 )
 
                 for q in candidate_queries:
+                    # M08: Keresési idő- és munkakeret: ne lépjük túl a teljes 20 másodperces időkeretet
+                    if time.monotonic() - search_start_time > 20.0:
+                        logger.info(
+                            f"[TorrentStreamsService] Keresési időkeret elérve ({actual_title}), fallback keresés megszakítva."
+                        )
+                        break
+
                     (
                         fallback_sources,
                         fallback_errors,
@@ -239,6 +269,10 @@ class TorrentStreamsService:
                             # Mock objektumos unit tesztek támogatása
                             break
 
+
+        torrent_streams = await self._enrich_torrent_streams_with_tech_info(
+            torrent_streams
+        )
 
         filtered_torrent_streams = self._filter_torrent_streams(torrent_streams, user)
         sorted_torrent_streams = self._sort_torrent_streams(
@@ -300,13 +334,164 @@ class TorrentStreamsService:
 
         app_url = await asyncio.to_thread(self._settings_service.get_app_url)
 
-        return TorrentStream.from_torrent_id(
+        streams = TorrentStream.from_torrent_id(
             indexer_torrent=torrent_source.indexer_torrent,
             torrent_file=torrent_source.torrent_file,
             app_url=app_url,
             user=user,
             file_index=file_index,
         )
+        return await self._enrich_torrent_streams_with_tech_info(streams)
+
+    async def _enrich_torrent_streams_with_tech_info(
+        self,
+        torrent_streams: list[TorrentStream],
+    ) -> list[TorrentStream]:
+        if not torrent_streams or self._indexer_definitions_service is None:
+            return torrent_streams
+
+        # 1. Fast-path regex: A torrent nevéből vagy fájlnevéből 0 ms alatt detektálható magyar felirat
+        for ts in torrent_streams:
+            if not ts.has_hungarian_sub:
+                t_name = getattr(ts, "torrent_name", "") or ""
+                f_name = getattr(ts, "file_name", "") or ""
+                if _HUN_SUB_REGEX.search(t_name) or _HUN_SUB_REGEX.search(f_name):
+                    ts.has_hungarian_sub = True
+
+        # 2. Torrentenkénti csoportosítás: ugyanazon torrenthez tartozó fájlok ne indítsanak több kérést
+        streams_by_torrent: dict[tuple[str, str], list[TorrentStream]] = {}
+        for ts in torrent_streams:
+            key = (ts.indexer_account.indexer_id, ts.torrent_id)
+            streams_by_torrent.setdefault(key, []).append(ts)
+
+        # 3. Célzott dúsítás: legfeljebb az 5 leginkább releváns egyedi torrentre futtatjuk,
+        # illeszkedve az nCore max_concurrent=5 szemaforjához (egyetlen párhuzamos hullám)
+        candidate_keys: list[tuple[str, str]] = []
+        for key, streams in streams_by_torrent.items():
+            needs_enrich = any(
+                not (
+                    ts.has_hungarian_sub
+                    and any(
+                        isinstance(a, MediaAttributeModel)
+                        and a.id == MediaAttributeKey.HUN
+                        for a in ts.attributes
+                    )
+                )
+                for ts in streams
+            )
+            if needs_enrich:
+                candidate_keys.append(key)
+                if len(candidate_keys) >= 5:
+                    break
+
+        if not candidate_keys:
+            return torrent_streams
+
+        tasks = [
+            self._enrich_torrent_group(key, streams_by_torrent[key])
+            for key in candidate_keys
+        ]
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=1.5,
+            )
+        except asyncio.TimeoutError:
+            logger.debug("[TorrentStreamsService] Tech info dúsítás időtúllépés (1.5s).")
+        except Exception as e:
+            logger.debug(f"[TorrentStreamsService] Tech info dúsítási hiba: {e}")
+
+        return torrent_streams
+
+    async def _enrich_torrent_group(
+        self,
+        cache_key: tuple[str, str],
+        streams: list[TorrentStream],
+    ) -> None:
+        try:
+            indexer_id, torrent_id = cache_key
+            now = time.monotonic()
+
+            cached = _TECH_INFO_CACHE.get(cache_key)
+            if cached is not None:
+                ts_time, meta = cached
+                if now - ts_time >= _TECH_INFO_CACHE_TTL:
+                    _TECH_INFO_CACHE.pop(cache_key, None)
+                    meta = None
+            else:
+                meta = None
+
+            if meta is None:
+                if not self._indexer_definitions_service:
+                    return
+                indexer_def = self._indexer_definitions_service.get_by_id(indexer_id)
+                if not indexer_def:
+                    return
+                nfo_text, desc_text = await indexer_def.fetch_tech_info(torrent_id)
+                meta = parse_tech_info_metadata(nfo_text or "", desc_text or "")
+                if len(_TECH_INFO_CACHE) >= _TECH_INFO_CACHE_MAX:
+                    _TECH_INFO_CACHE.pop(next(iter(_TECH_INFO_CACHE)), None)
+                _TECH_INFO_CACHE[cache_key] = (now, meta)
+
+            for ts in streams:
+                self._apply_tech_info_to_stream(ts, meta)
+        except Exception as e:
+            logger.debug(
+                f"[TorrentStreamsService] Nem sikerült a torrent csoport ({cache_key}) dúsítása: {e}"
+            )
+
+    @staticmethod
+    def _apply_tech_info_to_stream(ts: TorrentStream, meta: TechInfoMetadata) -> None:
+        # 1. Magyar felirat meglétének átvétele
+        if meta.has_hungarian_sub:
+            ts.has_hungarian_sub = True
+
+        # 2. Valós hangsávok alkalmazása és téves fallback felülírása
+        if meta.audio_languages:
+            current_langs = {
+                attr.id
+                for attr in ts.attributes
+                if isinstance(attr, MediaAttributeModel)
+                and attr.preference_id == PreferenceKey.LANGUAGE
+            }
+
+            # Ha japán hangsáv van a Tech Info / MediaInfo szerint
+            if "jap" in meta.audio_languages:
+                jap_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.JAP)
+                if jap_attr and MediaAttributeKey.JAP not in current_langs:
+                    ts.attributes.append(jap_attr)
+                    current_langs.add(MediaAttributeKey.JAP)
+
+                # Ha nincs angol hangsáv a Tech Info szerint, de az nCore kategória fallback miatt
+                # rákerült az ENG jelölés, eltávolítjuk a téves angol attribútumot
+                if (
+                    "eng" not in meta.audio_languages
+                    and MediaAttributeKey.ENG in current_langs
+                ):
+                    ts.attributes = [
+                        attr
+                        for attr in ts.attributes
+                        if not (
+                            isinstance(attr, MediaAttributeModel)
+                            and attr.id == MediaAttributeKey.ENG
+                        )
+                    ]
+                    current_langs.discard(MediaAttributeKey.ENG)
+
+            # Ha magyar hangsáv van
+            if "hun" in meta.audio_languages:
+                hun_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.HUN)
+                if hun_attr and MediaAttributeKey.HUN not in current_langs:
+                    ts.attributes.append(hun_attr)
+                    current_langs.add(MediaAttributeKey.HUN)
+
+            # Ha angol hangsáv van (pl. Dual-Audio esetén)
+            if "eng" in meta.audio_languages:
+                eng_attr = _DEFAULT_ATTRIBUTES_MAP.get(MediaAttributeKey.ENG)
+                if eng_attr and MediaAttributeKey.ENG not in current_langs:
+                    ts.attributes.append(eng_attr)
+                    current_langs.add(MediaAttributeKey.ENG)
+
 
     def _is_torrent_stream_excluded(
         self,
@@ -391,22 +576,56 @@ class TorrentStreamsService:
         torrent_streams: list[TorrentStream],
         user: UserModel,
     ) -> list[TorrentStream]:
-        torrent_with_relays: list[TorrentWithRelay] = (
-            self._torrents_service.get_torrents()
-        )
-        active_hashes = {
-            torrent_with_relay.info_hash for torrent_with_relay in torrent_with_relays
-        }
+        if not torrent_streams:
+            return []
+
+        # M12: Célzott állapotlekérés felesleges teljes táblalekérdezés (get_torrents) helyett.
+        # file_progress_cache memóriában tárolja a torrent állapotot a több fájlos találatokhoz.
+        file_progress_cache: dict[str, tuple[bool, list[int]]] = {}
 
         for stream in torrent_streams:
-            if stream.info_hash in active_hashes:
-                stream.is_persisted_torrent = self._torrents_service.is_file_downloaded(
-                    info_hash=stream.info_hash,
-                    file_index=stream.file_index,
-                    file_size=stream.file_size,
+            if not stream.info_hash:
+                stream.is_persisted_torrent = False
+                continue
+
+            if stream.info_hash not in file_progress_cache:
+                is_downloaded_whole = False
+                progress: list[int] = []
+                try:
+                    relay_service = getattr(self._torrents_service, "_relay_service", None)
+                    if relay_service:
+                        sha1_hash = relay_service._parse_info_hash(stream.info_hash)
+                        t = relay_service._torrents.get(sha1_hash)
+                        if t and t.torrent_handle.is_valid():
+                            st = t.torrent_handle.status()
+                            if st.is_seeding:
+                                is_downloaded_whole = True
+                            else:
+                                progress = t.torrent_handle.file_progress()
+                except Exception:
+                    pass
+                file_progress_cache[stream.info_hash] = (is_downloaded_whole, progress)
+
+            is_seeding, progress_list = file_progress_cache[stream.info_hash]
+            if is_seeding:
+                stream.is_persisted_torrent = True
+            elif progress_list and 0 <= stream.file_index < len(progress_list):
+                stream.is_persisted_torrent = (
+                    stream.file_size > 0 and progress_list[stream.file_index] >= stream.file_size
                 )
             else:
-                stream.is_persisted_torrent = False
+                # Végső fallback a torrents_service.is_file_downloaded-re (pl. mock-olt tesztekben)
+                try:
+                    stream.is_persisted_torrent = bool(
+                        self._torrents_service.is_file_downloaded(
+                            info_hash=stream.info_hash,
+                            file_index=stream.file_index,
+                            file_size=stream.file_size,
+                        )
+                    )
+                except Exception:
+                    stream.is_persisted_torrent = False
+
         sorted_preferences = sorted(
             user.preference_definitions, key=lambda preference: preference.order
         )
@@ -450,31 +669,37 @@ class TorrentStreamsService:
     ) -> list[TorrentStream]:
         """
         Multi-tracker és azonos tartalmú torrent streamek intelligens összevonása.
-        Ha több forrás azonos swarmból (info_hash) vagy azonos médiafájlból (pontos fájlméret és tisztított név)
-        származik, egyetlen stream találattá vonjuk össze.
-        Felsoroljuk az összes elérhető indexert (pl. 🧲 nCore, HunTorrent, Majomparádé)
-        és összesítjük a trackerek egyedi seeder-számait.
+
+        M04 szabályok:
+        1. Erős kulcs: (info_hash, file_index). Azonos hash-en belüli külön fájlok (pl. külön epizódok)
+           soha nem vonhatók össze!
+        2. Eltérő info_hash-ek esetén a fájlok nem vonhatók össze, külön találatként maradnak meg.
+        3. Ha nincs info_hash, tisztított név és fájlméret alapján vonunk össze fallback módon.
+        4. Forráskonzisztencia: ha egy összevont forrás letöltött (is_persisted_torrent),
+           a lejátszási URL és attribútumok a tényleges letöltött forráshoz igazodnak.
+        5. Több indexer esetén az extra_indexer_names és a trackerenkénti becsült seeder összeg
+           (combined_seeders) megfelelően összesítésre kerül.
         """
         deduped: list[TorrentStream] = []
-        hash_to_primary: dict[str, TorrentStream] = {}
-        file_to_primary: dict[tuple[int, str], TorrentStream] = {}
+        canonical_to_primary: dict[tuple[str, ...], TorrentStream] = {}
         seeders_by_indexer_per_primary: dict[int, dict[str, int]] = {}
 
         for stream in torrent_streams:
-            stream_hash = stream.info_hash.lower() if stream.info_hash else ""
+            stream_hash = stream.info_hash.strip().lower() if stream.info_hash else ""
             clean_name = clean_torrent_name(stream.file_name).lower() if stream.file_name else ""
-            file_key = (
-                (stream.file_size, clean_name)
-                if stream.file_size > 1_000_000 and clean_name
-                else None
-            )
 
-            primary: TorrentStream | None = None
-            if stream_hash and stream_hash in hash_to_primary:
-                primary = hash_to_primary[stream_hash]
-            elif file_key and file_key in file_to_primary:
-                primary = file_to_primary[file_key]
+            # Kulcsképzés
+            if stream_hash:
+                # Erős kulcs: info_hash és file_index
+                stream_key: tuple[str, ...] = ("hash", stream_hash, str(stream.file_index))
+            elif stream.file_size > 1_000_000 and clean_name:
+                # Fallback kulcs csak akkor, ha egyáltalán nincs info_hash
+                stream_key = ("fallback", str(stream.file_size), clean_name)
+            else:
+                # Nincs elegendő adat az összevonáshoz, egyedi streamként kezeljük
+                stream_key = ("unique", str(id(stream)))
 
+            primary = canonical_to_primary.get(stream_key)
             indexer_id = stream.indexer_account.indexer_id
             indexer_name = stream.indexer_account.indexer_definition.name
 
@@ -488,19 +713,25 @@ class TorrentStreamsService:
                 ):
                     primary.extra_indexer_names.append(indexer_name)
 
-                # Pontos seeder összesítés: indexerenként a maximumot vesszük figyelembe,
-                # majd a különböző indexerek értékeit összeadjuk
+                # Seeder összesítés indexerenként
                 current_for_idx = idx_seeders.get(indexer_id, 0)
                 idx_seeders[indexer_id] = max(current_for_idx, stream.seeders or 0)
                 primary.combined_seeders = sum(idx_seeders.values())
 
+                # Forráskonzisztencia: ha a stream már letöltött, de a primary nem volt az,
+                # a lejátszási URL-t és forrást átváltjuk a ténylegesen elérhető helyi forrásra
                 if stream.is_persisted_torrent and not primary.is_persisted_torrent:
                     primary.is_persisted_torrent = True
-
-                if stream_hash and stream_hash not in hash_to_primary:
-                    hash_to_primary[stream_hash] = primary
-                if file_key and file_key not in file_to_primary:
-                    file_to_primary[file_key] = primary
+                    primary.play_url = stream.play_url
+                    primary.indexer_account = stream.indexer_account
+                    primary.torrent_id = stream.torrent_id
+                    primary.file_index = stream.file_index
+                    if stream.attributes:
+                        primary.attributes = stream.attributes
+                    if stream.has_hungarian_sub:
+                        primary.has_hungarian_sub = True
+                elif stream.has_hungarian_sub and not primary.has_hungarian_sub:
+                    primary.has_hungarian_sub = True
             else:
                 if not stream.extra_indexer_names and indexer_name:
                     stream.extra_indexer_names = [indexer_name]
@@ -510,11 +741,7 @@ class TorrentStreamsService:
                 stream.combined_seeders = primary_seeders
 
                 deduped.append(stream)
-
-                if stream_hash:
-                    hash_to_primary[stream_hash] = stream
-                if file_key:
-                    file_to_primary[file_key] = stream
+                canonical_to_primary[stream_key] = stream
 
         return deduped
 

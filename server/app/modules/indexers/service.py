@@ -38,6 +38,20 @@ _QUERY_TRACKER_CACHE_MAX = 1000
 _query_tracker_cache: dict[tuple[str, str, str], tuple[float, list[Any]]] = {}
 
 
+def invalidate_indexer_cache(indexer_id: str | None = None) -> None:
+    """M05: Indexer találati gyorsítótár invalidálása kijelentkezés, törlés vagy új hitelesítés esetén."""
+    if indexer_id is None:
+        _imdb_tracker_cache.clear()
+        _query_tracker_cache.clear()
+    else:
+        for k in list(_imdb_tracker_cache.keys()):
+            if k[0] == indexer_id:
+                _imdb_tracker_cache.pop(k, None)
+        for k in list(_query_tracker_cache.keys()):
+            if k[0] == indexer_id:
+                _query_tracker_cache.pop(k, None)
+
+
 class IndexersService:
     def __init__(
         self,
@@ -90,6 +104,7 @@ class IndexersService:
                 ),
             )
 
+            invalidate_indexer_cache(indexer_definition.id)
             return indexer_account
         except CredentialsRequiredException as e:
             raise HTTPException(
@@ -152,6 +167,7 @@ class IndexersService:
         self,
         indexer_id: str,
     ) -> None:
+        invalidate_indexer_cache(indexer_id)
         self._torrents_service.delete_by_indexer_id(indexer_id)
         self._indexer_accounts_service.delete(indexer_id)
 

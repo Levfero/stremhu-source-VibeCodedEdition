@@ -105,8 +105,7 @@ class StremioCatalogsService:
                     ):
                         filtered_sources.append(ts)
 
-            if filtered_sources or not torrent_sources:
-                torrent_sources = filtered_sources
+            torrent_sources = filtered_sources
 
             torrent_sources.sort(
                 key=lambda ts: getattr(ts.indexer_torrent, "seeders", 0) or 0,

@@ -8,7 +8,7 @@
 ## 1. A Branch Célja és Motivációja
 
 Az eredeti `s4pp1/stremhu-source` egyetlen globális szervercímet (`app_url`) használt minden Stremio, Nuvio és Kodi kliens kiszolgálásához. Ez a gyakorlatban feloldhatatlan kompromisszumot okozott:
-1. **Ha a helyi LAN IP (`192.168.1.5`) volt beállítva:** Az otthoni okostévé gigabites sebességgel streamelt, de a lakáson kívülről (mobilneten, utazás közben) a szerver elérhetetlenné vált.
+1. **Ha a helyi LAN IP (`http://<LAN_IP>:7070`) volt beállítva:** Az otthoni okostévé gigabites sebességgel streamelt, de a lakáson kívülről (mobilneten, utazás közben) a szerver elérhetetlenné vált.
 2. **Ha nyilvános domain vagy Cloudflare Tunnel volt beállítva:** Kívülről működött, de az otthoni TV is a külső proxyn és internetes feltöltési sávszélességen keresztül streamelt, ami 4K HDR tartalmaknál pufferelést és Cloudflare korlátozást okozott.
 3. **Ha Tailscale / WireGuard VPN volt beállítva:** Saját mobiltelefonon és laptopon kiváló, de olyan eszközökön (pl. hotelszobai okostévé, vendégek eszközei), amelyekre nem telepíthető VPN kliens, nem használható.
 
@@ -55,14 +55,14 @@ sequenceDiagram
     Client->>Router: GET /api/{key}/stremio-lan/manifest.json
     Router->>Service: manifest(user, endpoint_type="lan")
     Service->>Settings: get_endpoint_by_id("lan")
-    Settings-->>Service: NetworkEndpoint(id="lan", name="Helyi hálózat", base_url="http://192.168.1.5:7070")
+    Settings-->>Service: NetworkEndpoint(id="lan", name="Helyi hálózat", base_url="http://<LAN_IP>:7070")
     Service-->>Client: Manifest(id="hu.stremhu-source.addon.lan", name="StremHU Source (Helyi hálózat)")
 
     Client->>Router: GET /api/{key}/stremio-lan/stream/movie/tt1375666.json
     Router->>Service: get_streams(user, parsed_id, endpoint_type="lan")
-    Service->>Settings: get_manifest_url("lan") -> "http://192.168.1.5:7070"
+    Service->>Settings: get_manifest_url("lan") -> "http://<LAN_IP>:7070"
     Note over Service: Kicseréli az alapértelmezett app_url-t\na végpont base_url-jére minden stream.url-ben
-    Service-->>Client: StremioStream(url="http://192.168.1.5:7070/api/{key}/relay/...")
+    Service-->>Client: StremioStream(url="http://<LAN_IP>:7070/api/{key}/relay/...")
 ```
 
 ---
@@ -77,7 +77,7 @@ sequenceDiagram
 
 ### 4.2. Egyedi Addon ID és Stream Cache Izoláció (`server/app/modules/stremio/service.py`)
 - **Egyedi `addon_id`:** Ha `endpoint_type != "default"`, a manifest `id` mezője `hu.stremhu-source.addon.{endpoint_id}` (pl. `hu.stremhu-source.addon.lan`), a `name` pedig `StremHU Source ({ep.name})` lesz. Ez lehetővé teszi, hogy egyetlen Stremio fiókban akár egyszerre legyen telepítve a LAN és a Távoli addon anélkül, hogy felülírnák egymást.
-- **Végpont-tudatos `_stream_cache`:** A 60 másodperces memóriabeli stream gyorsítótár kulcsa `f"{user.id}:{endpoint_type}:{parsed_id.model_dump_json()}"`, így a `lan` és `default` végpontok átírt stream URL-jei soha nem keverednek össze.
+- **Végpont-tudatos `_stream_cache`:** A memóriabeli stream gyorsítótár kulcsa tartalmazza a generációszámot, API-kulcsot és az `endpoint_type`-ot is (`f"{user.id}:{user_gen}:{api_key}:{endpoint_type}:..."`), így a `lan` és `default` végpontok átírt stream URL-jei soha nem keverednek össze.
 
 ### 4.3. Automatikus Hálózat-felderítés (`server/app/modules/settings/service.py`)
 - **`_detect_tailscale_ip()`:** Linux konténerben `fcntl.ioctl` (`SIOCGIFADDR = 0x8915`) segítségével lekérdezi a `tailscale0` hálózati interfész IPv4 címét (ha a konténer `network_mode: host` módban fut vagy hozzáfér az interfészhez), illetve figyelembe veszi a `TAILSCALE_IP` / `TAILSCALE_URL` környezeti változókat.
@@ -87,6 +87,6 @@ sequenceDiagram
 ## 5. Tesztelési és Ellenőrzési Referencia
 
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-source-anime\server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
-- Unit tesztek száma ezen az ágon: **218 passed, 64 snapshots passed** (`test_multi_manifest.py`, `test_subtitles.py`, `test_tvdb_streams.py`, `test_stream_optimizations.py`, stb.).
+- Unit tesztek száma ezen az ágon: **259 passed, 64 snapshots passed** (`test_multi_manifest.py`, `test_subtitles.py`, `test_tvdb_streams.py`, `test_stream_optimizations.py`, `test_audio_subtitle_detection.py` stb.).

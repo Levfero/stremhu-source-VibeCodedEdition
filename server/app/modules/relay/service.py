@@ -14,6 +14,10 @@ from app.modules.relay.schemas import (
 )
 
 
+class PieceReadAbortedError(Exception):
+    """A darabolvasás a torrent eltávolítása vagy leállítás miatt megszakadt."""
+
+
 class RelayService:
     def __init__(
         self,
@@ -168,8 +172,50 @@ class RelayService:
                 self._fetch_piece_with_retry(torrent_handle, piece_index, request_key)
             )
             self._piece_fetch_tasks[request_key] = task
+            task.add_done_callback(self._consume_piece_exception)
 
         return await asyncio.shield(task)
+
+    @staticmethod
+    def _consume_piece_exception(task: asyncio.Task[bytes]) -> None:
+        # Minden HTTP-várakozó lecsatlakozhatott, mielőtt a közös task befejeződik;
+        # a kivételt lekérjük, hogy ne keletkezzen "Task exception was never retrieved".
+        if not task.cancelled():
+            task.exception()
+
+    def cancel_piece_requests(self, info_hash: str) -> None:
+        """Az adott torrent összes függő darabolvasását lezárja.
+
+        Az event loopon kell futnia (worker szálról `call_soon_threadsafe`-fel ütemezve).
+        A függő olvasások felismerhető `PieceReadAbortedError`-t kapnak; a jelenleg
+        újrapróbálkozási szünetben lévő (future nélküli) taskokat töröljük.
+        """
+        aborted_keys: set[tuple[str, int]] = set()
+        for key, future in list(self._pending_piece_reads.items()):
+            if key[0] == info_hash:
+                self._pending_piece_reads.pop(key, None)
+                aborted_keys.add(key)
+                if not future.done():
+                    future.set_exception(
+                        PieceReadAbortedError(f"A torrent ({info_hash}) eltávolításra került.")
+                    )
+
+        for key, task in list(self._piece_fetch_tasks.items()):
+            if key[0] == info_hash and key not in aborted_keys:
+                if not task.done():
+                    task.cancel()
+
+    async def close_piece_requests(self) -> None:
+        """Leállításkor az összes darabolvasó task leállítása és megvárása."""
+        tasks = list(self._piece_fetch_tasks.values())
+        for task in tasks:
+            task.cancel()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(
+                result, (asyncio.CancelledError, PieceReadAbortedError, TimeoutError)
+            ):
+                logger.debug(f"Darabolvasó task hibával zárult leállításkor: {result!r}")
 
     async def _fetch_piece_with_retry(
         self,
@@ -178,16 +224,18 @@ class RelayService:
         request_key: tuple[str, int],
     ) -> bytes:
         try:
-            for attempt in range(4):
-                try:
-                    return await self._fetch_piece_once(
-                        torrent_handle, piece_index, request_key
-                    )
-                except FileNotFoundError:
-                    if attempt < 3:
-                        await asyncio.sleep(0.5)
-                        continue
-                    raise
+            # A teljes újrapróbálkozási sorozatnak is van felső határa.
+            async with asyncio.timeout(config.relay_piece_timeout_seconds):
+                for attempt in range(4):
+                    try:
+                        return await self._fetch_piece_once(
+                            torrent_handle, piece_index, request_key
+                        )
+                    except FileNotFoundError:
+                        if attempt < 3:
+                            await asyncio.sleep(0.5)
+                            continue
+                        raise
             raise RuntimeError("Unreachable")
         finally:
             if self._piece_fetch_tasks.get(request_key) is asyncio.current_task():
@@ -202,10 +250,12 @@ class RelayService:
         future: asyncio.Future[bytes] = self._loop.create_future()
         self._pending_piece_reads[request_key] = future
 
-        if torrent_handle.have_piece(piece_index):
-            torrent_handle.read_piece(piece_index)
-
         try:
+            if torrent_handle.have_piece(piece_index):
+                torrent_handle.read_piece(piece_index)
+                return await asyncio.wait_for(
+                    future, timeout=config.relay_read_timeout_seconds
+                )
             return await future
         finally:
             if self._pending_piece_reads.get(request_key) is future:
@@ -321,6 +371,7 @@ class RelayService:
             return False
 
         self._torrents.pop(info_hash, None)
+        self._loop.call_soon_threadsafe(self.cancel_piece_requests, str(info_hash))
 
         self._libtorrent_session.remove_torrent(
             torrent_handle,
@@ -397,15 +448,11 @@ class RelayService:
                                     err = Exception(error_msg)
 
                                 if not future.done():
-                                    self._loop.call_soon_threadsafe(
-                                        future.set_exception, err
-                                    )
+                                    future.set_exception(err)
                             else:
                                 piece_data = bytes(alert.buffer)
                                 if not future.done():
-                                    self._loop.call_soon_threadsafe(
-                                        future.set_result, piece_data
-                                    )
+                                    future.set_result(piece_data)
 
             except Exception as e:
                 logger.error(f"Hiba a {type(alert).__name__} feldolgozása közben: {e}")

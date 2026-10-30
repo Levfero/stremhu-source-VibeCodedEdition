@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
     await tvdb_resolver.aclose()
 
     priority_manager_task.cancel()
+    await relay_service.close_piece_requests()
     scheduler.shutdown()
     save_task.cancel()
 
@@ -109,7 +110,7 @@ app.add_middleware(
     SessionMiddleware,
     session_cookie="stremhu.source",
     secret_key=config.session_secret,
-    max_age=1000 * 60 * 60 * 24 * 30,
+    max_age=60 * 60 * 24 * 30,
 )
 
 app.include_router(api_router)

@@ -1,9 +1,10 @@
 import asyncio
 from collections.abc import Awaitable
-from typing import cast, overload
+from typing import overload
 
 from app.common.keyed_lock import KeyedLock
 from app.common.logger import logger
+from app.common.singleflight import Singleflight
 from app.modules.indexers.schemas.internal import IndexerTorrent
 from app.modules.indexers.service import IndexersService
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
@@ -14,11 +15,9 @@ from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.schemas import TorrentSource
 
 _torrent_provider_locks = KeyedLock()
-_ongoing_tasks: dict[
-    str,
-    asyncio.Task[tuple[list[TorrentSource], list[str]]]
-    | asyncio.Task[TorrentSource | None],
-] = {}
+_sources_singleflight: Singleflight[tuple[list[TorrentSource], list[str]]] = Singleflight()
+_single_source_singleflight: Singleflight[TorrentSource | None] = Singleflight()
+_torrent_download_singleflight: Singleflight[tuple[str, str, bytes] | None] = Singleflight()
 
 
 class TorrentSourceProviderService:
@@ -36,17 +35,10 @@ class TorrentSourceProviderService:
         self,
         imdb_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
-        task_key = f"imdb:{imdb_id}"
-        if task_key in _ongoing_tasks:
-            result = await _ongoing_tasks[task_key]
-            return cast(tuple[list[TorrentSource], list[str]], result)
-
-        task = asyncio.create_task(self._find_by_imdb_id(imdb_id))
-        _ongoing_tasks[task_key] = task
-        try:
-            return await task
-        finally:
-            _ongoing_tasks.pop(task_key, None)
+        return await _sources_singleflight.run(
+            f"imdb:{imdb_id}",
+            lambda: self._find_by_imdb_id(imdb_id),
+        )
 
     async def _find_by_imdb_id(
         self,
@@ -66,17 +58,10 @@ class TorrentSourceProviderService:
         query: str,
         media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
-        task_key = f"query:{query}:{media_type or 'all'}"
-        if task_key in _ongoing_tasks:
-            result = await _ongoing_tasks[task_key]
-            return cast(tuple[list[TorrentSource], list[str]], result)
-
-        task = asyncio.create_task(self._find_by_query(query, media_type=media_type))
-        _ongoing_tasks[task_key] = task
-        try:
-            return await task
-        finally:
-            _ongoing_tasks.pop(task_key, None)
+        return await _sources_singleflight.run(
+            f"query:{query}:{media_type or 'all'}",
+            lambda: self._find_by_query(query, media_type=media_type),
+        )
 
     async def _find_by_query(
         self,
@@ -90,13 +75,31 @@ class TorrentSourceProviderService:
             query, media_type=media_type
         )
 
-        indexer_torrents = sorted(
+        # M09: Méltányos jelöltfeldolgozás (fair interleaving) a merev top 30 helyett.
+        # Trackerenként rendezünk seeder szerint, majd váltakozva választunk találatokat,
+        # hogy egy domináns tracker ne szorítson ki más indexereket.
+        by_indexer: dict[str, list[IndexerTorrent]] = {}
+        for it in sorted(
             indexer_torrents,
             key=lambda t: getattr(t, "seeders", 0) or 0,
             reverse=True,
-        )[:30]
+        ):
+            iid = it.indexer_account.indexer_id
+            by_indexer.setdefault(iid, []).append(it)
 
-        torrent_files = await self._sync_torrent_files(indexer_torrents)
+        fair_selected: list[IndexerTorrent] = []
+        max_candidates = 40
+        while len(fair_selected) < max_candidates and any(by_indexer.values()):
+            for iid in list(by_indexer.keys()):
+                items = by_indexer[iid]
+                if items:
+                    fair_selected.append(items.pop(0))
+                    if len(fair_selected) >= max_candidates:
+                        break
+                else:
+                    by_indexer.pop(iid, None)
+
+        torrent_files = await self._sync_torrent_files(fair_selected)
 
         return torrent_files, indexer_errors
 
@@ -104,17 +107,10 @@ class TorrentSourceProviderService:
         self,
         torrent_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
-        task_key = f"torrent:{torrent_id}"
-        if task_key in _ongoing_tasks:
-            result = await _ongoing_tasks[task_key]
-            return cast(tuple[list[TorrentSource], list[str]], result)
-
-        task = asyncio.create_task(self._find_by_torrent_id(torrent_id))
-        _ongoing_tasks[task_key] = task
-        try:
-            return await task
-        finally:
-            _ongoing_tasks.pop(task_key, None)
+        return await _sources_singleflight.run(
+            f"torrent:{torrent_id}",
+            lambda: self._find_by_torrent_id(torrent_id),
+        )
 
     async def _find_by_torrent_id(
         self,
@@ -134,17 +130,10 @@ class TorrentSourceProviderService:
         indexer_id: str,
         torrent_id: str,
     ) -> TorrentSource | None:
-        task_key = f"indexer:{indexer_id}:{torrent_id}"
-        if task_key in _ongoing_tasks:
-            result = await _ongoing_tasks[task_key]
-            return cast(TorrentSource | None, result)
-
-        task = asyncio.create_task(self._find_one_by_indexer(indexer_id, torrent_id))
-        _ongoing_tasks[task_key] = task
-        try:
-            return await task
-        finally:
-            _ongoing_tasks.pop(task_key, None)
+        return await _single_source_singleflight.run(
+            f"indexer:{indexer_id}:{torrent_id}",
+            lambda: self._find_one_by_indexer(indexer_id, torrent_id),
+        )
 
     async def _find_one_by_indexer(
         self,
@@ -264,9 +253,9 @@ class TorrentSourceProviderService:
     async def _download_torrent_bytes(
         self, indexer_torrent: IndexerTorrent
     ) -> tuple[str, str, bytes] | None:
-        async with _torrent_provider_locks(
-            f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
-        ):
+        key = f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
+
+        async def _do_download() -> tuple[str, str, bytes] | None:
             try:
                 downloaded_torrent_file = await self._indexers_service.download_torrent(
                     indexer_torrent.indexer_account.indexer_id,
@@ -283,6 +272,8 @@ class TorrentSourceProviderService:
                     f"⚠️ Érvénytelen torrent fájl átugorva: indexer: {indexer_torrent.indexer_account.indexer_id}, torrent_id: {indexer_torrent.torrent_id}"
                 )
                 return None
+
+        return await _torrent_download_singleflight.run(key, _do_download)
 
     async def _download_and_save_torrent(
         self, indexer_torrent: IndexerTorrent

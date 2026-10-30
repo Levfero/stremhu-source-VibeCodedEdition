@@ -125,6 +125,138 @@ def test_deduplicate_torrent_streams_by_name_and_size_fallback():
     assert result.combined_seeders == 35
 
 
+def test_deduplicate_different_file_index_not_merged():
+    """M04: Azonos info_hash de eltérő file_index (pl. Episode 1 vs Episode 2) nem vonható össze!"""
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+
+    ep1 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="aabbcc112233",
+        seeders=45,
+        torrent_name="Anime.Series.S01.1080p",
+        attributes=[],
+        file_name="Anime.S01E01.mkv",
+        file_size=1_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/1/0",
+    )
+    ep2 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="aabbcc112233",
+        seeders=45,
+        torrent_name="Anime.Series.S01.1080p",
+        attributes=[],
+        file_name="Anime.S01E02.mkv",
+        file_size=1_000_000_000,
+        file_index=1,
+        play_url="http://localhost:7070/play/1/1",
+    )
+
+    service = TorrentStreamsService(
+        db=MagicMock(),
+        torrent_source_provider_service=MagicMock(),
+        torrents_service=MagicMock(),
+        settings_service=MagicMock(),
+        preferences_service=MagicMock(),
+    )
+
+    deduped = service._deduplicate_torrent_streams([ep1, ep2])
+    assert len(deduped) == 2
+    assert {s.file_index for s in deduped} == {0, 1}
+
+
+def test_deduplicate_different_info_hash_not_merged():
+    """M04: Eltérő info_hash esetén a fájlok nem vonhatók össze, külön találatként maradnak meg."""
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+    huntorrent_acc = _create_mock_indexer("huntorrent", "HunTorrent")
+
+    stream1 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="hash1111111111",
+        seeders=50,
+        torrent_name="Movie.2024.1080p",
+        attributes=[],
+        file_name="Movie.2024.1080p.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/t1/0",
+    )
+    stream2 = TorrentStream(
+        indexer_account=huntorrent_acc,
+        torrent_id="t2",
+        info_hash="hash2222222222",
+        seeders=30,
+        torrent_name="Movie.2024.1080p",
+        attributes=[],
+        file_name="Movie.2024.1080p.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/t2/0",
+    )
+
+    service = TorrentStreamsService(
+        db=MagicMock(),
+        torrent_source_provider_service=MagicMock(),
+        torrents_service=MagicMock(),
+        settings_service=MagicMock(),
+        preferences_service=MagicMock(),
+    )
+
+    deduped = service._deduplicate_torrent_streams([stream1, stream2])
+    assert len(deduped) == 2
+    assert {s.info_hash for s in deduped} == {"hash1111111111", "hash2222222222"}
+
+
+def test_deduplicate_preserves_downloaded_source_url():
+    """M04: Forráskonzisztencia - a letöltött találat URL-je és állapota érvényesül."""
+    ncore_acc = _create_mock_indexer("ncore", "nCore")
+    huntorrent_acc = _create_mock_indexer("huntorrent", "HunTorrent")
+
+    stream1 = TorrentStream(
+        indexer_account=ncore_acc,
+        torrent_id="t1",
+        info_hash="commonhash123",
+        seeders=50,
+        torrent_name="Movie.2024.1080p",
+        attributes=[],
+        file_name="Movie.2024.1080p.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/ncore/stream",
+        is_persisted_torrent=False,
+    )
+    stream2 = TorrentStream(
+        indexer_account=huntorrent_acc,
+        torrent_id="t2",
+        info_hash="commonhash123",
+        seeders=30,
+        torrent_name="Movie.2024.1080p",
+        attributes=[],
+        file_name="Movie.2024.1080p.mkv",
+        file_size=5_000_000_000,
+        file_index=0,
+        play_url="http://localhost:7070/play/huntorrent/downloaded_stream",
+        is_persisted_torrent=True,  # HunTorrenten helyben letöltve
+    )
+
+    service = TorrentStreamsService(
+        db=MagicMock(),
+        torrent_source_provider_service=MagicMock(),
+        torrents_service=MagicMock(),
+        settings_service=MagicMock(),
+        preferences_service=MagicMock(),
+    )
+
+    deduped = service._deduplicate_torrent_streams([stream1, stream2])
+    assert len(deduped) == 1
+    assert deduped[0].is_persisted_torrent is True
+    # A play_url garantáltan a letöltött forráshoz vezet
+    assert deduped[0].play_url == "http://localhost:7070/play/huntorrent/downloaded_stream"
+
+
 def test_stremio_stream_formatting_and_flags():
     ncore_acc = _create_mock_indexer("ncore", "nCore")
 
@@ -235,19 +367,26 @@ def test_fallback_queries_series_prioritization():
 
 
 def test_deduplicate_seeders_calculation_exact():
+    """
+    M04 követelményváltozás:
+    A multi-tracker és cross-seed seeder összesítéshez azonos info_hash és file_index szükséges.
+    Eltérő info_hash esetén a torrentek önálló streamként maradnak meg.
+    Itt ugyanaz a torrent (info_hash='common_naruto_hash') több indexeren szerepel különböző seeder számokkal.
+    """
     ncore_acc = _create_mock_indexer("ncore", "nCore")
     huntorrent_acc = _create_mock_indexer("huntorrent", "HunTorrent")
     majom_acc = _create_mock_indexer("majomparade", "Majomparádé")
 
-    # 5 MB-os anime epizód (teszteli az 1 MB-os csökkentett küszöböt is)
+    # 5 MB-os anime epizód
     file_size = 5_000_000
     clean_name = "naruto_ep01.mkv"
+    common_hash = "common_naruto_hash"
 
     # 1. nCore release: 100 seeder
     stream1 = TorrentStream(
         indexer_account=ncore_acc,
         torrent_id="t1",
-        info_hash="hash1",
+        info_hash=common_hash,
         seeders=100,
         torrent_name="Naruto.Ep01.1080p",
         attributes=[],
@@ -257,11 +396,11 @@ def test_deduplicate_seeders_calculation_exact():
         play_url="http://localhost:7070/play/1",
     )
 
-    # 2. nCore másik duplikált release: 80 seeder (nem szabad hozzáadni a 100-hoz, a max marad 100)
+    # 2. nCore másik duplikált release ugyanazzal a hash-sel: 80 seeder (nem szabad hozzáadni a 100-hoz, a max marad 100)
     stream2 = TorrentStream(
         indexer_account=ncore_acc,
         torrent_id="t2",
-        info_hash="hash2",
+        info_hash=common_hash,
         seeders=80,
         torrent_name="Naruto.Ep01.1080p.Dup",
         attributes=[],
@@ -275,7 +414,7 @@ def test_deduplicate_seeders_calculation_exact():
     stream3 = TorrentStream(
         indexer_account=huntorrent_acc,
         torrent_id="t3",
-        info_hash="hash3",
+        info_hash=common_hash,
         seeders=50,
         torrent_name="Naruto.Ep01.1080p.HT",
         attributes=[],
@@ -289,7 +428,7 @@ def test_deduplicate_seeders_calculation_exact():
     stream4 = TorrentStream(
         indexer_account=majom_acc,
         torrent_id="t4",
-        info_hash="hash4",
+        info_hash=common_hash,
         seeders=30,
         torrent_name="Naruto.Ep01.1080p.MP",
         attributes=[],
@@ -303,7 +442,7 @@ def test_deduplicate_seeders_calculation_exact():
     stream5 = TorrentStream(
         indexer_account=huntorrent_acc,
         torrent_id="t5",
-        info_hash="hash5",
+        info_hash=common_hash,
         seeders=70,
         torrent_name="Naruto.Ep01.1080p.HT2",
         attributes=[],

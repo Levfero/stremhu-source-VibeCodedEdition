@@ -276,11 +276,26 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
             if r_nfo.status_code == 200 and r_nfo.text.strip():
                 nfo_text = r_nfo.text
 
-            # Ha az NFO nem elérhető, vagy nem tartalmaz magyar feliratot, lekérjük a leírást is fallbackként
+            # Ha van NFO, és az tartalmaz MediaInfo blokkot (Video/Audio/General) vagy magyar feliratot,
+            # a technikai adatok már teljesek, nem szükséges egy második lassú webes kérés:
             need_drop = True
             if nfo_text:
                 lower_nfo = nfo_text.lower()
-                if "hungarian" in lower_nfo or "magyar" in lower_nfo:
+                has_mediainfo = any(
+                    k in lower_nfo
+                    for k in (
+                        "unique id",
+                        "general",
+                        "video #",
+                        "audio #",
+                        "hang #",
+                        "szöveg #",
+                        "text #",
+                        "format :",
+                    )
+                )
+                has_hun = "hungarian" in lower_nfo or "magyar" in lower_nfo
+                if has_mediainfo or has_hun:
                     need_drop = False
 
             if need_drop:

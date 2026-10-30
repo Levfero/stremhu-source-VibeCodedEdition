@@ -269,3 +269,65 @@ Language : English
     assert MediaAttributeKey.ENG not in attr_ids
     # Hungarian sub should be set to True
     assert stream.has_hungarian_sub is True
+
+
+@pytest.mark.anyio
+async def test_fast_path_hungarian_sub_regex():
+    from unittest.mock import MagicMock
+
+    acc = IndexerAccountModel(
+        indexer_id="ncore",
+        username="test",
+        password="pwd",
+        download_full_torrent=False,
+    )
+    idef = IndexerDefinitionModel(
+        id="ncore",
+        name="nCore",
+        url="https://ncore.pro",
+        details_path="/torrents.php?action=details&id={torrent_id}",
+    )
+    acc.indexer_definition = idef
+
+    # Release name clearly has HunSub
+    ts1 = TorrentStream(
+        indexer_account=acc,
+        torrent_id="99901",
+        info_hash="hash_hunsub",
+        torrent_name="Shingeki.no.Kyojin.S01E01.HunSub.1080p",
+        file_name="ep01.mkv",
+        file_size=1024 * 1024 * 500,
+        file_index=0,
+        play_url="https://localhost:7070/play",
+        seeders=10,
+        attributes=[idef],
+        has_hungarian_sub=False,
+    )
+
+    # File name has Sub.Hun
+    ts2 = TorrentStream(
+        indexer_account=acc,
+        torrent_id="99902",
+        info_hash="hash_subhun",
+        torrent_name="Anime.Pakk",
+        file_name="Episode.01.Sub.Hun.mkv",
+        file_size=1024 * 1024 * 500,
+        file_index=0,
+        play_url="https://localhost:7070/play",
+        seeders=10,
+        attributes=[idef],
+        has_hungarian_sub=False,
+    )
+
+    service = TorrentStreamsService(
+        db=MagicMock(),
+        torrent_source_provider_service=MagicMock(),
+        torrents_service=MagicMock(),
+        settings_service=MagicMock(),
+        preferences_service=MagicMock(),
+        indexer_definitions_service=MagicMock(),
+    )
+
+    enriched = await service._enrich_torrent_streams_with_tech_info([ts1, ts2])
+    assert enriched[0].has_hungarian_sub is True
+    assert enriched[1].has_hungarian_sub is True

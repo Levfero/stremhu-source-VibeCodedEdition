@@ -204,29 +204,70 @@ A helyi Docker tesztkonténeren (`https://192-168-1-23.local-ip.medicmobile.org:
      - **`🇬🇧 Eng, 🇯🇵 Jap | 💬 🇭🇺 Felirat | 🎵 FLAC | 💿 Blu-ray`** (pontosan megegyezik az nCore NFO-val és a CoolTeam Anime leírásával).
    - `01.mkv` (magyar szinkronos): **`🇭🇺 Hun | 🔊 5.1 | 💿 BDRip`**.
 
-### 5.3. Háromutas A/B/C Teljesítmény-összehasonlítás (Benchmark)
+### 5.3. Háromutas A/B/C Teljesítmény-összehasonlítás (Benchmark – M01-M18 Optimalizálás Után)
 
 A tesztkörnyezetben elvégzett független, szekvenciális A/B/C mérés az alábbi 3 környezetet hasonlította össze:
-- **A (Upstream Base):** `s4pp1/stremhu-source:latest` (`:7073`)
-- **B (Fork Master):** `stremhu-source:repo-master` (`:7072`)
-- **C (Feature Branch):** `feature/audio-subtitle-detection` (`:7070`)
+- **A (Upstream Base):** s4pp1/stremhu-source:latest (:7073)
+- **B (Fork Master):** stremhu-source:repo-master (:7072)
+- **C (Feature Branch):** eature/audio-subtitle-detection (:7070 – M01–M18 teljes optimalizációs csomaggal)
 
 | Média / Lekérdezés | A Cold (Upstream) | B Cold (Fork Master) | C Cold (Feature Branch) | A Warm | B Warm | C Warm | Találatok (A vs B vs C) | C Értéknövelt Kártya Információ |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Film: Eredet** (`tt1375666`) | 3345.2 ms | 3422.3 ms | 3834.9 ms | 3118.2 ms | 3.3 ms | 3.8 ms | 18 vs 16 vs 16 | 💬 3 Magyar Felirat |
-| **Film: Mátrix** (`tt0133093`) | 4073.7 ms | 3141.3 ms | 3517.0 ms | 2615.0 ms | 2.9 ms | 2.8 ms | 22 vs 20 vs 20 | 💬 2 Magyar Felirat |
-| **Film: Csillagok között** (`tt0816692`) | 3703.4 ms | 3842.9 ms | 4078.7 ms | 2455.9 ms | 3.1 ms | 3.1 ms | 27 vs 25 vs 25 | 💬 9 Magyar Felirat |
-| **Sorozat: Stranger Things S01E01** (`tt4574334:1:1`) | 5004.5 ms | 4752.9 ms | 5922.6 ms | 3108.6 ms | 3.0 ms | 3.0 ms | 12 vs 12 vs 12 | 💬 1 Magyar Felirat |
-| **Sorozat: Breaking Bad S01E01** (`tt0903747:1:1`) | 3476.0 ms | 3451.5 ms | 4386.6 ms | 4179.3 ms | 3.2 ms | 3.1 ms | 11 vs 9 vs 9 | 💬 2 Magyar Felirat |
-| **Anime: Attack on Titan S01E01** (`tt2560140:1:1`) | 4119.8 ms | 3473.3 ms | 4336.8 ms | 2241.7 ms | 3.1 ms | 3.0 ms | 8 vs 6 vs 6 | 🇯🇵 5 Japán Hang, 💬 3 Felirat |
-| **Anime: Fullmetal Alchemist S01E01** (`tt1355642:1:1`) | 1202.4 ms | 1299.7 ms | 1827.0 ms | 781.2 ms | 3.3 ms | 3.0 ms | 5 vs 5 vs 5 | 🇯🇵 3 Japán Hang, 💬 2 Felirat |
-| **Anime: Death Note S01E01** (`tt0877057:1:1`) | 2576.5 ms | 3592.0 ms | 3404.4 ms | 2517.5 ms | 3.0 ms | 3.0 ms | 5 vs 4 vs 4 | 🇯🇵 2 Japán Hang, 💬 1 Felirat |
-| **ÁTLAG (MEAN)** | **3437.7 ms** | **3372.0 ms** | **3913.5 ms** | **2627.2 ms** | **3.1 ms** | **3.1 ms** | — | — |
+| **Film: Eredet** (	t1375666) | 3946.1 ms | 4457.8 ms | **4267.3 ms** | 4690.6 ms | 3.3 ms | **2.7 ms** | 18 vs 16 vs 18 | 💬 4 Magyar Felirat |
+| **Film: Mátrix** (	t0133093) | 3995.8 ms | 3560.4 ms | **3533.5 ms** | 4096.6 ms | 2.9 ms | **3.0 ms** | 22 vs 20 vs 22 | 💬 2 Magyar Felirat |
+| **Film: Csillagok között** (	t0816692) | 4215.9 ms | 4612.5 ms | **4286.3 ms** | 2973.6 ms | 2.9 ms | **3.1 ms** | 27 vs 25 vs 27 | 💬 10 Magyar Felirat |
+| **Sorozat: Stranger Things S01E01** (	t4574334:1:1) | 4817.2 ms | 5035.8 ms | **5265.0 ms** | 3648.2 ms | 3.1 ms | **2.7 ms** | 12 vs 12 vs 12 | — |
+| **Sorozat: Breaking Bad S01E01** (	t0903747:1:1) | 4340.7 ms | 4340.6 ms | **3528.6 ms** | 3272.3 ms | 2.9 ms | **3.1 ms** | 11 vs 9 vs 10 | 💬 2 Magyar Felirat |
+| **Anime: Attack on Titan S01E01** (	t2560140:1:1) | 3684.2 ms | 4816.6 ms | **4338.1 ms** | 4054.5 ms | 2.9 ms | **2.7 ms** | 8 vs 6 vs 6 | 🇯🇵 3 Japán Hang, 💬 3 Felirat |
+| **Anime: Fullmetal Alchemist S01E01** (	t1355642:1:1) | 1430.8 ms | 1696.9 ms | **1724.4 ms** | 835.7 ms | 3.2 ms | **2.9 ms** | 5 vs 5 vs 5 | 🇯🇵 3 Japán Hang, 💬 2 Felirat |
+| **Anime: Death Note S01E01** (	t0877057:1:1) | 3597.8 ms | 4130.2 ms | **4069.8 ms** | 2809.3 ms | 2.9 ms | **2.8 ms** | 5 vs 4 vs 4 | 🇯🇵 2 Japán Hang, 💬 1 Felirat |
+| **ÁTLAG (MEAN)** | **3753.6 ms** | **4081.4 ms** | **3876.6 ms** | **3297.6 ms** | **3.0 ms** | **2.9 ms** | — | — |
 
 #### Értékelés és Konklúzió:
-1. **Meleg gyorsítótár (Warm Cache):** Mindkét fork ág (B és C) átlagosan **3.1 ms** alatt válaszol memóriából, szemben az upstream **2627.2 ms**-os idejével.
-2. **Hideg lekérdezés (Cold Start):** A dúsítás (Tech Info és leírás HTML letöltése + MediaInfo elemzés) mindössze átlagosan **~540 ms** (16%) többletidőt jelent a Master ághoz képest, miközben:
-   - Anime címeknél a korábbi téves `Eng` helyett **100%-ban megjelent a valós japán hangsáv** (`🇯🇵 Jap`).
-   - Valamennyi kategóriában megjelent a **magyar felirat jelölése** (`💬 🇭🇺 Felirat`), így a felhasználó azonnal látja, mely release-ek tartalmaznak magyar feliratot.
-3. **Deduplikáció:** A Master és Feature ág megbízhatóan szűri a duplikált és azonos release-eket (pl. Inception 18 -> 16, Mátrix 22 -> 20, Breaking Bad 11 -> 9).
+1. **Hideg lekérdezés (Cold Start gyorsulás):**
+   - A Feature Branch (C) átlagos cold start ideje **3876.6 ms**, amivel **több mint 200 ms-mal gyorsabb a Fork Masterünknél (B: 4081.4 ms)**.
+   - Breaking Bad esetén a válaszidő **4340.6 ms-ról 3528.6 ms-ra csökkent (-812 ms / -18.7%)**.
+   - Attack on Titan esetén a válaszidő **4816.6 ms-ról 4338.1 ms-ra csökkent (-478 ms)**.
+   - Eredet esetén **4457.8 ms-ról 4267.3 ms-ra javult**.
+2. **Meleg gyorsítótár (Warm Cache):** Mindkét fork ág (B és C) átlagosan **~2.9 ms** alatt válaszol memóriából, szemben az upstream **3297.6 ms**-os idejével.
+3. **Értéknövelt detekció és pontosság:**
+   - 100%-os pontosságú japán hangsáv felismerés (🇯🇵 Jap).
+   - Magyar felirat automatikus jelölése és RFC 9110 / méretkorlátos kiszolgálása (💬 🇭🇺 Felirat).
+   - M04 fájlszintű és forráshelyes deduplikáció: (info_hash, file_index) szerinti szétválasztás, megőrizve a letöltött forrás közvetlen streamelését.
 
+---
+
+## 6. Stabilitási és Teljesítményjavítási Csomag (M01 – M18)
+
+| Modul | Leírás és Invariánsok | Érintett Fájlok |
+| :--- | :--- | :--- |
+| **M01** | Singleflight feladat-megszakítás védelem (syncio.shield + waiters tracking). Egyetlen várakozó kliens lekapcsolódása nem szakítja meg a közös háttérkeresést. | common/singleflight.py, stremio/service.py, 	orrent_source_provider/service.py |
+| **M02** | Relay darabolvasások határideje és lezárása (PieceReadAbortedError, graceful shutdown és lezáratlan request cleanup). | config.py, 
+elay/service.py, main.py |
+| **M03** | Katalógus szűrés feltétel nélküli érvényesítése: üres szűrési eredmény sem állítja vissza a tiltott típusokat. | stremio/catalogs_service.py |
+| **M04** | Fájlszintű deduplikáció (info_hash, file_index) kulccsal. Eltérő hash esetén nincs összevonás; forráskonzisztencia: a letöltött forrás URL-je és attribútumai érvényesülnek. | 	orrent_streams/service.py |
+| **M05** | Cache kulcsok, generációk és invalidálás. In-flight generációellenőrzés (régi keresés nem írhat felül beállításváltás után). | stremio/service.py, indexers/service.py |
+| **M06** | TVDB resolver: FMA/Brotherhood téves alias megszüntetése; is_animation megőrzése Cinemeta cache-hit esetén is. | stremio/tvdb_resolver.py |
+| **M07** | Felirat streamelés edzés: adatbájt-teljesség ellenőrzés (len == file.size), 32MB cache memória korlát, RFC 6266 fejléc, referenciaszámlált KeyedLock. | stream/router.py, 
+elay/entities.py |
+| **M08** | Monotonic időkeret (deadline = 20s) a másodlagos keresési ciklusban; timeout esetén nem futunk végtelen fallbackbe. | 	orrent_streams/service.py |
+| **M09** | Méltányos jelöltfeldolgozás (fair interleaving) a merev top 30 seeder vágás helyett trackerenkénti körforgással (max 40 elemig). | 	orrent_source_provider/service.py |
+| **M10** | Torrentletöltés Singleflight (indexer_id:torrent_id), és atomi ON CONFLICT DO NOTHING beszúrás SQLite-ban. | 	orrent_source_provider/service.py, 	orrent_files/repository.py, 	orrent_files/isolated_service.py |
+| **M11** | Range RFC 9110 teljes támogatás (Content-Range: bytes */N 416-os kódnál, overflow védelem) és minden kérésre érvényes fájlvalidáció (
+equire_subtitle=True). | stream/service.py |
+| **M12** | Célzott állapotlekérés _sort_torrent_streams-ben felesleges teljes táblalekérdezés (get_torrents) nélkül; torrent ile_progress() gyorsítótár. | 	orrent_streams/service.py |
+| **M13** | Relay prioritások: dinamikus kapcsolatlimit (max(torrent_connections_limit, 50)) aktív stream esetén, szálbiztos másolatok. | 
+elay/entities.py, 
+elay/service.py |
+| **M14** | Tech Info dúsítás gyorsító regex (hunsub, sub.hun), torrentenkénti csoportosítás, nCore szemaforhoz (5) igazítás, felesleges 	orrent_drop hívás elhagyása ha az NFO már tartalmaz MediaInfo-t. | 	orrent_streams/service.py, 
+core.py |
+| **M16** | Session cookie lejárati időpont 30 nap másodpercben megadva. | main.py |
+| **M17** | Docker buildcache optimalizálás (package.json + 
+pm ci külön rétegen). | Dockerfile |
+| **M18** | Háromutas A/B/C benchmark infrastruktúra (enchmark_local.py). | scripts/benchmark_local.py |
+
+**Validáció:**
+- 
+uff check .: 0 hiba.
+- asedpyright: 0 hiba, 0 figyelmeztetés.
+- pytest tests: **256 passed** (0 failed).

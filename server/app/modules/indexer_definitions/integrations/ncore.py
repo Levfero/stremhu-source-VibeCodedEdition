@@ -262,3 +262,52 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         if "hun" in category:
             return MediaAttributeKey.HUN
         return MediaAttributeKey.ENG
+
+    async def fetch_tech_info(self, torrent_id: str) -> tuple[str | None, str | None]:
+        nfo_text: str | None = None
+        drop_text: str | None = None
+
+        try:
+            r_nfo = await self._client.get(
+                "/ajax.php",
+                params={"action": "nfo", "id": torrent_id},
+                timeout=1.5,
+            )
+            if r_nfo.status_code == 200 and r_nfo.text.strip():
+                nfo_text = r_nfo.text
+
+            # Ha van NFO, és az tartalmaz MediaInfo blokkot (Video/Audio/General) vagy magyar feliratot,
+            # a technikai adatok már teljesek, nem szükséges egy második lassú webes kérés:
+            need_drop = True
+            if nfo_text:
+                lower_nfo = nfo_text.lower()
+                has_mediainfo = any(
+                    k in lower_nfo
+                    for k in (
+                        "unique id",
+                        "general",
+                        "video #",
+                        "audio #",
+                        "hang #",
+                        "szöveg #",
+                        "text #",
+                        "format :",
+                    )
+                )
+                has_hun = "hungarian" in lower_nfo or "magyar" in lower_nfo
+                if has_mediainfo or has_hun:
+                    need_drop = False
+
+            if need_drop:
+                r_drop = await self._client.get(
+                    "/ajax.php",
+                    params={"action": "torrent_drop", "id": torrent_id},
+                    timeout=1.5,
+                )
+                if r_drop.status_code == 200 and r_drop.text.strip():
+                    drop_text = r_drop.text
+        except Exception as e:
+            self.logger.debug(f"[nCore] fetch_tech_info hiba ({torrent_id}): {e}")
+
+        return nfo_text, drop_text
+

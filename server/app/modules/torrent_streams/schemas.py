@@ -56,6 +56,7 @@ class TorrentStream(BaseModel):
     seeders: int | None = None
     attributes: list[MediaAttributeModel | IndexerDefinitionModel] = []
     subtitles: list[TorrentStreamSubtitle] | None = None
+    has_hungarian_sub: bool = False
     is_persisted_torrent: bool = False
     extra_indexer_names: list[str] = []
     combined_seeders: int | None = None
@@ -145,6 +146,7 @@ class TorrentStream(BaseModel):
                     seeders=indexer_torrent.seeders,
                     attributes=[],
                     subtitles=subtitles if subtitles else None,
+                    has_hungarian_sub=bool(subtitles),
                     is_persisted_torrent=False,
                 )
             )
@@ -300,6 +302,7 @@ class TorrentStream(BaseModel):
             file_index=file_index,
             play_url=f"{app_url}/api/{user.api_key}/stream/{stream_token}",
             subtitles=subtitles if subtitles else None,
+            has_hungarian_sub=bool(subtitles),
             is_persisted_torrent=False,
             extra_indexer_names=[indexer_name] if indexer_name else [],
             combined_seeders=indexer_torrent.seeders,

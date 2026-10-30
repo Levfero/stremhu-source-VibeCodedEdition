@@ -84,7 +84,7 @@ class Torrent:
                 self._update_prioritize_pieces(PRIO_0)
 
             target_max_connections = (
-                50
+                max(self.service._torrent_connections_limit, 50)
                 if self.has_active_streams
                 else self.service._torrent_connections_limit
             )
@@ -290,6 +290,7 @@ class File:
         stream_start_byte: int,
         stream_end_byte: int,
         request: Request,
+        raise_errors: bool = False,
     ) -> AsyncIterator[bytes]:
         stream = Stream(
             stream_id=str(uuid4()),
@@ -301,7 +302,7 @@ class File:
             stream_end_byte=stream_end_byte,
         )
 
-        return await stream.start(request)
+        return await stream.start(request, raise_errors=raise_errors)
 
 
 class Stream:
@@ -392,13 +393,22 @@ class Stream:
     async def start(
         self,
         request: Request,
+        raise_errors: bool = False,
     ) -> AsyncIterator[bytes]:
-        return self._stream_inner(request)
+        return self._stream_inner(request, raise_errors=raise_errors)
 
     async def _stream_inner(
         self,
         request: Request,
+        raise_errors: bool = False,
     ) -> AsyncIterator[bytes]:
+        """Darabonkénti adatfolyam.
+
+        `raise_errors=False` (videó): a fejlécek már elküldésre kerültek, ezért a hiba
+        csak naplózásra kerül és az adatfolyam rendezetten lezárul.
+        `raise_errors=True` (feliratgyűjtés): a hiba továbbterjed, hogy a fogyasztó
+        ne kezelje a részleges tartalmat teljesként.
+        """
         try:
             for piece_index in range(
                 self.stream_start_piece_index, self.stream_end_piece_index + 1
@@ -440,8 +450,11 @@ class Stream:
                     break
 
         except anyio.get_cancelled_exc_class():
-            pass
+            if raise_errors:
+                raise
         except Exception:
+            if raise_errors:
+                raise
             logger.exception("Hiba történt a fájl streamelése közben.")
         finally:
             asyncio.create_task(self.destroy())

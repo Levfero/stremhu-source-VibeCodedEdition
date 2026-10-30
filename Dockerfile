@@ -6,8 +6,9 @@ ARG APP_VERSION=0.0.0
 
 # Build Client
 WORKDIR /app/client
-COPY client ./
+COPY client/package.json client/package-lock.json ./
 RUN npm ci
+COPY client ./
 RUN npm run build
 
 # ---- Runtime Stage ----

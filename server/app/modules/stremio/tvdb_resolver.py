@@ -52,9 +52,6 @@ _IMDB_ALIASES: dict[str, list[str]] = {
     # Death Note (2006: tt0877057 <-> 2007 angol/nemzetközi: tt1049513)
     "tt0877057": ["tt1049513"],
     "tt1049513": ["tt0877057"],
-    # Fullmetal Alchemist (2003: tt0421357 <-> Brotherhood 2009: tt1370601)
-    "tt0421357": ["tt1370601"],
-    "tt1370601": ["tt0421357"],
 }
 
 
@@ -65,6 +62,7 @@ class TvdbResolver:
         self._series_epmap: dict[str, dict[tuple[int, int], tuple[list[int], list[int]]]] = {}
         # Cinemeta kumulatív évad-epizódszám gyorsítótár: imdb_id -> {season: episode_count}
         self._cinemeta_counts: dict[str, dict[int, int]] = {}
+        self._animation_ids: set[str] = set()
         self._lock = KeyedLock()
         self._client: httpx.AsyncClient | None = None
 
@@ -885,7 +883,7 @@ class TvdbResolver:
                     logger.debug(f"[TvdbResolver] Anime Kitsu epmap lekérési hiba ({c_imdb}): {e}")
 
         # 2. Cinemeta kumulatív számítás (nyugati sorozatoknál azonnal ez fut le 404-es Kitsu probe nélkül!)
-        is_animation = False
+        is_animation = imdb_id in self._animation_ids
         s_counts = self._cinemeta_counts.get(imdb_id)
         if s_counts is None:
             cinemeta_url = f"https://v3-cinemeta.strem.io/meta/series/{imdb_id}.json"
@@ -898,6 +896,10 @@ class TvdbResolver:
                         self._set_cache(f"title_{imdb_id}", meta["name"])
                     genres = [str(g).lower() for g in (meta.get("genres") or [])]
                     is_animation = "anime" in genres or "animation" in genres
+                    if is_animation:
+                        self._animation_ids.add(imdb_id)
+                    else:
+                        self._animation_ids.discard(imdb_id)
                     if genres and not is_animation:
                         # Élőszereplős sorozat esetén azonnal negatív gyorsítótárazzuk a Kitsu alias keresést
                         self._set_cache(f"alt_imdb_{imdb_id}", [])
@@ -911,6 +913,7 @@ class TvdbResolver:
                     if len(self._cinemeta_counts) >= _MAX_SERIES_CACHE:
                         for old_k in list(self._cinemeta_counts.keys())[:200]:
                             self._cinemeta_counts.pop(old_k, None)
+                            self._animation_ids.discard(old_k)
                     self._cinemeta_counts[imdb_id] = s_counts
             except Exception as e:
                 logger.debug(f"[TvdbResolver] Cinemeta epmap lekérési hiba ({imdb_id}): {e}")

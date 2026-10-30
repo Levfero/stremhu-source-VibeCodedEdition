@@ -172,7 +172,7 @@ A mérés a helyi Docker Desktop környezetben futott (`scripts/benchmark_local.
 Minden módosítás előtt és után kötelezően futtatandó ellenőrző sor:
 
 ```powershell
-$env:HOST_IP="192.168.1.23"; $env:PYTHONIOENCODING="utf-8"; cd d:\Git\stremhu-source-anime\server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
+$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
 ```
 - **Ruff linter:** `All checks passed!`
 - **Basedpyright:** `0 errors, 0 warnings, 0 notes`

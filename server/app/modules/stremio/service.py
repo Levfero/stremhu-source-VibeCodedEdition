@@ -5,6 +5,7 @@ from urllib.parse import unquote
 
 from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
+from app.common.singleflight import Singleflight
 from app.config import NodeEnv, config
 from app.modules.settings.service import SettingsService
 from app.modules.stream.active_playback import wait_for_active_binge_group
@@ -39,7 +40,25 @@ from app.modules.users.models import UserModel
 _STREAM_CACHE_TTL_SECONDS = 60.0
 _MAX_STREAM_CACHE_ENTRIES = 500
 _stream_cache: dict[str, tuple[float, list[StremioStream]]] = {}
-_ongoing_stream_tasks: dict[str, asyncio.Task[list[StremioStream]]] = {}
+_user_cache_generations: dict[str, int] = {}
+_stream_singleflight: Singleflight[list[StremioStream]] = Singleflight()
+
+
+def get_user_cache_generation(user_id: str) -> int:
+    return _user_cache_generations.get(user_id, 0)
+
+
+def invalidate_stream_cache(user_id: str | None = None) -> None:
+    """M05: Explicit stream cache invalidálás és generációszámláló inkrementálás."""
+    if user_id is not None:
+        _user_cache_generations[user_id] = _user_cache_generations.get(user_id, 0) + 1
+        prefix = f"{user_id}:"
+        for key in list(_stream_cache.keys()):
+            if key.startswith(prefix):
+                _stream_cache.pop(key, None)
+    else:
+        _user_cache_generations.clear()
+        _stream_cache.clear()
 
 
 class StremioService:
@@ -142,7 +161,9 @@ class StremioService:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
         dedup_val = getattr(user, "enable_stream_deduplication", True)
         enable_fallback = bool(getattr(user, "enable_fallback_subtitles", False))
-        cache_key = f"{user.id}:{dedup_val}:{enable_fallback}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
+        user_gen = get_user_cache_generation(user.id)
+        api_key = getattr(user, "api_key", "")
+        cache_key = f"{user.id}:{user_gen}:{api_key}:{dedup_val}:{enable_fallback}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
         now = time.monotonic()
         cached = _stream_cache.get(cache_key)
         if cached is not None:
@@ -151,21 +172,22 @@ class StremioService:
                 return cached_streams
             _stream_cache.pop(cache_key, None)
 
-        if cache_key in _ongoing_stream_tasks:
-            return await _ongoing_stream_tasks[cache_key]
-
-        task = asyncio.create_task(self._get_streams_uncached(user, parsed_id))
-        _ongoing_stream_tasks[cache_key] = task
-        try:
-            streams = await task
-            if streams and any(s.url is not None for s in streams):
+        async def _fetch() -> list[StremioStream]:
+            streams = await self._get_streams_uncached(user, parsed_id)
+            # In-flight ellenőrzés (M05): csak akkor mentünk a cache-be, ha a befejezéskor is
+            # az eredetileg látott generáció érvényes (nem történt közben beállításmódosítás)
+            if (
+                streams
+                and any(s.url is not None for s in streams)
+                and get_user_cache_generation(user.id) == user_gen
+            ):
                 if len(_stream_cache) >= _MAX_STREAM_CACHE_ENTRIES:
                     for k in list(_stream_cache.keys())[:100]:
                         _stream_cache.pop(k, None)
                 _stream_cache[cache_key] = (time.monotonic(), streams)
             return streams
-        finally:
-            _ongoing_stream_tasks.pop(cache_key, None)
+
+        return await _stream_singleflight.run(cache_key, _fetch)
 
     async def _get_streams_uncached(
         self,

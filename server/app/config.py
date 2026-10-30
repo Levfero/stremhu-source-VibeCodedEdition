@@ -37,6 +37,12 @@ class Config(BaseSettings):
     tmdb_api_key: str | None = None
 
     port: int = 7070
+    relay_piece_timeout_seconds: float = Field(default=120.0, gt=0)
+    relay_read_timeout_seconds: float = Field(default=15.0, gt=0)
+    # Felirat: ASS->VTT konverzióra és memóriába gyűjtésre engedett max. forrásméret
+    subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
+    # Feliratcache összesített bájtkerete (folyamaton belüli memória)
+    subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
 
     @property
     def libtorrent_port(self) -> int:

@@ -1,5 +1,65 @@
+---
+doc_id: "feature-stability-and-optimization-implementation-plan"
+title: "StremHU Source — kódszintű implementációs terv"
+kind: "implementation-plan"
+status: "planning-only"
+audience: ["developer", "ai-agent"]
+tags: ["CR01-CR19", "gates", "work-packages", "tests", "rollback"]
+source_commit: "2615596f7cd181454dc5ae3e1ec9e4d215e3b154"
+baseline: null
+verification: "structure-only"
+structure_reviewed: "2026-11-03"
+related_docs: ["docs/feature/stability-and-optimization/README.md", "docs/feature/stability-and-optimization/audit.md"]
+source_paths: []
+---
+
 # StremHU Source — kódszintű implementációs terv
 
+<!-- doc-nav:start -->
+**Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
+
+> **Státusz:** Audit-/tervezési munkakör, nem igazolt CR-implementáció. A mérési kapuk és a konkrét feladat engedélye érvényes.
+
+**Kapcsolódó:** [README.md](README.md) · [audit.md](audit.md)
+
+<details>
+<summary>Fejezetek / közvetlen ugrás</summary>
+
+- [0. Bemenet, állapot, használati szabály](#doc-0-bemenet-allapot-hasznalati-szabaly)
+- [1. Az audit előzetes, kritikus értékelése](#doc-1-az-audit-elozetes-kritikus-ertekelese)
+- [2. Minden munkacsomag közös végrehajtási szerződése](#doc-2-minden-munkacsomag-kozos-vegrehajtasi-szerzodese)
+- [3. Hitelesítés, TLS, bemenet és HTTP-policy](#doc-3-hitelesites-tls-bemenet-es-http-policy)
+- [CR05 — Konfigurációs aláírókulcs fail-fast](#cr05)
+- [CR06 — TLS-kompatibilitási kapu, majd egyedi LOCAL kulcs](#cr06)
+- [CR07 — Biztonságos naplózási szerződés](#cr07)
+- [CR19 — Auth-válasz és felirat HTTP-cache policy](#cr19)
+- [CR10 — Bemenetek, helyes számtartomány-kezeléssel](#cr10)
+- [CR08 — Párosítási állapotgép és korlátos auth-terhelés](#cr08)
+- [CR18 — Egyszeri bootstrap atomikus foglalással](#cr18)
+- [CR16 — Session-epoch és ellenőrzött böngészőpolicy](#cr16)
+- [4. Relay, cache és feladat-élettartam](#doc-4-relay-cache-es-feladat-elettartam)
+- [CR11 — A relogin használja a már működő megosztott taskot](#cr11)
+- [CR09 — Autholt active-playback regiszter](#cr09)
+- [CR12 — Commit utáni, szálbiztos cache-invalidálás](#cr12)
+- [CR13 — Nem blokkoló resume-író és DNS](#cr13)
+- [CR17 — Rendezett shutdown; DB-ownership refaktor csak G17 után](#cr17)
+- [CR01 — Következetes kapcsolati limit; policyváltozás G01 után](#cr01)
+- [5. Adatforgalom és mérési kapus optimalizálások](#doc-5-adatforgalom-es-meresi-kapus-optimalizalasok)
+- [CR14 — Külön torrentlistaprojekció](#cr14)
+- [CR02 — WAL mérés és kizárólag indokolt checkpoint](#cr02)
+- [CR03 — GZip: először hálózati és CPU-kísérlet](#cr03)
+- [CR04 — Frontend observer/render profil, célzott beavatkozás](#cr04)
+- [CR15 — Válaszméret, origin és admission policy G15 után](#cr15)
+- [6. Prioritási, függőségi és munkacsomag-tábla](#doc-6-prioritasi-fuggosegi-es-munkacsomag-tabla)
+- [7. Nyitott kérdések és döntési pontok](#doc-7-nyitott-kerdesek-es-dontesi-pontok)
+- [8. Végrehajtási ellenőrzőlista](#doc-8-vegrehajtasi-ellenorzolista)
+
+</details>
+
+<!-- doc-nav:end -->
+
+<!-- doc-anchor:doc-0-bemenet-allapot-hasznalati-szabaly -->
+<a id="doc-0-bemenet-allapot-hasznalati-szabaly"></a>
 ## 0. Bemenet, állapot, használati szabály
 
 - Bemenet: `D:\Git\docs\optimization-audit-cloud.md`, a 19 CR-tételes, kibővített audit.
@@ -13,6 +73,8 @@ A további utasítások egy később külön engedélyezett implementációra vo
 
 A requirements Python 3.12 runtime mellett FastAPI 0.143.0, Hypercorn 0.18.0, SQLAlchemy 2.1.4, libtorrent 2.1.1 verziókat ír elő. HTTPX/Starlette tranzitív verziója nincs egyértelműen lockolva. A React Query 5.104.2. Új harmadik fél csomag nem szükséges a biztos javításokhoz. A jövőbeli implementáló nem használhat ellenőrizetlen libtorrent-settinget vagy feltételezett middleware-viselkedést; verziófüggő részletekre a G0 kapu vonatkozik.
 
+<!-- doc-anchor:doc-rovid-belepesi-terkep-uj-fejlesztonek -->
+<a id="doc-rovid-belepesi-terkep-uj-fejlesztonek"></a>
 ### Rövid belépési térkép új fejlesztőnek
 
 | Folyamat | Kiindulópont és lényeges tulajdonos |
@@ -26,6 +88,8 @@ A requirements Python 3.12 runtime mellett FastAPI 0.143.0, Hypercorn 0.18.0, SQ
 | Relay | `relay/dependencies.py:7` singleton → natív session; alert callback a Python event loopra kerül |
 | Kliens | Egy QueryClient (`client/src/shared/lib/client.ts:3`), torrentpoll `shared/queries/torrents.ts:14`; route és lista külön observer |
 
+<!-- doc-anchor:doc-1-az-audit-elozetes-kritikus-ertekelese -->
+<a id="doc-1-az-audit-elozetes-kritikus-ertekelese"></a>
 ## 1. Az audit előzetes, kritikus értékelése
 
 A státusz a tétel első munkacsomagjára vonatkozik. Egy tétel biztos javítása és mérésfüggő kiterjesztése külön szerepel; egyik rész státusza nem ad engedélyt a másikra.
@@ -54,8 +118,12 @@ A státusz a tétel első munkacsomagjára vonatkozik. Egy tétel biztos javít�
 
 Külön elvetett/halasztott irányok: új indexerpool bevezetése (már tartós); minden poll SSE-re cserélése; bizonyítatlan frontend memóriaszivárgás-javítás; vak libtorrent `cache_size`/thread tuning; állandó WAL-TRUNCATE; általános „CORS=* = CSRF” javítás; feltételezett CVE-khez függőségfrissítés. Ezekhez a forrás nem ad elég alapot.
 
+<!-- doc-anchor:doc-2-minden-munkacsomag-kozos-vegrehajtasi-szerzodese -->
+<a id="doc-2-minden-munkacsomag-kozos-vegrehajtasi-szerzodese"></a>
 ## 2. Minden munkacsomag közös végrehajtási szerződése
 
+<!-- doc-anchor:doc-21-g0-elofeltetelek-csak-kesobbi-implementaciokor -->
+<a id="doc-21-g0-elofeltetelek-csak-kesobbi-implementaciokor"></a>
 ### 2.1. G0 — Előfeltételek, csak későbbi implementációkor
 
 1. HEAD/worktree és alkalmazandó AGENTS újraellenőrzése; eltéréskor az érintett forráslánc újraértékelése. A jelen terv nem tesz változtatást.
@@ -64,12 +132,16 @@ Külön elvetett/halasztott irányok: új indexerpool bevezetése (már tartós)
 4. Workerszám rögzítése. CR08 memóriabeli limiter és CR12 memóriabeli epoch **egy processzre** tervezett. Több worker esetén ez a változat nem kész: DB/shared koordinációs terv és külön terheléskapu kell, vagy a támogatott indítás egy workerre korlátozandó. Ezt nem lehet a jelenlegi kódból futtatva ellenőrzöttnek nevezni.
 5. Migrációs munkánál a következő revízió és tényleges verziókönyvtár felderítése az `alembic.ini` alapján; jelen feladatban a korábbi szűk scope miatt migrációfájlokat nem olvastam. A migrációk tervezett sémája itt szerepel, revízióazonosítót nem találok ki. `boot/setup.py:19–25` meglévő upgrade út megőrzendő.
 
+<!-- doc-anchor:doc-22-ellenorzesi-sorrend-az-agents-szerint -->
+<a id="doc-22-ellenorzesi-sorrend-az-agents-szerint"></a>
 ### 2.2. Ellenőrzési sorrend az AGENTS szerint
 
 Ez a lista **nem most végrehajtandó**. Minden későbbi kódmódosítás után, Docker-build/commit előtt a `server/.venv` környezettel sorrendben: `python -m ruff check .`, `basedpyright.exe`, `python -m pytest tests`. Kötelező `HOST_IP`: helyi, nem loopback tesztcím, értékét nem írjuk a jelentésbe; `PYTHONIOENCODING=utf-8`. Előbb célzott tesztfejlesztés, végül a teljes fenti három ellenőrzés; hibánál javítás, csak utána továbblépés. Kliensváltozásnál a `client/package.json` tényleges `lint`, `format`, `build` parancsai, illetve a repo tesztrunnerének G0-n ellenőrzött közvetlen futtatása. Nincs package.json-ban meglévő `test` script, ilyet nem szabad adottnak venni.
 
 Utána helyi Docker Desktop funkcionális teszt és releváns A/B/C mérés. Az AGENTS helyi compose/bootstrap/benchmark segédjei nem commitolhatók; itt nem olvastuk/futtattuk őket. A valós trackerekre konfigurált benchmarkot nem szabad vakon használni a szintetikus munkában. Később külön fixture-harness vagy engedélyezett helyi konfiguráció szükséges. Commit/push előtt a branchdokumentációra vonatkozó AGENTS-előírást a későbbi feladat engedélyezett scope-jával összehangolni; ebben a feladatban repóbeli docs-művelet nincs.
 
+<!-- doc-anchor:doc-23-kozos-benchmarkprotokoll-es-regresszios-kapu -->
+<a id="doc-23-kozos-benchmarkprotokoll-es-regresszios-kapu"></a>
 ### 2.3. Közös benchmarkprotokoll és regressziós kapu
 
 - A = upstream image, B = fork main image, C = feature image az AGENTS szerinti három konténeren; külön eldobható DB/letöltési kötet. Image-digest, commit, CPU/RAM-limit, Docker-beállítás, csomagverzió és input-fixture azonosítva. Upstreamen hiányzó funkció `N/A`, nem nulla ms.
@@ -82,8 +154,12 @@ Utána helyi Docker Desktop funkcionális teszt és releváns A/B/C mérés. Az 
 
 A további „közös kapu” hivatkozás ezt a teljes ellenőrzést jelenti; nem minden funkcióhoz szükséges a teljes hardvermátrix. A modulnál megadott workload a kötelező minimum.
 
+<!-- doc-anchor:doc-3-hitelesites-tls-bemenet-es-http-policy -->
+<a id="doc-3-hitelesites-tls-bemenet-es-http-policy"></a>
 ## 3. Hitelesítés, TLS, bemenet és HTTP-policy
 
+<!-- doc-anchor:cr05 -->
+<a id="cr05"></a>
 ### CR05 — Konfigurációs aláírókulcs fail-fast
 
 **Jelenlegi cél/lánc:** `config.py:18–32 Config`, importkor `config=Config()` (`config.py:121`) → `main.py:110–114 SessionMiddleware`; `stream/utils/stream_token.py:9–12 serializer`. A publikus alapérték mindkét aláírási célra használható. A tényleges install kulcsa ismeretlen, ezért incidens nem állítható. Kívánt invariáns: nem indul ismert/üres kulccsal, de a már biztonságosan konfigurált kulcs nem változik újraindításkor; API-key külön ellenőrzése megmarad.
@@ -105,6 +181,8 @@ A további „közös kapu” hivatkozás ezt a teljes ellenőrzést jelenti; ne
 
 Új tervezett `server/tests/test_auth_configuration.py`; token parser és valódi middleware teszt is kell, nem csak Config mock. Metrika: startupidő + warm auth/stream út közös kapuval; változatlan helyes kulcsnál nincs új I/O. **Kész:** tesztek + kötelező ellenőrzések, szintetikus helyi login/manifest/stream. **Visszaállítás:** kódrevert mellett erős kulcs megtartása; gyenge default visszaengedése nem támogatott rollback. Kulcsrotációt csak külön release-lépésként, session/URL érvénytelenítésének közlésével.
 
+<!-- doc-anchor:cr06 -->
+<a id="cr06"></a>
 ### CR06 — TLS-kompatibilitási kapu, majd egyedi LOCAL kulcs
 
 **Forrás:** `boot/network.py:_ensure_db_network_settings:41`, `write_certs_to_disk:29`, `ensure_network_settings:56`; `network/service.py:setup_local:44`, `_do_setup:116`, `check_ssl_certificate:316`; `network/ssl/service.py:get_local_ip_certificate:72`, `_generate_self_signed_certificate_fallback:104`; `run.py:start_server:18,62–63`. A publikus szolgáltatástól kapott közös privát kulcs egyedi szerverazonosságot nem ad. A meglévő self-signed fallback egyedi RSA-kulcsot/SAN-t generál, de nem lesz ettől automatikusan publikus CA által megbízható.
@@ -129,6 +207,8 @@ A további „közös kapu” hivatkozás ezt a teljes ellenőrzést jelenti; ne
 
 Tervezett `test_local_certificate_lifecycle.py`, crypto/network fixture-ek; külső ACME/DNS nem érhető el. Metrika: cold certgenerálás és warm restart, megújítási üzemszünet; nincs gyorsulási elvárás, a trust/helyesség a kapu. **Rollback:** jóváhagyott egyedi MANUAL/AUTO út vagy saját korábbi még érvényes kulcs; közös privát kulcs automatikus visszakapcsolása nem biztonságos rollback. **Nyitott release-blokkoló:** támogatott kliens és trustpolitika; G06 sikere nélkül a tétel mérési/átállási terv marad.
 
+<!-- doc-anchor:cr07 -->
+<a id="cr07"></a>
 ### CR07 — Biztonságos naplózási szerződés
 
 **Forrás/lánc:** `run.py:64–65` Hypercorn access format; `common/logger.py:26–44` RichHandler, prod WARNING; `indexer_definitions/base_indexer_definition.py:283–292 download_torrent`; `network/ddns/providers/duckdns.py:41–45`, `myaddr.py:38–42`; `torrent_source_provider/service.py:206–208`. A full path/query formátum léte önmagában nem bizonyít éles logbejegyzést. A direkt error URL logolása elég a javítás indokolásához.
@@ -139,6 +219,8 @@ A redakciót a log keletkezési pontján végezni; RichHandler tracebackjét ál
 
 Teszt `test_log_redaction.py`: E=caplog és tényleges formatter/handler fixture, B=jelölőtitok path/query/download URL/cookie-szerű exception szöveg, M=200/redirect/4xx/timeout/providerhiba; V=teljes jelölőtitok sem formatted logban, sem kivételláncban, HTTP-válaszban nincs, státusz/operation megvan. G0-n prod és dev effektív logszintet külön ellenőrizni. Metrika: 1000 szintetikus logesemény CPU/byte baseline előtt-után, közös kapu; URL-elrejtés nem függhet a logszinttől. **Rollback:** csak a módosított logút kódja; titoklogolást visszakapcsoló debugflag nincs. Függés CR05-höz nincs.
 
+<!-- doc-anchor:cr19 -->
+<a id="cr19"></a>
 ### CR19 — Auth-válasz és felirat HTTP-cache policy
 
 **Forrás:** `stream/router.py:_build_cached_subtitle_response:305–321`, `stream_subtitle:361,381–399,440–445`; `auth/router.py:18–69`; `me/router.py:get:39, update:46, regenerate_api_key:58`; `pairings/router.py:status:36`. A szerver belső cache-hit előtti auth jó, megőrzendő. A `public, max-age=86400` viszont shared cache-t engedhet; tényleges proxy jelenléte ismeretlen.
@@ -149,6 +231,8 @@ A belső feliratcache kulcsa/32 MiB kerete/TTL-je változatlan, így no-store ne
 
 Tesztmátrix: E=ismert fixture bájtcache és jó/rossz/rotált kulcs, B=GET/HEAD/Range/konverzió, M=kérés cold és cache-hit után; V=no-store minden érintett válaszon, auth mindig lefut, bájtok/fejlécek/416 jók. E=helyi shared cache, M=először jó kulcs, majd rotáció és régi URL, V=nincs kiszolgálás a szerver megkerülésével. Meglévő `test_subtitles.py`, `test_subtitle_hardening.py`, ezek mellé új `test_sensitive_cache_headers.py`. Metrika: warm szervercache hit, kérésmennyiség, media/subtitle p95 a közös kapuval; több HTTP-kérés tudatos költség, nem kitalált gyorsulás. **Rollback:** headerpolicy külön revertelhető, belső cache nem változik; visszavonhatósági követelmény engedélyezés nélkül nem gyengíthető.
 
+<!-- doc-anchor:cr10 -->
+<a id="cr10"></a>
 ### CR10 — Bemenetek, helyes számtartomány-kezeléssel
 
 **Lánc:** `stream/router.py:93–98 → StreamService.prepare_for_stream:52 → parse_range_header:216`; `stremio/utils.py:parse_stream_id:19 → schemas.py:TvdbStreamId:640/MalStreamId:659 → tvdb_resolver.py:resolve_tvdb:96,resolve_mal:446`. A Range `isdigit`→`int` (`stream/service.py:248–262`) ValueError-t enged ki; az ID string SPARQL-literálba kerülhet. A szigorúbb Torznab-parser (`torznab/query.py:133–159`) jó kompatibilitási referencia, nem átírandó teljes modul.
@@ -171,6 +255,8 @@ Ez megőrzi a hatalmas, de kielégíthető end/suffix clampelését, nem nevez m
 
 Teszt: meglévő `test_range_and_file_validation.py:test_parse_range_header_rfc9110_matrix`, `test_tvdb_streams.py`, katalógus/torznab tesztek; új paraméterezések: latin-1 digit, Unicode digit, 5000 számjegy, sok leading zero, N=0/1, start=N, end>N, suffix>N, prefixek, idézőjel/path/whitespace/33 hosszú ID. E=HTTP/metadata fixture számláló, M=hibás kérés, V=kontrollált 4xx és nulla külső request; hosszú valid Range értelmes clamp/416, soha 500. Metrika: parseridő headerhossz függvényében, lineáris karakterellenőrzés, normál stream p95 közös kapu. **Rollback:** önálló parser/validator revert; új szigorítás előtt támogatott ID-k regressziós fixture-je kötelező, gyenge default kulcsot nem hozunk vissza a teszthez.
 
+<!-- doc-anchor:cr08 -->
+<a id="cr08"></a>
 ### CR08 — Párosítási állapotgép és korlátos auth-terhelés
 
 **Forrás/lifecycle:** `pairings/router.py:init:24, status:36, verify:50` → request Session → `PairingsService.generate_pairing_codes:19`, `authorize_pairing_code:76`, `poll_pairing_status:47`; `repository.py:15–20`; `models.py:18–26`; cleanup `scheduler.py:51–59`. A kliens user_code 4 számjegyes, device_code UUID, élettartam 10 perc. A poll LINKED állapotban ugyanazt az aktuális user API-keyt adja le lejáratig: ennek retry-kompatibilitása megőrzendő. A login sync út `auth/router.py:login:50 → AuthService.validate:16`.
@@ -220,6 +306,8 @@ Azonosítás a transport peer alapján; untrusted X-Forwarded-For nem használha
 
 Tervezett `test_pairing_state_machine.py`, `test_pairing_concurrency.py`, `test_auth_rate_limits.py`; DB-session fixture a meglévő touch/concurrency mintákból, de valódi két kapcsolat kell. Teljesítmény: auth CPU, init SQL-szám/p95, limitelt válaszidő, bucket/tábla méret; közös kapu és A/B/C csak közösen létező auth végpontokra. **Rollback:** limiter külön visszavonható a küszöbök módosításával, állapotgép/unique szerződés megtartandó; migráció downgrade csak párosítási rekordok újrakezdésével, felhasználói adat nem érinthető.
 
+<!-- doc-anchor:cr18 -->
+<a id="cr18"></a>
 ### CR18 — Egyszeri bootstrap atomikus foglalással
 
 **Forrás:** `auth/router.py:23–41 register` count-then-create; `users/service.py:create:42–68`, `_hash_password:184`; `users/repository.py:create:25`, `count:22`; `settings/models.py:SettingModel:7–11` meglévő `key` PK. A több admin/lockhiba konkrét race-kimenetele nem bizonyított, de az egyszeri regisztráció invariánsát a kód nem teszi atomikussá.
@@ -230,6 +318,8 @@ Tervezett `test_pairing_state_machine.py`, `test_pairing_concurrency.py`, `test_
 
 Teszt `test_first_admin_registration.py`: E=üres fájl-DB, B=10 eltérő név, M=barrierrel egyidejű regisztráció, V=egy committed admin+marker, többi403/503 legfeljebb időleges lock esetén, ismétlés után403, nincs500. E=hash/user-insert/commit fault, V=nem marad árva marker, nincs kiadott sikeres session; E=nemüres DB marker nélkül, V=403; E=minden user törölve markerrel, V=403. Metrika: bootstrap hash és writerlockidő külön, normál login változatlan; közös kapu. **Kockázat/rollback:** régi bináris nem ismeri a markert; rollback mellett a publikus register út lezárandó vagy az állapot mentésből visszaállítandó. Marker törlését normál downgrade-automatika ne végezze. CR08/CR16 interfészeivel egyeztetendő.
 
+<!-- doc-anchor:cr16 -->
+<a id="cr16"></a>
 ### CR16 — Session-epoch és ellenőrzött böngészőpolicy
 
 **Lánc:** `auth/router.py:register/login/logout`, `auth/dependencies.py:SessionGuard:24`, `OptionalSessionGuard:57`; `users/service.py:update:91–134`; `me/router.py:update:46`; `users/models.py:UserModel:19`; `main.py:110–114`. Role minden kérésnél DB-ből friss, ezt megőrizni; API-key nem válik sessionné. A meglévő logout **helyi logout marad**: a másolt cookie külön visszavonásához szerverállapot kell, de ebből nem következik, hogy minden logoutot minden eszközre ki kell terjeszteni.
@@ -245,8 +335,12 @@ Teszt `test_first_admin_registration.py`: E=üres fájl-DB, B=10 eltérő név, 
 
 Teszt `test_session_revocation.py`, `test_session_origin_policy.py`: E=valódi signed session middleware és fájl-DB, B=jó/hiányzó/rossz epoch, M=védett és /me request, V=megfelelő401/None, role-check változatlan. E=két session ugyanahhoz a userhez, M=password update, V=mindkettő érvénytelen, másik user működik; rollbacknál régiek élnek; két bump mind számít. E=régi cookie, V=egyszeri login szükséges. E=Origin saját/idegen/null/nincs, natív API-key és proxyfixture, V=jóváhagyott policy, nem általános CORS-letiltás. Metrika: auth SQL-szám (többnyire eddigi user-select mezőbővül), login/update p95 közös kapu. **Rollback:** séma additív, oszlop maradhat; régi kód epochot ignorálna, ezért csak kulcsrotációval/sessionek kivezetésével biztonságos. Új „logout all” API, teljes szerveroldali sessiontábla és kötelező reauth UX most halasztott.
 
+<!-- doc-anchor:doc-4-relay-cache-es-feladat-elettartam -->
+<a id="doc-4-relay-cache-es-feladat-elettartam"></a>
 ## 4. Relay, cache és feladat-élettartam
 
+<!-- doc-anchor:cr11 -->
+<a id="cr11"></a>
 ### CR11 — A relogin használja a már működő megosztott taskot
 
 **Forrás:** `base_indexer_definition.py:84–86,368–395`, `IndexerClient.request:47–74`; meglévő `common/singleflight.py:20–58`. A Future nem shieldelt, tulajdonos cancelje sem zárja le biztosan a várakozókat. A Singleflight viszont már kezeli a waiter-cancelt és saját befejezéskor takarít; ezt nem újraimplementáljuk.
@@ -263,6 +357,8 @@ Teszt `test_session_revocation.py`, `test_session_origin_policy.py`: E=valódi s
 
 Új `test_indexer_relogin.py`; a meglévő `test_singleflight.py` és `test_relay_pending_piece_requests.py` regresszióként változatlan elvárással. Metrika: relogin HTTP-darabszám és waiterek lezárási ideje, közös auth/keresési p95 kapu; nincs ígért gyorsulás. **Rollback:** adapterre korlátozott; a hibás Future-re visszaállás helyett a release hibáját izolálni. Függés: CR17 shutdownrész, de cancellation-javítás külön tesztelhető.
 
+<!-- doc-anchor:cr09 -->
+<a id="cr09"></a>
 ### CR09 — Autholt active-playback regiszter
 
 **Forrás/lánc:** `stream/router.py:65–81` regisztrál, majd authol; `stream/active_playback.py:5–31,48–80` API-key szerinti tároló+events; `stremio/service.py:582–585` API-keyvel vár. A TTL nem a külső kulcsokat takarítja. Érvényes streamtoken szükséges a támadási úthoz, ezt nem szabad elhallgatni.
@@ -275,6 +371,8 @@ Teszt `test_session_revocation.py`, `test_session_origin_policy.py`: E=valódi s
 
 Teszt új `test_active_playback_registry.py` fake órával és valódi asyncio.Eventtel: rossz kulcs+jó streamtoken→401 és változatlan registry; jó user→feliratértesítés mindkét indulási sorrendben; 1025 user→cap, TTL utáni takarítás; wait cancel/timeout→nincs eventmaradvány; régi prepare hiba nem törli az új recordot; shutdown minden várakozót lezár. Meglévő `test_subtitles.py` active-binge eseteit user_idra igazítani, elvárt felirat nem változhat. Metrika: registry/event elemszám, 30 perces heap, subtitle-indulási p95; közös kapu/A/B/C szintetikus stream+subtitle, upstreamnél támogatás szerint N/A. **Rollback:** csak belső kulcsváltás és registry; migráció nincs, átmeneti history restartkor elveszhet, ez korábban is így volt.
 
+<!-- doc-anchor:cr12 -->
+<a id="cr12"></a>
 ### CR12 — Commit utáni, szálbiztos cache-invalidálás
 
 **Forrás:** `stremio/service.py:40–61,156–190`; a generációs segédnek az auditban nincs termékbeli hívója. Write-utak: `users/service.py:update:91,regenerate_api_key:136,delete:141`; `user_preference_definitions/service.py:create:52,update:76,delete:95,reorder:109`; `attribute_exclusions/service.py:create:18,delete:47`; indexerlogin/delete `indexers/service.py:68,166`; `settings/service.py:save_system:25,save_network:77`; globális preferencia-definíciók módosítási service-ei. A globális invalidálás jelenleg a generációt nullázza, ezért egy régi `0` snapshot újra érvényesnek tűnhet; ezt is rendezni kell.
@@ -301,6 +399,8 @@ Alternatíva DB-s revision minden cache-hit előtt: multiworkerben jobb, de itt 
 
 Teszt `test_cache_and_db_concurrency.py` megmarad, új `test_stream_cache_write_invalidation.py`: valódi endpoint warm-cache→seed/exclusion/preferencia/grouping/indexer változás→azonnali helyes válasz; másik user nem invalidálódik szükségtelenül; rollbackkor cache érintetlen; gate-elt régi fetch nem írhat vissza user/global epochváltás után; nested rollback/commit nem drainel külső commit előtt; workerthread commit és loop fetch race számlálóval determinisztikusan tesztelve. Metrika: cache-hit arány, lockvárakozás, DB-select és warm p95; A/B/C funkcionális rangsor+találatszám egyezés a jóváhagyott policy szerint, közös kapu. **Rollback:** write-hookok/cache együtt revertelendők; cache restartkor törölhető, sémamigráció nincs. CR17 snapshotrefaktorja a revision-t a taskbemenettel egységesen rögzítse.
 
+<!-- doc-anchor:cr13 -->
+<a id="cr13"></a>
 ### CR13 — Nem blokkoló resume-író és DNS
 
 **Forrás:** `relay/service.py:64–67,390–407` loopon szinkron callback → `torrents/background_tasks.py:handle_save_resume_data:8` → külön DB-session, de ugyanazon loop szálán; `relay/background_tasks.py:resume_save_loop:6` 600 s-onként; `network/ssl/service.py:wait_for_dns_propagation:27–60` szinkron resolver. Az I/O-kockázat igazolt, a lag nagysága nem.
@@ -315,6 +415,8 @@ A worker batch-et leválasztja, `asyncio.to_thread(save_batch)`-ben egy worker-o
 
 Teszt új `test_resume_writer.py`, `test_async_dns_wait.py`: E=blokkolt fake DB/DNS és loop heartbeat, B=burst, M=submit/resolve, V=heartbeat fut, legutóbbi hashállapot mentve; DB-fail/retry/kilépés; byte cap az inflightot is számolja; queue rejection látható; ugyanazon hash newer pending értékét régebbi retry nem írhatja felül (globális monoton submit-sorszám az envelope-ban; latest-by-hash metaadat csak pending/in-flight hashhez élhet, befejezéskor törlendő). DNS success/NoAnswer/határidő/cancel determinisztikus órával. Meglévő Relay piece tesztek regressziók. Metrika: looplag p99, piece p95, resume backlog/bytes/rejected, flushidő; közös kapu és 10/100/500 torrent+helyi DB-lock fixture. **Rollback:** DNS önálló; writer külön revertelhető, callback dupla regisztráció kizárva. ASS→VTT csak G13-convert után: profil a jelenlegi 8 MiB korláton belül; CPU/looplag dominancia esetén külön worker, nincs feltétel nélküli áthelyezés.
 
+<!-- doc-anchor:cr17 -->
+<a id="cr17"></a>
 ### CR17 — Rendezett shutdown; DB-ownership refaktor csak G17 után
 
 **Forrás:** `stremio/dependencies.py:48–63` request Sessiont ad tovább; `stremio/service.py:175–190` self/user capture; `torrent_source_provider/service.py:18–20,34–64,178–218` globális singleflight és requestservice; `torrent_streams/service.py:119–126` párhuzamos aliasok; `common/database.py:77–104` Session close; `common/singleflight.py:27–38` shield. A shielding szándékos és helyes egy várakozó cancelje esetén. Abból még nem állítható konkrét szivárgás, hogy a task tovább futhat.
@@ -348,6 +450,8 @@ Ez a nagyobb rész több kis csomag: policy snapshot; indexer/file UoW; forrásp
 
 Teszt `test_search_resource_ownership.py`, `test_lifespan_cleanup.py`; meglévő singleflight/stream/catalog/torznab regressziók. E/B/M/V a G17 négy trace-forgatókönyve: nincs owner-close utáni DB-use vagy átfedő Session, pool checkout visszatér, két user nem kap egymás URL-jéből, waiter cancel nem szakítja a többit. Cleanupnál egy adapterhiba, futó DB-thread és ismételt lifespan; minden elvárt erőforrás befejeződik vagy jól azonosított deadline-hiba látható. Metrika: task/checkouts/szálak, 30 perces heap és keresési p95/SQL-szám; közös kapu+A/B/C. **Rollback:** snapshot-alcsomagok külön, a biztos cleanupot nem kell velük visszavonni; külső API/séma nem változik, feature-flag legfeljebb tesztben enged két összevethető keresési pipeline-t, prod default a kapu után egyértelmű.
 
+<!-- doc-anchor:cr01 -->
+<a id="cr01"></a>
 ### CR01 — Következetes kapcsolati limit; policyváltozás G01 után
 
 **Forrás:** `relay/service.py:update_settings:101–131`, `add_torrent:266–308`; `relay/entities.py:Torrent.__init__:29–60`, `priority_manager:81–99`; `settings/schemas/internal.py:57–71`; `relay_settings/service.py:sync_settings:26–39`. A UI `client/src/routes/_protected/relay/settings/-features/connection.tsx` „maximális szám”-nak nevezi a mezőt, a kód aktív állapotban mégis max(base,50)-et céloz. A natív globális alap normál sync után200, nem a constructor300. Ez sem „végtelen peer”, sem bizonyított NAS-hiba.
@@ -366,8 +470,12 @@ G01: baseline C-n globális50/100/200, base10/20/50/80; stream0/1/4/8, darab256 
 
 Teszt `test_relay_connection_policy.py` FakeHandle+barrier: active/inactive,20→10/80→20, új handle, invalid handle, párhuzamos settings/priority; V=egyetlen konzisztens target a választott policy szerint, natív hiba nem „sikeresen alkalmazott”. Meglévő boundary/piece tesztek maradnak. **Elfogadás:** state és handle nem driftel, policy leírt, funkcionális/regressziós kapu teljesül; gyorsulás nem állított. **Rollback:** statefix önálló, policy/migráció külön csomag; régi JSON mezők megtarthatók, visszavonáskor legacy50 explicit, nem véletlen default.
 
+<!-- doc-anchor:doc-5-adatforgalom-es-meresi-kapus-optimalizalasok -->
+<a id="doc-5-adatforgalom-es-meresi-kapus-optimalizalasok"></a>
 ## 5. Adatforgalom és mérési kapus optimalizálások
 
+<!-- doc-anchor:cr14 -->
+<a id="cr14"></a>
 ### CR14 — Külön torrentlistaprojekció
 
 **Lánc:** `torrents/router.py:get_list:24–32 → TorrentsService.get_torrents:52–71 → TorrentRepository.find:15–16`; `torrents/models.py:resume_bytes:53, torrent_file:69`; `torrent_files/models.py:torrent_bytes:47`; DTO `torrents/schemas/api.py:31–50`. Az általános find() a restore-ban is kell, ezért azt nem szabad globálisan BLOB-mentessé alakítani.
@@ -378,6 +486,8 @@ Teszt `test_relay_connection_policy.py` FakeHandle+barrier: active/inactive,20�
 
 Teszt `test_torrent_list_projection.py`: E=fájl-DB20/100/500 torrent, kevés/sok indexer, méretes BLOB-ok, részben hiányzó Relay, M=list request, V=régi út JSON-jával azonos tartalom,0 BLOB-érték az eredményobjektumokban,1 célzott lista SELECT, nincs per-torrent lazy query. A response során SQL-t számoló fixture későbbi implicit queryt is észlel; aliasolt hash-mismatch fixture a jelen szemantikát ellenőrzi. Restore/indítás regresszióban a szükséges bytes elérhető. Metrika baseline előbb: SQL/kérés, visszaolvasott oszlopok, poll p95/RSS; a javítás iránya kóddal indokolt, a gyorsulás nem előre számszerű. Közös kapu+A/B/C listaút. **Rollback:** router/service új listametódusa külön revertelhető; séma és általános find nem változik.
 
+<!-- doc-anchor:cr02 -->
+<a id="cr02"></a>
 ### CR02 — WAL mérés és kizárólag indokolt checkpoint
 
 **Forrás:** `common/database.py:59–104` Engine/connect hook/sessionek; `torrent_files/isolated_service.py:22–29,59–105,108–118`; `torrent_files/repository.py:10,106–142` 15 perces touch throttle. Nincs explicit autocheckpoint override, de ebből nem következik kikapcsolt SQLite-autocheckpoint. ORM Session nyitva != bizonyított native olvasósnapshot.
@@ -393,6 +503,8 @@ Teszt `test_torrent_list_projection.py`: E=fájl-DB20/100/500 torrent, kevés/so
 
 Tesztterv kapu után: E=valódi tmp DB, B=nyitott explicit snapshot+írások, M=checkpoint és reader release, V=busy kontrollált, nincs új lockhiba; felszabadítás után két monitorperióduson belül a következő checkpoint(ok) előrehaladnak/kiürítenek. E=leállítás/DB-hiba, V=worker/scheduler lezár, app kérések működnek. Meglévő `test_torrent_files_touch.py`, `test_cache_and_db_concurrency.py` nem cserélendő WAL-mérettesztre. Metrikák/közös A/B/C a fenti workload szerint; ismert baseline nélkül nincs termelési PRAGMA. **Rollback:** karbantartási task off, meglévő WAL/NORMAL megmarad; checkpoint után adat nem törölhető rollback címén.
 
+<!-- doc-anchor:cr03 -->
+<a id="cr03"></a>
 ### CR03 — GZip: először hálózati és CPU-kísérlet
 
 **Forrás:** `main.py:98–118` CORS/session middleware, nincs GZip; `stremio/router.py:61–73,104–165` stream/catalog/meta JSON; `torrent_source_provider/service.py:90–104` névkeresés40 jelölt; `stream/router.py:118–121` médiához no-transform. A tényleges nagy JSON mérete ismeretlen.
@@ -405,6 +517,8 @@ Tesztterv kapu után: E=valódi tmp DB, B=nyitott explicit snapshot+írások, M=
 
 Teszt új `test_stremio_compression.py`, meglévő Stremio/Range/subtitle regressziók: E=ugyanaz a JSON, B=encoding nincs/identity/gzip;q=0/gzip/több encoding, M=GET small/large/error, V=kicsomagolt érték és status/auth változatlan, Vary/Content-Encoding/Content-Length helyes; már tömörített válasz nem dupla. Média206, HEAD és felirat byte/fejléc-identitás kötelező. **Rollback:** flag off, majd adapter revert; proxygzip külön adminisztratív policy, nem vizsgált automatikusan.
 
+<!-- doc-anchor:cr04 -->
+<a id="cr04"></a>
 ### CR04 — Frontend observer/render profil, célzott beavatkozás
 
 **Lánc:** `client/src/main.tsx:45–57` egy QueryClient; `shared/lib/client.ts:3–10` stale5perc/gc10perc; `shared/queries/torrents.ts:14–33` adaptív1,5/5s, backgroundfalse; `relay/torrents/index.tsx:22–24` és `-features/torrents.tsx:14` külön observer ugyanarra a kulcsra; `-components/torrent.tsx:63–77` useMemo csak fullDownload számításra. Structural sharing/deduplikáció pontos runtime-viselkedését tesztelni kell; nem bizonyított dupla request vagy leak.
@@ -420,6 +534,8 @@ Teszt új `test_stremio_compression.py`, meglévő Stremio/Range/subtitle regres
 
 Teszt tervezett kliens komponens/query fixture: E=egy QueryClient és virtuális óra, B=stabil/egysoros változó válasz, M=időelőreléptetés, V=friss adat/counter, normál pollszám; count változatlanul nem igényel új rendercommitot a célkomponensen; delete/update invalidáció működik. E=hidden/unmount/remount, V=nincs saját árva timer és heap-retainer lánc a régi listákhoz. A repo React Query API tesztje legyen valódi, ne mindent mockoló rendercounter. Metrikák a kapu szerint; **kész** csak J-n túli céljavulás és változatlan frissesség esetén. **Rollback:** observer/memo önálló revert, API/DB/migráció nincs.
 
+<!-- doc-anchor:cr15 -->
+<a id="cr15"></a>
 ### CR15 — Válaszméret, origin és admission policy G15 után
 
 **Lánc:** `base_indexer_definition.py:47–74,88–95,283–292`; `integrations/ncore.py:185` tracker-download_url; `torrent_source_provider/service.py:178–218,253–276` gather és download singleflight; `indexers/service.py:321–337` keresési timeout. Szemafor és timeout már van; mégsem méret-/globális queue-limit. Külső URL normál kliensből nem tetszőleges: publikus SSRF-ígéret nincs.
@@ -436,6 +552,8 @@ Teszt tervezett kliens komponens/query fixture: E=egy QueryClient és virtuális
 
 Teszt új `test_indexer_bounded_download.py`, `test_search_admission.py`; E=valódi helyi HTTP/fixture transport, B=oversized encoded/decoded/chunked, M=download, V=korlátnál megáll+kapcsolat lezár, nincs fél .torrent DB-insert. E=HTML auth, redirectloop/off-origin, max_concurrent1, V=authretry/cookie működik, nincs bypass/deadlock. E=azonos és eltérő kulcs-burst, waiter cancel/timeout/DB-thread gate, V=cap betartott, same-key dedup, nincs korai lease-release, normál találatszám/sorrend nem csökken némán. Metrika peakmem/tasks/queue és keresési p95; G15 limitjei és közös kapu dönt. **Rollback:** alcsomagonként, sikertelen túl szűk policy módosítható; natív tracker/webseed célkezelés és tetszőleges új transport írása külön kapu nélkül halasztott. Új konfigurációs alapértékek csak G15 jegyzőkönyvvel kerülhetnek kiadásba.
 
+<!-- doc-anchor:doc-6-prioritasi-fuggosegi-es-munkacsomag-tabla -->
+<a id="doc-6-prioritasi-fuggosegi-es-munkacsomag-tabla"></a>
 ## 6. Prioritási, függőségi és munkacsomag-tábla
 
 Az alábbi sorszám munkacsomagsorrend, nem új auditazonosító. A `CRxx/a` egy meglévő javaslat külön ellenőrizhető alcsomagja. A mérés/gate is önálló eredményt ad; negatív kapueredmény után nem készül „csak azért is” implementáció.
@@ -477,12 +595,16 @@ Az alábbi sorszám munkacsomagsorrend, nem új auditazonosító. A `CRxx/a` egy
 
 Indok: először kis, egyértelmű biztonsági/helyességi hibák, majd adatbázis- és taskhatárok; végül a mérésfüggő hangolások. A G06/G01/G02/G04/G15 baseline-előkészítése önállóan történhet, de eredményük nem előfeltétele a kis parser/log/cancel javításoknak. Egy csomag nem húzhatja be a teljes táblázatot egy nagy PR-ba. A migrációs változások (pairing, session_epoch) külön-külön tesztelendők, nem egy visszagörgethetetlen „optimalizációs migrációban”.
 
+<!-- doc-anchor:doc-csomagonkenti-keszultseg-altalanos-minimuma -->
+<a id="doc-csomagonkenti-keszultseg-altalanos-minimuma"></a>
 ### Csomagonkénti készültség általános minimuma
 
 Belépés: a táblában szereplő függések, az adott HEAD-hez friss forráshivatkozások, célzott fixture/baseline és visszaállítási út megvan. Kilépés: a modul tesztmátrixa és a 2.2 szerinti ruff/basedpyright/pytest (kliensnél a releváns frontend ellenőrzések is) sikeres; helyi funkcionális regresszió és a változásra releváns A/B/C/C-előtte-utána kapu dokumentált. Negatív gate esetén a kész eredmény a mért elvetés/halasztás; nem hibás teljesítés az, hogy nincs kódváltoztatás.
 
 Nem teljesített gate mellett a csomag ne kapjon „kész” címkét azzal, hogy a hipotézist ténynek írják át. A valódi memóriaszivárgás-jelentéshez GC utáni retainerlánc és ismételhető növekedés, teljesítményállításhoz mentett mérési adatok kellenek.
 
+<!-- doc-anchor:doc-7-nyitott-kerdesek-es-dontesi-pontok -->
+<a id="doc-7-nyitott-kerdesek-es-dontesi-pontok"></a>
 ## 7. Nyitott kérdések és döntési pontok
 
 1. **Milyen worker-/processzszám támogatott?** Az in-process state már jelenleg is több helyen létezik; CR08/12 single-process tervének G0 előfeltétele. Multiworkerre nem szabad ezt globális kontrollnak nevezni.
@@ -498,8 +620,12 @@ Nem teljesített gate mellett a csomag ne kapjon „kész” címkét azzal, hog
 
 A fenti kérdések nem azt jelentik, hogy az implementálható kis csomagokhoz új architektúrát kell kitalálni: mindenhez megadott a választott határ. A hozzájuk tartozó kaput viszont nem lehet bizonyíték nélkül átugrani. CVE/image-scan, at-rest titokkezelés, konténercapability és teljes natív könyvtárbiztonság nem vált automatikusan implementációs feladattá az audit nyitott kockázati táblájából; ezek külön scope és külső/telepítési bizonyíték nélkül halasztottak.
 
+<!-- doc-anchor:doc-8-vegrehajtasi-ellenorzolista -->
+<a id="doc-8-vegrehajtasi-ellenorzolista"></a>
 ## 8. Végrehajtási ellenőrzőlista
 
+<!-- doc-anchor:doc-a-terv-atadasa-ennek-a-feladatnak-a-vege -->
+<a id="doc-a-terv-atadasa-ennek-a-feladatnak-a-vege"></a>
 ### A terv átadása — ennek a feladatnak a vége
 
 - [x] Audit bemenete és hash-e azonosítva; ág/HEAD egyezik.
@@ -510,6 +636,8 @@ A fenti kérdések nem azt jelentik, hogy az implementálható kis csomagokhoz �
 - [x] Nem futott dinamikus teszt/benchmark/tracker vagy szolgáltatás; nem indult implementáció.
 - [x] Kizárólag `D:\Git\docs\optimization-implementation-plan-cloud.md` a létrehozott dokumentum.
 
+<!-- doc-anchor:doc-csak-kesobbi-kulon-engedelyezett-vegrehajtaskor -->
+<a id="doc-csak-kesobbi-kulon-engedelyezett-vegrehajtaskor"></a>
 ### Csak későbbi, külön engedélyezett végrehajtáskor
 
 - [ ] G0 és célcsomag baseline/fixture elkészült, verziófüggő API ellenőrizve.
@@ -524,4 +652,3 @@ A fenti kérdések nem azt jelentik, hogy az implementálható kis csomagokhoz �
 - [ ] Csomag elfogadási feltétele és rollbackút teljesült; későbbi commit/push előtt AGENTS branchdokumentációs kötelezettség az akkori engedélyezett scope szerint.
 
 **Leállási pont:** a terv elkészültével megállni. A dokumentum létrehozása nem engedély implementációra, tesztfuttatásra, buildre, migrációra vagy szolgáltatásindításra.
-

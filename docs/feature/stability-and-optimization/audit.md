@@ -1,7 +1,66 @@
+---
+doc_id: "feature-stability-and-optimization-audit"
+title: "StremHU Source — független Cloud Review"
+kind: "audit"
+status: "snapshot-audit"
+audience: ["developer", "ai-agent"]
+tags: ["CR01-CR19", "security", "performance", "static-review", "hypothesis"]
+source_commit: "2615596f7cd181454dc5ae3e1ec9e4d215e3b154"
+baseline: null
+verification: "historical-audit-scope; structure-only-update"
+structure_reviewed: "2026-11-03"
+related_docs: ["docs/feature/stability-and-optimization/README.md", "docs/feature/stability-and-optimization/implementation-plan.md"]
+source_paths: []
+---
+
 # StremHU Source — független Cloud Review
+
+<!-- doc-nav:start -->
+**Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
+
+> **Státusz:** Az eredeti commitra vonatkozó audit, megőrzött megállapításokkal. A navigáció rendezése nem új audit, teszt vagy incidensigazolás.
+
+**Kapcsolódó:** [README.md](README.md) · [implementation-plan.md](implementation-plan.md)
+
+<details>
+<summary>Fejezetek / közvetlen ugrás</summary>
+
+- [1. Határok és azonosítás](#doc-1-hatarok-es-azonositas)
+- [2. Az öt vizsgálati terület összefoglalása](#doc-2-az-ot-vizsgalati-terulet-osszefoglalasa)
+- [3. Bizonyítási láncok és javaslatok](#doc-3-bizonyitasi-lancok-es-javaslatok)
+- [CR01 — A torrentenkénti kapcsolati keret legyen egyértelmű és következetes](#cr01)
+- [CR02 — WAL-mérés és tranzakcióhatárok ellenőrzése checkpoint bevezetése előtt](#cr02)
+- [CR03 — Stremio JSON-tömörítési kísérlet, feltételes bevezetéssel](#cr03)
+- [CR04 — A torrentlista feliratkozásainak szűkítése; memoizálás csak profil alapján](#cr04)
+- [4. Végrehajtható mérési és profiling terv — nem futtatva](#doc-4-vegrehajthato-meresi-es-profiling-terv-nem-futtatva)
+- [5. Lefedettségi ellenőrzés és a második kör bizonyítékai](#doc-5-lefedettsegi-ellenorzes-es-a-masodik-kor-bizonyitekai)
+- [6. Kiegészítő javaslatok és hibafaktorok](#doc-6-kiegeszito-javaslatok-es-hibafaktorok)
+- [CR05 — Ismert alapértelmezett aláírókulcs megszüntetése](#cr05)
+- [CR06 — Helyi HTTPS egyedi privát kulccsal](#cr06)
+- [CR07 — Hitelesítő adatok maszkolása a naplókban](#cr07)
+- [CR08 — Login/pairing munkakeret és egyszeri párosítási állapotgép](#cr08)
+- [CR09 — Lejátszásregiszter csak auth után, globális korláttal](#cr09)
+- [CR10 — Range és külső azonosítók határolt validálása](#cr10)
+- [CR11 — Megszakításbiztos közös indexer-újrabejelentkezés](#cr11)
+- [CR12 — Streamcache-invalidálás bekötése a valódi módosítási utakra](#cr12)
+- [CR13 — Szinkron DB- és DNS-munka leválasztása az event loopról](#cr13)
+- [CR14 — Torrentlista SQL- és BLOB-költségének csökkentése](#cr14)
+- [CR15 — Külső válaszok méretkerete, URL-bizalmi határ és globális munkakeret](#cr15)
+- [CR16 — Session-visszavonás és explicit böngészővédelmi szerződés](#cr16)
+- [CR17 — Megosztott taskok saját DB-élettartama és rendezett shutdown](#cr17)
+- [CR18 — Az első admin létrehozásának atomikussága](#cr18)
+- [CR19 — Auth-védett HTTP-válaszok cache-policyja](#cr19)
+- [7. Kiegészítő biztonsági és regressziós tesztterv — nem futtatva](#doc-7-kiegeszito-biztonsagi-es-regresszios-tesztterv-nem-futtatva)
+- [8. Biztonsági kontrollok és a megmaradó lefedettségi határok](#doc-8-biztonsagi-kontrollok-es-a-megmarado-lefedettsegi-hatarok)
+
+</details>
+
+<!-- doc-nav:end -->
 
 > **Lefedettségi felülvizsgálat (2026-11-03):** az első változat az eredetileg kért öt teljesítményterületet vizsgálta; teljes biztonsági auditot nem adott. A második kör hibakezeléssel, hitelesítéssel, párosítással, TLS-sel, naplózással, adat- és taskélettartammal egészíti ki. Az új CR05–CR19 tételek és a lefedettségi/kockázati mátrix az 5–8. fejezetben találhatók. **Minden optimalizálás és minden sérülékenység feltárását ez a forrásalapú audit sem garantálja.** Elsőként a feltételesen magas kockázatú CR05 és CR06 vizsgálandó; a tényleges helyi konfigurációt nem olvastam.
 
+<!-- doc-anchor:doc-1-hatarok-es-azonositas -->
+<a id="doc-1-hatarok-es-azonositas"></a>
 ## 1. Határok és azonosítás
 
 - Audit dátuma: 2026-11-03. Módszer: statikus forráskód- és hívásilánc-vizsgálat, helyi Windows checkout.
@@ -16,12 +75,16 @@
 
 A `fájl:sor` hivatkozások a fenti HEAD checkoutjának soraira vonatkoznak, a repó gyökerétől relatívak. **Kóddal igazolt tény**: közvetlenül látható működés vagy konfiguráció. **Mérésre váró hipotézis**: erőforrás- vagy válaszidőhatás, illetve a nem rögzített futtatókörnyezet viselkedése. A javaslatok P1 = magas, P2 = közepes, P3 = alacsony prioritásúak. A prioritás nem CVSS-pontszám: a feltételeket minden tételnél külön jelölöm. A későbbi biztonsági kiegészítés magas kockázatú, konfigurációfüggő problémákat is azonosított.
 
+<!-- doc-anchor:doc-verzioalap -->
+<a id="doc-verzioalap"></a>
 ### Verzióalap
 
 A Dockerfile Python 3.12 / Debian Bookworm runtime-ot és Node 24 buildet ír elő; `pip install -r requirements.txt`, illetve `npm ci` az installációs út. A backend leírója többek között `libtorrent==2.1.1`, `SQLAlchemy==2.1.4`, `fastapi[standard]==0.143.0`, `hypercorn==0.18.0` verziót ad meg. A tényleges indító `server/app/run.py` Hypercornt használ, nem a háttérleírásban említett Uvicornt.
 
 A HTTPX és Starlette nincs közvetlenül rögzítve a requirements fájlban; backend lockfájlt nem találtam. Pontos HTTPX pool-alapérték, Starlette GZip-viselkedés, natív SQLite-verzió és libtorrent buildopció nem vezethető le egyértelműen ezekből a fájlokból. Telepített csomagok vagy futó konténer introspekcióját nem végeztem. A kliens lock a manifesttel egyezően React 19.3.0, React Query/query-core 5.104.2 és Axios 1.20.0 verziót tartalmaz (`client/package-lock.json:4246,4278,5325,7852`). A harmadik fél implementációját a megengedett olvasási határok miatt nem auditáltam.
 
+<!-- doc-anchor:doc-2-az-ot-vizsgalati-terulet-osszefoglalasa -->
+<a id="doc-2-az-ot-vizsgalati-terulet-osszefoglalasa"></a>
 ## 2. Az öt vizsgálati terület összefoglalása
 
 | Terület | Megállapítás | Bizonyítottság szintje | Indokolt-e változtatás? |
@@ -32,8 +95,12 @@ A HTTPX és Starlette nincs közvetlenül rögzítve a requirements fájlban; ba
 | SQLite WAL | WAL + NORMAL + 10 s várakozás, sessionlezárás/rollback van. Explicit checkpoint/retention beállítás nincs. | Kóddal igazolt tény; WAL-felhalmozódás és checkpoint-éhezés mérésre váró hipotézis. | CR02: ellenőrzés és megfigyelhetőség indokolt; periodikus TRUNCATE szükségessége nem bizonyított. |
 | Kliens torrentlista | Adaptív 1,5/5 s poll, háttérpoll tiltva, közös kulcs, két observer, teljes lista feliratkozás, nem memoizált sorok. Nincs látható listatörténet-felhalmozás. | Kóddal igazolt tény; renderidő, extra HTTP-forgalom és heapnövekedés mérésre váró hipotézis. | CR04: feliratkozások szűkítése indokolható; memóriahiba vagy kötelező SSE-váltás nem igazolt. |
 
+<!-- doc-anchor:doc-3-bizonyitasi-lancok-es-javaslatok -->
+<a id="doc-3-bizonyitasi-lancok-es-javaslatok"></a>
 ## 3. Bizonyítási láncok és javaslatok
 
+<!-- doc-anchor:doc-31-indexer-http-nem-talaltam-indokolt-pooling-valtoztatast -->
+<a id="doc-31-indexer-http-nem-talaltam-indokolt-pooling-valtoztatast"></a>
 ### 3.1. Indexer HTTP: nem találtam indokolt pooling-változtatást
 
 Létrehozási lánc:
@@ -55,6 +122,8 @@ Lezárás: `main.py` lifespan kilépése → `IndexerDefinitionsService.close_al
 
 **Kóddal igazolt tény:** az AsyncClient kapcsolatpoolja számára megfelelő, kereséseken átívelő élettartam létezik. Ez nem garantálja, hogy két tetszőleges időpontú keresés ugyanazon TCP-kapcsolaton fut: a peer bezárhatja, az idle kapcsolat lejárhat, és más origin saját kapcsolatot igényel. A pool alapértékeit nem állítom számszerűen. Az alkalmazás tracker- és streamcache-e miatt egy második keresés akár HTTP nélkül is teljesülhet; ez önmagában nem bizonyít TCP reuse-t.
 
+<!-- doc-anchor:cr01 -->
+<a id="cr01"></a>
 ### CR01 — A torrentenkénti kapcsolati keret legyen egyértelmű és következetes
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt tény a beállítás felülírása; mérésre váró hipotézis a RAM/CPU-hatás.**
@@ -86,6 +155,8 @@ Ez az 50 alatti konfigurált torrentértéket aktív lejátszáskor felülírhat
 
 **További Relay-eredmény:** `relay/service.py:34–56` nem ad meg explicit cache-méretet, disk I/O módot vagy I/O/hashing szálkeretet; az aktív torrentkorlátok `-1` értékűek. Ez nem bizonyít rossz hangolást. A 2.1.1 verzióhoz nem javasolok ellenőrizetlen, régebbi libtorrent-verzióból átvett `cache_size` receptet. `storage_mode_sparse` (`:288`) lemezfoglalási mód, nem RAM-limit. A prefetch 4–8 darabra épül (`entities.py:44–55`), így darabméret szerint változó adatmennyiséget jelent, nem fix MB-cache-t. A darabolvasás megosztott taskokat és határolt várakozást használ, és finally ágak takarítanak (`relay/service.py:161–264`); erre meglévő célzott tesztek vannak a `test_relay_pending_piece_requests.py` fájlban. A stream darabonként olvas és finally ágban destroy-t ütemez (`entities.py:400–460`). Statikus memóriaszivárgás-megállapítás nem indokolt.
 
+<!-- doc-anchor:cr02 -->
+<a id="cr02"></a>
 ### CR02 — WAL-mérés és tranzakcióhatárok ellenőrzése checkpoint bevezetése előtt
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt tény a konfiguráció és a sessionélettartam; mérésre váró hipotézis a checkpointot akadályozó olvasó és a WAL tartós növekedése.**
@@ -106,6 +177,8 @@ A külön írások már rövid sessionökben futnak (`torrent_files/isolated_ser
 
 **Elfogadási feltétel:** a kiválasztott helyi terhelésen nincs lock/5xx regresszió; a visszatartó olvasó lezárása után a checkpoint backlog legfeljebb két mérési perióduson belül kiürül. A fizikai WAL és backlog külön szerepel a mérésben. Beavatkozás előtt rögzített tárhelykeretet és commitlatencia-célt kell használni, nem általános fájlméret-ígéretet.
 
+<!-- doc-anchor:cr03 -->
+<a id="cr03"></a>
 ### CR03 — Stremio JSON-tömörítési kísérlet, feltételes bevezetéssel
 
 **Prioritás: P3. Bizonyítottság: kóddal igazolt tény a GZip hiánya; mérésre váró hipotézis a nettó előny.**
@@ -120,6 +193,8 @@ A külön írások már rövid sessionökben futnak (`torrent_files/isolated_ser
 
 **Elfogadási feltétel:** megfelelő Accept-Encoding egyeztetés, Vary és Content-Encoding; kicsomagolva azonos JSON, hitelesítés változatlan. Nincs dupla tömörítés, a média Range-válasz byte-tartománya és fejlécei változatlanok. Előre választott kapuk például legalább 30% bájtcsökkenés a nagy válaszokon, legfeljebb 5% p95-romlás és a kijelölt CPU-keret tartása. Ezek javasolt elfogadási küszöbök, nem mért eredmények. Ha nem teljesülnek, nincs indokolt bevezetés.
 
+<!-- doc-anchor:cr04 -->
+<a id="cr04"></a>
 ### CR04 — A torrentlista feliratkozásainak szűkítése; memoizálás csak profil alapján
 
 **Prioritás: P3. Bizonyítottság: kóddal igazolt tény a két teljeslista-observer; mérésre váró hipotézis a jelentős redundáns renderköltség.**
@@ -144,8 +219,12 @@ A közös queryKey közös cache-t jelent. A két observerből nem következik a
 
 **Elfogadási feltétel:** változatlan elemszám melletti sebességfrissítés ne igényelje a darabszámnézet új renderét a választott megoldásban; módosítás/törlés és statisztikafrissítés továbbra is működik. Profil alapján csökkenjen a célzott renderköltség, kérés- vagy frissességregresszió nélkül. 30 perces futás és ismételt navigáció után a GC utáni heapnek ne legyen folyamatos, elérhető torrenttörténetből eredő növekedése.
 
+<!-- doc-anchor:doc-4-vegrehajthato-meresi-es-profiling-terv-nem-futtatva -->
+<a id="doc-4-vegrehajthato-meresi-es-profiling-terv-nem-futtatva"></a>
 ## 4. Végrehajtható mérési és profiling terv — nem futtatva
 
+<!-- doc-anchor:doc-kozos-kornyezet-es-modszer -->
+<a id="doc-kozos-kornyezet-es-modszer"></a>
 ### Közös környezet és módszer
 
 Későbbi mérési munkában kizárólag helyi Windows Docker Desktop használható. Az AGENTS szerinti A/B/C összevetés: upstream image, fork main image és vizsgált branch, külön eldobható adatkönyvtárral. Az image-ek digestjét és a branch commitot rögzíteni kell; a változó latest címke önmagában nem reprodukálható referencia. Az összevethető végpontokat külön kell kezelni a csak a forkban létező funkcióktól. Kódváltoztatás előtt/után a C azonos workloadját is össze kell vetni, mert az upstream funkcionális különbségei torzíthatnak.
@@ -154,6 +233,8 @@ Minden mérés szintetikus felhasználóval, szintetikus torrenttel, helyi fixtu
 
 Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-erőforráskeret, 1/4/8 párhuzamos kliens. Minden ágon azonos bemenet, szekvenciális futtatás, legalább 5 ismétlés; rövid latencytesztnél legalább 100 kérés cellánként. Cold és warm szakaszt elkülönítve jelenteni. Memóriateszt 30 perc, WAL-teszt 60 perc. Rögzítendő: image/digest, telepített csomagverziók, natív SQLite-verzió, libtorrent `get_settings()` releváns értékei, threadszám és konténerkorlát.
 
+<!-- doc-anchor:doc-m1-tcp-reuse -->
+<a id="doc-m1-tcp-reuse"></a>
 ### M1 — TCP reuse
 
 1. Helyi HTTP/1.1 fixture szerver rögzítsen egyedi kapcsolat-azonosítót és fogadott kérésszámot; megfelelő Content-Length és keep-alive támogatás szükséges.
@@ -161,6 +242,8 @@ Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-
 3. Rögzíteni: kapcsolatnyitások, kérések, reuse-arány, p95 és lezárt socketek shutdown után. A fixture opcionálisan zárjon minden kapcsolatot, illetve legyen lassú és adjon auth-redirectet.
 4. Eredmény: rövid szünetű keep-alive esetben legyen újrafelhasználás; peer-close esetben rendezett újracsatlakozás. Csak a ténylegesen mért idle-minta alapján mérlegelni keepalive-expiry hangolást. MockTransport nem alkalmas TCP pooling bizonyítására.
 
+<!-- doc-anchor:doc-m2-relay-kis-ram-on-es-cr01 -->
+<a id="doc-m2-relay-kis-ram-on-es-cr01"></a>
 ### M2 — Relay kis RAM-on és CR01
 
 1. Helyi seedelővel 1/4/8 lejátszás, 1/10/50 betöltött torrent, 256 KiB / 1 MiB / 4 MiB darabméret; külön seeding és seekterhelés. Nagy fixtureméret esetén a tesztadat lemezen generált legyen.
@@ -168,6 +251,8 @@ Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-
 3. RSS mellett a konténer file-cache/anon memória és memory peak/OOM események is szükségesek. Mérni peer-, szál- és pending piece-task számot, I/O-t, CPU-t, indulási/seek p95-öt, timeoutot és megszakadt streamet. A Python tracemalloc nem látja a teljes C++ libtorrent memóriát.
 4. Natív settings-kulcsot csak az adott 2.1.1 buildben való meglétének és jelentésének ellenőrzése után szabad variálni. Egyszerre egy paramétercsalád változzon. A kevesebb RSS önmagában nem elég, ha a konténer file-cache vagy a streamhibák nőnek.
 
+<!-- doc-anchor:doc-m3-gzip -->
+<a id="doc-m3-gzip"></a>
 ### M3 — GZip
 
 1. A jelenlegi Pydantic-válaszmodellekből szintetikus, valósághűen ismétlődő stream- és katalógusválaszok: 0/1/10/40/200 elem. A 200-as katalógus stresszfixture, nem a normál 40 jelöltes út állított eredménye.
@@ -175,6 +260,8 @@ Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-
 3. A kliens automatikus dekompressziója helyett nyers átviteli bájtot is mérni. Kicsomagolt JSON-egyezés, CPU/request, TTFB és teljes latency. Külön LAN és helyileg sávszélesség-korlátozott profil.
 4. Accept-Encoding nélküli, gzipet elutasító és gzipet kérő eset; Range 206, HEAD, redirect és felirat ellenőrzése. A CR03 kapui alapján bevezetni vagy elvetni.
 
+<!-- doc-anchor:doc-m4-wal-es-cr02 -->
+<a id="doc-m4-wal-es-cr02"></a>
 ### M4 — WAL és CR02
 
 1. Külön fájlalapú SQLite adatbázisban a jelenlegi connect/session beállításokat használni. Kezdéskor lekérni: `journal_mode`, `synchronous`, `page_size`, `wal_autocheckpoint`, `journal_size_limit`; mérni a kapcsolat natív `in_transaction` állapotát és a tényleges BEGIN/COMMIT időket.
@@ -183,6 +270,8 @@ Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-
 4. WAL-fájlhossz 1 s-onként, commit latency és lockhibák folyamatosan. Külön diagnosztikai kapcsolatból például 10 s-onként `PRAGMA wal_checkpoint(PASSIVE)`; rögzíteni a busy/log/checkpointed értékeket. Ez beavatkozó mérés, ezért legyen külön, aktív checkpoint-monitor nélküli kontrollfutás is. A könyvelésnél WAL-resetet figyelembe kell venni.
 5. Az olvasó elengedése után mérni a backlog kiürülését. PASSIVE stratégia csak ezzel összevetve; TRUNCATE legfeljebb külön, nyugalmi kísérletben. A fizikai fájl csökkenése nem kötelező sikerfeltétel. Hibaarány, p95/p99 és backlog alapján dönteni, kell-e alkalmazásszintű stratégia.
 
+<!-- doc-anchor:doc-m5-react-poll-render-es-heap -->
+<a id="doc-m5-react-poll-render-es-heap"></a>
 ### M5 — React poll, render és heap
 
 1. Helyi API-fixture 0/20/100/500 torrenttel: változatlan válasz, egy változó sor, minden változó sor, majd álló, hiányos torrent. Production buildet és külön profilozható buildet használni; a fejlesztői StrictMode többletmunkáját elkülöníteni.
@@ -192,6 +281,8 @@ Javasolt mátrix: 512 MiB / 1 GiB / 2 GiB konténerkeret, azonos CPU és Docker-
 5. Kiegészítő frontend-sikerfeltétel: minden friss sorérték látható marad, a menük, update/delete invalidáció és üres lista működik. Memóriaszivárgás csak tartós, GC után is élő és konkrét retainerlánccal igazolt növekedés alapján állítható.
 
 
+<!-- doc-anchor:doc-5-lefedettsegi-ellenorzes-es-a-masodik-kor-bizonyitekai -->
+<a id="doc-5-lefedettsegi-ellenorzes-es-a-masodik-kor-bizonyitekai"></a>
 ## 5. Lefedettségi ellenőrzés és a második kör bizonyítékai
 
 Az eredeti öt kérdés mindegyikére volt válasz, de ez **nem fedte le az összes optimalizálási lehetőséget, hibafaktort vagy security risket**. A második körben tényleges további problémák kerültek elő.
@@ -216,6 +307,8 @@ Az összes `server/app/**/*.py` fájlon AST-leltár futott: **259 Python-fájl, 
 | Bootstrap | Count-then-create az első adminnál | Minta igazolt; verseny kimenetele driverfüggő — CR18 |
 | HTTP-cache | Auth-védett felirat `public, max-age=86400` | Fejléc igazolt; shared-cache viselkedés telepítésfüggő — CR19 |
 
+<!-- doc-anchor:doc-tenylegesen-lefuttatott-izolalt-probak -->
+<a id="doc-tenylegesen-lefuttatott-izolalt-probak"></a>
 ### Ténylegesen lefuttatott izolált próbák
 
 A `server/.venv/Scripts/python.exe -B -` standard bemenetéről futó program csak `ast`, `asyncio`, `pathlib`, `types` modulokat használt. Nem importálta az appot/Configot, nem olvasott `.env`-et, nem ért el hálózatot/DB-t és nem írt tesztfájlt vagy bytecode-ot. AST-ből kiemelte a Range-függvényt és segédjét, illetve a relogin metódust; HTTPException/ParsedRangeHeader minimális helyettesítőt, a login helyi asyncio.Eventet kapott.
@@ -230,8 +323,12 @@ Production invalidate_stream_cache call sites: 0
 
 Bemenetek: `bytes=0-9`, latin-1 felső indexű kettest tartalmazó szám, 5000 ASCII számjegyes kezdőérték. Az utolsó eredmény a helyi Python int-limitjétől is függ. Reloginnál egy tulajdonos után csatlakozó várakozó indult; a csatlakozó törlése után folytatódott a login. Ezek függvénypróbák, nem HTTP-integrációs tesztek: a HTTP-parser korábban is elutasíthat egyes bemeneteket.
 
+<!-- doc-anchor:doc-6-kiegeszito-javaslatok-es-hibafaktorok -->
+<a id="doc-6-kiegeszito-javaslatok-es-hibafaktorok"></a>
 ## 6. Kiegészítő javaslatok és hibafaktorok
 
+<!-- doc-anchor:cr05 -->
+<a id="cr05"></a>
 ### CR05 — Ismert alapértelmezett aláírókulcs megszüntetése
 
 **Prioritás: P1, ha a default secret használatban marad. Bizonyítottság: kóddal igazolt alapérték; tényleges konfiguráció ellenőrzésre váró hipotézis.**
@@ -242,6 +339,8 @@ Lánc: `config.py:31 → main.py:110–113 SessionMiddleware → auth/router.py:
 
 **Előny/mérés:** ismert alapkulccsal nincs elfogadható hitelesítés; szintetikus installáció default/hiányzó/erős kulccsal. **Költség/kompromisszum/kockázat:** kicsi-közepes; rotáció érvénytelenítheti a sessionöket/lejátszó URL-eket. **Elfogadás:** defaulttal nem indul védtelenül, generált kulcs újraindításkor stabil, másik kulcs aláírása elutasított; legitim login/stream működik.
 
+<!-- doc-anchor:cr06 -->
+<a id="cr06"></a>
 ### CR06 — Helyi HTTPS egyedi privát kulccsal
 
 **Prioritás: P1 megosztott kulcsú LOCAL módban, ellenséges hálózati közeg esetén. Bizonyítottság: kóddal igazolt kulcsbeszerzés; tényleges használat ismeretlen.**
@@ -254,6 +353,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Előny/mérés:** publikus közös kulcs nem használható másik telepítés szerverazonosságához; két fixture-install kulcsujjlenyomatának és kliens trustjának ellenőrzése. **Költség/kompromisszum/kockázat:** közepes; helyi CA-bizalom és kényelmes telepítés változhat. **Elfogadás:** eltérő installáció eltérő privát kulcs, biztonságos úton nincs közös privátkulcs-letöltés, céllejátszók tanúsítvány-ellenőrzése működik.
 
+<!-- doc-anchor:cr07 -->
+<a id="cr07"></a>
 ### CR07 — Hitelesítő adatok maszkolása a naplókban
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt logkonfiguráció/hívás; tényleges logkiszivárgás nincs vizsgálva.**
@@ -262,6 +363,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Javaslat:** útvonalsablon/titokmaszkolt URL, query allowlist, kivétellánc-redakció; requestazonosító, státusz, idő és szolgáltató megőrzése. **Előny/mérés:** logolvasási jogból nem származik újrafelhasználható hitelesítés; jelölőtitkokkal 200/4xx/timeout/redirect/HTTPStatusError logellenőrzés. **Költség/kompromisszum/kockázat:** kicsi-közepes; kevesebb diagnosztikai URL-részlet. **Elfogadás:** jelölőtitok teljes alakban sem logban, sem traceback URL-jében nincs; hibák továbbra is korrelálhatók.
 
+<!-- doc-anchor:cr08 -->
+<a id="cr08"></a>
 ### CR08 — Login/pairing munkakeret és egyszeri párosítási állapotgép
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt kontrollhiány; túlterhelés sebessége mérésre váró hipotézis.**
@@ -272,6 +375,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Előny/mérés:** korlátos kódkeresés, kisebb login CPU-terhelés, nincs újrakötés. **Költség/kompromisszum/kockázat:** közepes; NAT mögötti felhasználók és device-poll kompatibilitás. **Elfogadás:** telített/lejárt készletből kontrollált hiba, nem végtelen ciklus; párhuzamos init nem ad azonos aktív kódot; LINKED kódot más user nem köthet át; normál párosítás/retry működik.
 
+<!-- doc-anchor:cr09 -->
+<a id="cr09"></a>
 ### CR09 — Lejátszásregiszter csak auth után, globális korláttal
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt sorrend és megőrzés; RAM-hatás nincs mérve.**
@@ -282,6 +387,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Javaslat:** sikeres auth/előkészítés után regisztrálni belső userazonosítóval; globális TTL-takarítás és korlát. **Előny/mérés:** elutasított kulcs nem foglal tartós helyet; invalid-key burst után regiszterméret/heap. **Költség/kockázat:** kicsi; feliratindulási értesítés időzítése változik. **Elfogadás:** rossz kulcs nem ír; lejárt kulcsok eltűnnek; stream/felirat mindkét indulási sorrendje működik.
 
+<!-- doc-anchor:cr10 -->
+<a id="cr10"></a>
 ### CR10 — Range és külső azonosítók határolt validálása
 
 **Prioritás: P2. Bizonyítottság: kóddal és Range-próbával igazolt; külső queryhatás nem tesztelt.**
@@ -292,6 +399,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Javaslat:** ASCII-decimális Range-validálás, hosszkorlát és ValueError→416; metadata ID-knál konzisztens numerikus, méretkorlátos séma routerben és resolverben. **Előny/mérés:** nincs int-hibából 500 vagy ID-ből queryszintaxis; normál/hibás ID és Range-mátrix. **Költség/kockázat:** kicsi-közepes; régi támogatott prefixek kompatibilitása. **Elfogadás:** hibás/nem ASCII/túl hosszú Range kontrollált 416; idézőjeles/path-szerű ID 4xx külső HTTP nélkül; legitim TVDB/Kitsu/MAL/TMDB formátum működik.
 
+<!-- doc-anchor:cr11 -->
+<a id="cr11"></a>
 ### CR11 — Megszakításbiztos közös indexer-újrabejelentkezés
 
 **Prioritás: P2. Bizonyítottság: izolált forrásfüggvény-próbával is igazolt hiba.**
@@ -300,6 +409,8 @@ A publikus módon megszerezhető privát kulcs nem ad egyedi szerverazonosságot
 
 **Javaslat:** közös login task saját élettartammal, shieldelt várakozókkal, determinisztikus hibaterjesztéssel. **Előny/mérés:** egy request timeoutja nem rontja a többi indexerkérést; owner/joiner/all cancel, error és retry tesztmátrix. **Költség/kockázat:** kicsi-közepes; cookiecsere/retry helyessége kritikus. **Elfogadás:** egyszeri login több várakozónál, hibák minden élő várakozónak terjednek, cancel után új próbálkozás indulhat; nincs pending Future vagy InvalidStateError.
 
+<!-- doc-anchor:cr12 -->
+<a id="cr12"></a>
 ### CR12 — Streamcache-invalidálás bekötése a valódi módosítási utakra
 
 **Prioritás: P2. Bizonyítottság: kóddal és AST-híváshely-kereséssel igazolt hiány.**
@@ -310,6 +421,8 @@ A kulcs (`service.py:166`) több flaget/API-keyt tartalmaz, de nincs benne péld
 
 **Javaslat:** sikeres commit után userszintű generációemelés; globális/indexer-beállításra megfelelő tágabb scope. Commit előtti puszta ürítés rollback esetén nem elegendő szerződés. **Előny/mérés:** mentett szűrés következő kérésben érvényes; warm-cache→endpoint-módosítás→azonnali újrakérés és in-flight barrier teszt. **Költség/kockázat:** közepes; túl széles invalidáció cache-hit veszteség. **Elfogadás:** seed/filter/preferencia/exclusion változás azonnal hat, régi fetch nem ír vissza, rollback/másik user cache-e helyes. API-key rotáció eleve változtatja a kulcsot, azt nem állítom ugyanígy hibásnak.
 
+<!-- doc-anchor:cr13 -->
+<a id="cr13"></a>
 ### CR13 — Szinkron DB- és DNS-munka leválasztása az event loopról
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt blokkoló lánc; a lag mértéke mérésre váró hipotézis.**
@@ -320,6 +433,8 @@ Másik ág: `network/ssl/service.py:27–60 wait_for_dns_propagation` async füg
 
 **Javaslat:** bounded, koaleszkáló resume-író worker saját sessionnel; async DNS vagy workerben resolve. Alert/future-kezelés maradjon megfelelő loopon. **Előny/mérés:** kisebb looplag/piece tail latency; DB-lock és DNS-késés fault injection. **Költség/kockázat:** közepes; mentési sorrend és shutdown flush. **Elfogadás:** lassú commit/DNS alatt független health/piece kérés nem várja ki ugyanazt a teljes blokkolást; queue korlátos, szükséges mentés shutdownkor megvárt.
 
+<!-- doc-anchor:cr14 -->
+<a id="cr14"></a>
 ### CR14 — Torrentlista SQL- és BLOB-költségének csökkentése
 
 **Prioritás: P2 nagyobb listán. Bizonyítottság: kóddal igazolt betöltési minta; pontos költség/nyereség mérendő.**
@@ -328,6 +443,8 @@ Másik ág: `network/ssl/service.py:27–60 wait_for_dns_propagation` async füg
 
 **Javaslat:** külön lista-query célzott mezőkkel/eager kapcsolatokkal vagy DTO-val, restore/stream adatigényét külön megőrizve. **Előny/mérés:** kevesebb SQL és adatmozgatás 1,5–5 s-onként; SQL-számláló, 20/100/500 elemes fixture, DB/poll p95 és RSS. **Költség/kockázat:** kicsi-közepes; hibás load_only után property rejtett lazy queryt indíthat. **Elfogadás:** változatlan JSON/DB-Relay szűrés, listához nincs szükségtelen BLOB-oszlop; a választott stratégia SELECT-száma nem nő lineárisan torrentenként; restore és indítás tovább működik.
 
+<!-- doc-anchor:cr15 -->
+<a id="cr15"></a>
 ### CR15 — Külső válaszok méretkerete, URL-bizalmi határ és globális munkakeret
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt kontrollhiány; túlterhelés/SSRF feltételes, mérésre váró hipotézis.**
@@ -338,6 +455,8 @@ Abszolút trackerlink/redirect más originre vihet, célhálózati policy nem l�
 
 **Javaslat:** streamelt letöltés ellenőrzött, kicsomagolt bájtkerettel; metadata/fájlszám-keret; összesített queue/deadline kontroll; integrációspecifikus origin/redirect policy. DNS/IP-védelemnél IPv6/rebinding és legitim CDN figyelembevétele szükséges. **Előny/mérés:** kontrollált memória/munka rossz külső válasznál; oversized/chunked/compressed fixture és egyedi kulcsos burst. **Költség/kockázat:** közepes-magas; legitim nagy torrent/CDN/burst elutasítása. **Elfogadás:** túlméret kontrolláltan megáll, tiltott cél/redirect nem érhető el, normál integrációk működnek; telített queue nem nő korlátlanul, gyors kontrollált válasz van.
 
+<!-- doc-anchor:cr16 -->
+<a id="cr16"></a>
 ### CR16 — Session-visszavonás és explicit böngészővédelmi szerződés
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt revokációs hiány és middleware-beállítás; böngészős kihasználás nem tesztelt.**
@@ -348,6 +467,8 @@ Alkalmazásszintű CSRF-token/Origin-ellenőrzés a sessiones módosítások el�
 
 **Javaslat:** user session-epoch/visszavonható session, password reset/revoke esetén érvénytelenítés; explicit HTTPS/Secure és kompatibilis SameSite/Origin-CSRF policy. Érzékeny műveletnél újrahitelesítés mérlegelhető. **Előny/mérés:** régi session vészhelyzetben visszavonható; másolt szintetikus cookie és idegen origin teszt. **Költség/kockázat:** közepes; sessionmigráció, proxy/TLS/eszközlogin. **Elfogadás:** reset/revoke után régi cookie elutasított, role-downgrade azonnali, cookie megfelel explicit policynek; idegen origin nem módosít állapotot, natív API-key használat működik.
 
+<!-- doc-anchor:cr17 -->
+<a id="cr17"></a>
 ### CR17 — Megosztott taskok saját DB-élettartama és rendezett shutdown
 
 **Prioritás: P2 vizsgálati/tervezési tétel. Bizonyítottság: ownership-eltérés kóddal igazolt; tényleges DB-hiba/szivárgás mérésre váró hipotézis.**
@@ -358,6 +479,8 @@ A Session close utáni újrafelhasználhatósága, lazy-load és threadidőzít�
 
 **Javaslat:** shared task saját rövid DB-sessionnel/DTO-határral; ugyanaz a mutable Session ne fusson párhuzamos workerekben. Feladatok rendezett cancel/awaitje, utána klienslezárás; adapterenként független cleanup. **Előny/mérés:** determinisztikus cancellation/kapcsolat-visszaadás; request-cancel, két user azonos kulcsa, alias és shutdown fault injection. **Költség/kockázat:** közepes-magas; tranzakció/eager adatigény változik. **Elfogadás:** nincs Session-overlap, kint maradó checkout vagy pending task; egyik adapter close hibája nem akadályozza a többit.
 
+<!-- doc-anchor:cr18 -->
+<a id="cr18"></a>
 ### CR18 — Az első admin létrehozásának atomikussága
 
 **Prioritás: P2. Bizonyítottság: kóddal igazolt check-then-act; konkrét race kimenetel mérésre váró hipotézis.**
@@ -366,6 +489,8 @@ A Session close utáni újrafelhasználhatósága, lazy-load és threadidőzít�
 
 **Javaslat:** atomi, egyszer használható bootstrap-foglalás, szükség esetén egyszeri setup-hitelesítéssel. **Előny/mérés:** determinisztikus egyszeri setup; üres teszt-DB-n 10 párhuzamos eltérő nevű register szinkronizált count/insert pontokkal. **Költség/kockázat:** kicsi-közepes; elakadt setup/újratelepítés. **Elfogadás:** pontosan egy sikeres adminlétrehozás, többi kontrollált elutasítás, nem 500; rollback után legitim setup újrapróbálható.
 
+<!-- doc-anchor:cr19 -->
+<a id="cr19"></a>
 ### CR19 — Auth-védett HTTP-válaszok cache-policyja
 
 **Prioritás: P2 shared cache/érzékeny válaszok tárolása esetén. Bizonyítottság: kóddal igazolt fejlécek; külső cache viselkedése mérésre váró hipotézis.**
@@ -376,6 +501,8 @@ A `/me`, login és pairing status újrafelhasználható API-keyt ad (`users/sche
 
 **Javaslat:** érzékeny auth/key válasz `no-store`; feliratnál revokációs követelménnyel egyező `private`/`no-store` vagy tudatos rövid TTL. A szerver belső autholt bájtcache megmaradhat. **Előny/mérés:** shared HTTP-cache nem kerüli meg a jogosultsági policyt; helyi proxy-cache/rotáció teszt. **Költség/kockázat:** kicsi; több kérés/cachekompatibilitás. **Elfogadás:** visszavont kulcs régi URL-je nem ad policyellenes cache-hitet, auth-válaszok no-store-osak; Range/HEAD és belső cache működik.
 
+<!-- doc-anchor:doc-7-kiegeszito-biztonsagi-es-regresszios-tesztterv-nem-futtatva -->
+<a id="doc-7-kiegeszito-biztonsagi-es-regresszios-tesztterv-nem-futtatva"></a>
 ## 7. Kiegészítő biztonsági és regressziós tesztterv — nem futtatva
 
 A végponttesztek csak izolált helyi Docker Desktop környezetben, szintetikus userekkel és helyi HTTP/DNS-fixture-rel futhatnak. Valós tracker, távoli szerver, meglévő adatbázis vagy valódi hitelesítés nem szükséges. A két már lefutott függvénypróba kivételével ezek tervek, nem elvégzett tesztek.
@@ -398,6 +525,8 @@ A végponttesztek csak izolált helyi Docker Desktop környezetben, szintetikus 
 
 A meglévő tesztek több stabilitási részt lefednek (Singleflight cancel, piece timeout/cleanup, Range normálesetek, subtitle bájtkeret/headerkódolás, touch konkurencia), de ebből nem következik a fenti auth/TLS/DoS/cache mátrix lefedettsége. Az auth mockolása endpointtesztben nem igazolja a valódi middleware/session-biztonságot.
 
+<!-- doc-anchor:doc-8-biztonsagi-kontrollok-es-a-megmarado-lefedettsegi-hatarok -->
+<a id="doc-8-biztonsagi-kontrollok-es-a-megmarado-lefedettsegi-hatarok"></a>
 ## 8. Biztonsági kontrollok és a megmaradó lefedettségi határok
 
 | Kategória | Mit igazol a jelen forrásvizsgálat? | Mi marad kívül vagy bizonytalan? |

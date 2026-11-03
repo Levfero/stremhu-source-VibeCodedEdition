@@ -1,87 +1,79 @@
-# Fejlesztői és AI Agent Dokumentáció: `feature/stability-and-optimization`
-
-> [!IMPORTANT]
-> **Viszonyítási alap (Baseline):**
-> Ez a dokumentáció az eredeti **[s4pp1/stremhu-source](https://github.com/s4pp1/stremhu-source)** (`8c99c7d` commit) és a korábbi M01–M18 stabilitási mérföldkő utáni állapotot rögzíti, és a **`feature/stability-and-optimization`** ág átfogó megerősítési (Hardening), megbízhatósági, párhuzamossági és teljesítmény-optimalizációs architektúráját tartalmazza.
-
+---
+doc_id: "feature-stability-and-optimization"
+title: "Stabilitás és optimalizálás — branch-összefoglaló"
+kind: "feature-overview"
+status: "planning-only"
+audience: ["developer", "ai-agent"]
+tags: ["CR01-CR19", "hardening", "stability", "optimization"]
+source_commit: "2615596f7cd181454dc5ae3e1ec9e4d215e3b154"
+baseline: null
+verification: "structure-only"
+structure_reviewed: "2026-11-03"
+related_docs: ["docs/feature/stability-and-optimization/README.md", "docs/AI-INDEX.md"]
+source_paths: []
 ---
 
-## 1. A Branch Célja és Áttekintése
+# Stabilitás és optimalizálás — branch-összefoglaló
 
-A korábbi mérföldkövek (anime TVDB/Kitsu/MAL támogatás, külső torrent feliratok, multi-manifest végpontok, és a teljes M01–M18 aszinkron stabilitási csomag) után ez a branch a rendszer további mélyreható **megbízhatósági (Reliability), biztonsági (Hardening) és szűk keresztmetszeti (Optimization)** finomhangolását valósítja meg.
+<!-- doc-nav:start -->
+**Navigáció:** [Dokumentáció](../README.md) · [AI-index](../AI-INDEX.md)
 
-A feladatok alapját egy független, szigorú, statikus forráskód-audit képezi (19 konkrét tétellel: `CR01` – `CR19`), amely a következő két részletes dokumentumban található:
+> **Státusz:** Audit-/tervezési munkakör, nem igazolt CR-implementáció. A mérési kapuk és a konkrét feladat engedélye érvényes.
 
-- 📊 **[Részletes Audit Jelentés](./stability-and-optimization/audit.md):** A 19 azonosított tétel részletes leírása, bizonyítottsági szintje és kockázati besorolása.
-- 🛠️ **[Kódszintű Implementációs Terv](./stability-and-optimization/implementation-plan.md):** Fázisokra bontott, kapukkal (G0–G3) védett konkrét megvalósítási lépések, invariánsok és tesztmátrix.
+**Kapcsolódó:** [README.md](stability-and-optimization/README.md) · [AI-INDEX.md](../AI-INDEX.md)
 
----
+<details>
+<summary>Fejezetek / közvetlen ugrás</summary>
 
-## 2. A 19 Vizsgált Tétel (CR01 – CR19) Áttekintése
+- [Cél és tényleges státusz](#doc-cel-es-tenyleges-statusz)
+- [Kanonikus dokumentumok](#doc-kanonikus-dokumentumok)
+- [Lényeges döntések, amelyeket nem szabad leegyszerűsíteni](#doc-lenyeges-dontesek-amelyeket-nem-szabad-leegyszerusiteni)
+- [Végrehajtás és ellenőrzés](#doc-vegrehajtas-es-ellenorzes)
 
-| Tétel | Terület | Besorolás | Cél és Megoldás |
-| :--- | :--- | :---: | :--- |
-| **CR01** | Relay / Libtorrent | P2 | Kapcsolati keret következetessége: az aktív stream alatti 50-es minimum boost és a konfigurált limit összhangba hozása. |
-| **CR02** | SQLite / WAL | P2 | WAL állapotmegfigyelés és tranzakcióhatárok ellenőrzése; passzív checkpointing szükségességének vizsgálata. |
-| **CR03** | Stremio API | P3 | Stremio JSON válaszok tömörítése (`GZipMiddleware`) méretküszöbbel nagy katalógusok esetén. |
-| **CR04** | Kliens / React | P3 | Kliensoldali torrentlista feliratkozások szűkítése, felesleges komponens-újrarajzolások minimalizálása. |
-| **CR05** | Biztonság / Auth | P1 | Ismert alapértelmezett session aláírókulcs (`session_secret = "stremhu-source"`) megszüntetése, perzisztált egyedi kulcs generálása. |
-| **CR06** | Hálózat / TLS | P1 | Helyi HTTPS egyedi privát kulcs használatának biztosítása, bizalmi modell tisztázása. |
-| **CR07** | Naplózás | P2 | Hitelesítő adatok és passkey-ek maszkolása a konzol- és hiba-naplókban (pl. letöltési URL-ek redakciója). |
-| **CR08** | Hitelesítés / Pairing | P2 | Login rate limiting és egyszeri eszközpárosítási állapotgép atomi `PENDING -> LINKED` átmenettel. |
-| **CR09** | Stream Router | P2 | Lejátszásregiszter (`record_active_playback`) hívásának áthelyezése a sikeres API-kulcs hitelesítés **utánra**. |
-| **CR10** | Range & Resolver | P2 | Range fejléc unicode szám-validálás (`isdigit` helyett ASCII) és külső ID formátum-szigorítás. |
-| **CR11** | Indexer Relogin | P2 | Újrabejelentkezési Future megszakítás-biztossá tétele: csatlakozó kliens törlése ne okozzon `InvalidStateError`-t a főfolyamatban. |
-| **CR12** | Streamcache | P2 | Az `invalidate_stream_cache(user_id)` hívások bekötése a tényleges felhasználói és preferencia módosítási útvonalakba. |
-| **CR13** | Event Loop | P2 | Szinkron adatbázis- és DNS műveletek leválasztása az aszinkron event loopról worker szálba. |
-| **CR14** | Adatbázis / ORM | P2 | Torrentlista lekérdezés optimalizálása: szükségtelen `resume_bytes` és BLOB oszlopok kizárása a listázásból. |
-| **CR15** | Bemenet-védelem | P2 | Külső indexer letöltések és válaszok méretkorlátja és timeout kerete. |
-| **CR16** | Munkamenet | P2 | Jelszóváltoztatás utáni session-érvénytelenítés és explicit cookie attribútumok (`Secure`, `SameSite`). |
-| **CR17** | Aszinkron Taskok | P2 | Megosztott háttértaskok saját tranzakció-határai és tiszta, rendezett leállás (`shutdown`). |
-| **CR18** | Rendszerindítás | P2 | Az első adminisztrátor létrehozásának atomi biztosítása (race condition védelem). |
-| **CR19** | HTTP Cache | P2 | Védett végpontok cache-fejléceinek rendezése (`no-store` érzékeny adatokra, privát felirat-fejlécek). |
+</details>
 
----
+<!-- doc-nav:end -->
 
-## 3. Implementációs Fázisok és Sorrend
+<!-- doc-anchor:doc-cel-es-tenyleges-statusz -->
+<a id="doc-cel-es-tenyleges-statusz"></a>
+## Cél és tényleges státusz
 
-A feladatok a kockázat és a hatás szerint 4 jól elkülönülő fázisban valósulnak meg:
+A `feature/stability-and-optimization` munkakör a korábbi funkciók és az M01–M18 stabilitási kör után készített független auditot, illetve annak értékelt implementációs tervét gyűjti össze.
 
-1. **Fázis 1 – Gyors, azonnali javítások (Quick Wins):**
-   - **CR09:** `record_active_playback` mozgatása az auth mögé.
-   - **CR10:** Range parser integer/unicode hiba kezelése (416-os státusz 500 helyett).
-   - **CR12:** Streamcache invalidálás bekötése a user/preferencia módosító routerekbe.
-   - **CR11:** Indexer relogin megszakításvédelme.
-   - **CR07:** Letöltési URL-ek naplózási redakciója.
+**Ebben a dokumentációs rendezésben CR-javítás nem készült, alkalmazásteszt vagy benchmark nem futott.** Az audit 19 tétele között bizonyított kontrollhiány, konfigurációfüggő kockázat és mérésre váró hipotézis is van. A terv ezeket külön kezeli; nem mindegyik jelent feltétel nélkül implementálandó hibát.
 
-2. **Fázis 2 – Biztonsági és hitelesítési megerősítés (Hardening):**
-   - **CR05:** Dinamikus, perzisztens session titkos kulcs.
-   - **CR08:** Pairing állapotgép és login rate limiting.
-   - **CR18:** Első admin atomi létrehozása.
-   - **CR16:** Session visszavonási mechanizmus.
+Funkcióeredet baseline: `s4pp1/stremhu-source@8c99c7d`. Az audit/terv vizsgált kódja: `2615596f7cd181454dc5ae3e1ec9e4d215e3b154`; az aktuális dokumentációs kör HEAD-je: `d9554c4324b432dd023307c9bf29e0aab4da3747`. A vizsgált alkalmazás-/teszt-/buildútvonalak között nincs kódeltérés; ez nem új dinamikus verifikáció.
 
-3. **Fázis 3 – Adatbázis, szálkezelés és I/O optimalizáció (Backend Performance):**
-   - **CR14:** Torrentlista BLOB-mentesítése és eager loading rendezése.
-   - **CR13:** Alert/resume szinkron mentések elmozgatása az event loopról.
-   - **CR01:** Libtorrent kapcsolati korlátok tisztázása.
-   - **CR17:** Háttértaskok DB session izolációja és rendezett leállás.
+<!-- doc-anchor:doc-kanonikus-dokumentumok -->
+<a id="doc-kanonikus-dokumentumok"></a>
+## Kanonikus dokumentumok
 
-4. **Fázis 4 – Hálózati és kliensoldali finomhangolás (Networking & Frontend):**
-   - **CR03:** Stremio GZip tömörítés (méretküszöbbel).
-   - **CR19:** Cache-Control fejlécek optimalizálása.
-   - **CR04:** Kliensoldali TanStack Query observer szűkítés.
-   - **CR02:** SQLite WAL terheléses validáció.
+| Kérdés | Forrás |
+|---|---|
+| Mit talált az audit, milyen bizonyítékkal? | [Független audit](stability-and-optimization/audit.md) |
+| Mely javaslat implementálható, mérendő vagy halasztott? | [A terv értékelési táblája](stability-and-optimization/implementation-plan.md#doc-1-az-audit-elozetes-kritikus-ertekelese) |
+| Milyen kódszintű módosítás és teszt kell? | [Részletes implementációs terv](stability-and-optimization/implementation-plan.md) |
+| Mi a függőségi és végrehajtási sorrend? | [Munkacsomag-tábla](stability-and-optimization/implementation-plan.md#doc-6-prioritasi-fuggosegi-es-munkacsomag-tabla) |
+| Hol van egy konkrét CR tétel? | [CR01–CR19 navigáció](../AI-INDEX.md#doc-cr01cr19-kozvetlen-navigacio) |
+| Mit jelent a régi M01–M18 „kész” állapot? | [Történeti állapotjelentés](implementation-progress.md) |
 
----
+<!-- doc-anchor:doc-lenyeges-dontesek-amelyeket-nem-szabad-leegyszerusiteni -->
+<a id="doc-lenyeges-dontesek-amelyeket-nem-szabad-leegyszerusiteni"></a>
+## Lényeges döntések, amelyeket nem szabad leegyszerűsíteni
 
-## 4. Tesztelési és Ellenőrzési Referencia
+- **CR05:** a terv első választása a hiányzó/ismert gyenge secret fail-fast ellenőrzése; az automatikus perzisztált keyring nem feltétel nélküli feladat.
+- **CR02 / CR03 / CR04:** WAL-checkpoint, gzip és kliensrender-optimalizálás előtt mérési kapu van. Gzipet globálisan médiára kapcsolni nem elfogadott megoldás.
+- **CR06:** az egyedi TLS-kulcsra váltás kliens-trust kompatibilitási döntést igényel; önmagában self-signed generálással nem őrizhető meg automatikusan a publikus CA-bizalom.
+- **CR10:** a hosszú, de értelmes Range-szám clampelhető; minden hosszú szám automatikus hibának minősítése nem a terv.
+- **CR12:** commit utáni invalidálás, rollback és in-flight generáció együtt kezelendő; nem elég néhány routerbe vakon cache-clear hívást tenni.
+- **CR17:** a biztos cleanup és a mérésre váró DB-ownership refaktor külön munkacsomag.
 
-Minden módosítás után kötelezően futtatandó a teljes ellenőrző lánc:
+A teljes besorolás és elfogadási feltétel a tervben van. Itt nem tartunk fenn második, eltérő sorrendű négyfázisú roadmapet vagy újramásolt CR-táblát.
 
-```powershell
-$env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Scripts\python -m ruff check .; .venv\Scripts\basedpyright.exe; .venv\Scripts\python -m pytest tests
-```
+<!-- doc-anchor:doc-vegrehajtas-es-ellenorzes -->
+<a id="doc-vegrehajtas-es-ellenorzes"></a>
+## Végrehajtás és ellenőrzés
 
-- **Ruff linter:** 0 hiba
-- **Basedpyright:** 0 hiba, 0 figyelmeztetés
-- **Pytest:** 259+ teszt hiba nélkül
+A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [AGENTS](../../AGENTS.md) együtt adja az olvasási és engedélyezési rendet. Az implementációs terv olvasása önmagában nem engedély implementációra, tesztre, buildre vagy telepítésre.
+
+Új teszteredményt csak az érintett commit, parancs, tesztprofil és tényleges kimenetel rögzítésével lehet hozzáadni. A korábbi „259+ teszt” vagy „0 hiba” állítás nem ennek a dokumentációs körnek a tesztjegyzőkönyve.

@@ -211,7 +211,7 @@ docker compose -f docker-compose.local.yml up -d
 server\.venv\Scripts\python scripts\benchmark_local.py
 ```
 
-A részletes technikai specifikációk az [`AGENTS.md`](./AGENTS.md), a [`docs/feature/audio-subtitle-detection.md`](./docs/feature/audio-subtitle-detection.md), a [`docs/stremhu-implementation-plan.md`](./docs/stremhu-implementation-plan.md) és a [`docs/feature/implementation-progress.md`](./docs/feature/implementation-progress.md) dokumentumokban találhatók.
+A dokumentáció belépési pontja a [docs/README.md](./docs/README.md), AI ágenseknek a [téma- és forrásindex](./docs/AI-INDEX.md). Az aktuális stabilitási audit és CR01–CR19 terv a [munkacsomagban](./docs/feature/stability-and-optimization/README.md) található; a régi M01–M18 terv [archív történeti referencia](./docs/feature/stability-and-optimization/archive/m01-m18-implementation-plan.md).
 
 ---
 

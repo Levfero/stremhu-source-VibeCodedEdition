@@ -455,7 +455,7 @@ async def test_active_playback_selects_only_played_torrent_subtitle():
 
     # Ha a 2. torrentet (3246976) indította el a lejátszó, és a Nuvio paraméterek nélkül hívja a /subtitles végpontot:
     record_active_playback(
-        api_key="test-api-key", indexer_id="ncore", torrent_id="3246976"
+        user_id=user.id, indexer_id="ncore", torrent_id="3246976"
     )
     subs = await service.get_subtitles(user, parsed_id)
     assert len(subs) == 1

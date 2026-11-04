@@ -2,7 +2,13 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from typing import Any, Generic, TypeVar
 
+from app.common.async_utils import await_owned_task
+
 T = TypeVar("T")
+
+
+class SearchStoppingError(Exception):
+    """No new shared search may start after its lifecycle owner stops."""
 
 
 class Singleflight(Generic[T]):
@@ -16,12 +22,20 @@ class Singleflight(Generic[T]):
 
     def __init__(self) -> None:
         self._tasks: dict[str, asyncio.Task[T]] = {}
+        self._closed = False
+        self._close_task: asyncio.Task[None] | None = None
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     async def run(
         self,
         key: str,
         coro_fn: Callable[[], Coroutine[Any, Any, T]],
     ) -> T:
+        if self._closed:
+            raise SearchStoppingError()
         task = self._tasks.get(key)
         if task is None or task.done():
             task = asyncio.create_task(coro_fn())
@@ -56,4 +70,10 @@ class Singleflight(Generic[T]):
                 task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def aclose(self) -> None:
+        if self._close_task is None:
+            self._closed = True
+            self._close_task = asyncio.create_task(self.cancel_all(), name="singleflight-close")
+        await await_owned_task(self._close_task)
 

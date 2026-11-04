@@ -26,6 +26,6 @@ def create_indexers_service(db: Session) -> IndexersService:
 
 
 def get_indexers_service(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> IndexersService:
     return create_indexers_service(db)

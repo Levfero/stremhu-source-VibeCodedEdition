@@ -1,0 +1,41 @@
+{
+  "status": "Functional native seed wiring PASS; full G01 policy/performance matrix NOT RUN",
+  "head": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+  "source": "cr17a-after-v7-source,602pytest/64snapshot,Ruff/based0",
+  "smoke": {
+    "fixture": "g01-native-loopback-seed-wiring-v1",
+    "is_measurement": false,
+    "native_version": "2.1.1.0",
+    "stream_bytes": 65536,
+    "stream_sha256": "de2f256064a0af797747c2b97505dc0b9f3df0de4f489eac731c23ae9ca9cc31",
+    "native_connections": 16,
+    "native_limit": 50,
+    "tracked_limit": 50,
+    "verified_first_piece": true,
+    "seed_handshakes": 16,
+    "seed_requests": 153,
+    "seed_bytes": 2506752,
+    "peak_seed_connections": 16,
+    "seed_errors": [],
+    "remaining_seed_tasks": 0,
+    "scope": "Synthetic zero bytes, actual native hash verification/Relay stream; networknone loopback seed only. No G01 policy or latency/memory result."
+  },
+  "fixture_hashes": {
+    "scripts/fixtures/local_bt_seed.py": "cb4d301accf047b721f918eafb5571478e7e6a4228eaeb8148382cf02f7883cb",
+    "scripts/probe_cr_seeder_wiring.py": "a57ad797e6388600fdb85635d82e389400117c8039c9417dd634dac36a15673f"
+  },
+  "resources": "PinnedC,2CPU affinity2,3/512MiB,networknone,read-only sources,tmpfs synthetic download; this tiny wiring run does not measure disk/RAM policy.",
+  "native_surface_source": "https://www.libtorrent.org/reference-Settings.html",
+  "test_only_settings": "Multiple loopback connections enabled for distinct synthetic peer IDs; plain fixture protocol, DHT/LSD/UPnP/NAT-PMP off. No tracker/announce/webseed or real host connection. No product settings/default changes.",
+  "open": [
+    "Full matrix global50/100/200,base10/20/50/80,stream0/1/4/8,piece256KiB/1MiB/4MiB,RAM512MiB/1GiB/2GiB",
+    "Noise, adequate repetitions and same-C controls, relevantABC",
+    "Hard-cap candidate only after legacy-policy measurements and product decision as required"
+  ],
+  "repository_fixture_whitespace_checkpoint": {
+    "path": "scripts/fixtures/local_bt_seed.py",
+    "tested_sha256": "cb4d301accf047b721f918eafb5571478e7e6a4228eaeb8148382cf02f7883cb",
+    "current_sha256": "8e0e62a2868589b6d5bc7acc3f2011914c8d0e7de00b2a79e577f9c8df02fbb1",
+    "change": "Removed only extra blank line at EOF for git diff --check; functional wiring evidence remains tied to original frozen fixture, no new test result claimed."
+  }
+}

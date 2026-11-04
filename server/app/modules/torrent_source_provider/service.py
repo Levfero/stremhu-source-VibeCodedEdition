@@ -2,11 +2,14 @@ import asyncio
 from collections.abc import Awaitable
 from typing import overload
 
+from app.common.async_utils import owned_to_thread
 from app.common.keyed_lock import KeyedLock
+from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.singleflight import Singleflight
 from app.modules.indexers.schemas.internal import IndexerTorrent
 from app.modules.indexers.service import IndexersService
+from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_files.models import TorrentFileModel
@@ -18,6 +21,20 @@ _torrent_provider_locks = KeyedLock()
 _sources_singleflight: Singleflight[tuple[list[TorrentSource], list[str]]] = Singleflight()
 _single_source_singleflight: Singleflight[TorrentSource | None] = Singleflight()
 _torrent_download_singleflight: Singleflight[tuple[str, str, bytes] | None] = Singleflight()
+
+
+def open_source_searches() -> None:
+    global _sources_singleflight, _single_source_singleflight, _torrent_download_singleflight
+    if _sources_singleflight.closed:
+        _sources_singleflight = Singleflight()
+    if _single_source_singleflight.closed:
+        _single_source_singleflight = Singleflight()
+    if _torrent_download_singleflight.closed:
+        _torrent_download_singleflight = Singleflight()
+
+
+async def close_source_searches() -> None:
+    await asyncio.gather(_sources_singleflight.aclose(), _single_source_singleflight.aclose(), _torrent_download_singleflight.aclose())
 
 
 class TorrentSourceProviderService:
@@ -36,7 +53,7 @@ class TorrentSourceProviderService:
         imdb_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
         return await _sources_singleflight.run(
-            f"imdb:{imdb_id}",
+            f"{stream_cache_state.revision('')[0]}:imdb:{imdb_id}",
             lambda: self._find_by_imdb_id(imdb_id),
         )
 
@@ -59,7 +76,7 @@ class TorrentSourceProviderService:
         media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
         return await _sources_singleflight.run(
-            f"query:{query}:{media_type or 'all'}",
+            f"{stream_cache_state.revision('')[0]}:query:{query}:{media_type or 'all'}",
             lambda: self._find_by_query(query, media_type=media_type),
         )
 
@@ -108,7 +125,7 @@ class TorrentSourceProviderService:
         torrent_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
         return await _sources_singleflight.run(
-            f"torrent:{torrent_id}",
+            f"{stream_cache_state.revision('')[0]}:torrent:{torrent_id}",
             lambda: self._find_by_torrent_id(torrent_id),
         )
 
@@ -131,7 +148,7 @@ class TorrentSourceProviderService:
         torrent_id: str,
     ) -> TorrentSource | None:
         return await _single_source_singleflight.run(
-            f"indexer:{indexer_id}:{torrent_id}",
+            f"{stream_cache_state.revision('')[0]}:indexer:{indexer_id}:{torrent_id}",
             lambda: self._find_one_by_indexer(indexer_id, torrent_id),
         )
 
@@ -175,7 +192,7 @@ class TorrentSourceProviderService:
             for indexer_torrent in indexer_torrents
         ]
 
-        current_torrent_files = await asyncio.to_thread(
+        current_torrent_files = await owned_to_thread(
             self._torrent_files_service.find_list,
             filter=TorrentFilesFilter(identifiers=torrent_file_ids),
         )
@@ -205,14 +222,14 @@ class TorrentSourceProviderService:
         downloaded_items: list[tuple[str, str, bytes]] = []
         for result in results:
             if isinstance(result, BaseException):
-                logger.exception("⚠️ Hiba a torrent feldolgozása során", exc_info=result)
+                logger.error("operation=torrent-processing %s", network_error_fields(result))
                 continue
             if result is not None:
                 downloaded_items.append(result)
 
         created_torrent_files: list[TorrentFileModel] = []
         if downloaded_items:
-            created_torrent_files = await asyncio.to_thread(
+            created_torrent_files = await owned_to_thread(
                 self._isolated_torrent_files_service.create_many,
                 downloaded_items,
             )
@@ -281,7 +298,7 @@ class TorrentSourceProviderService:
         async with _torrent_provider_locks(
             f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
         ):
-            existing_torrent = await asyncio.to_thread(
+            existing_torrent = await owned_to_thread(
                 self._isolated_torrent_files_service.find_by_id,
                 indexer_id=indexer_torrent.indexer_account.indexer_id,
                 torrent_id=indexer_torrent.torrent_id,
@@ -296,7 +313,7 @@ class TorrentSourceProviderService:
                     indexer_torrent.download_url,
                 )
 
-                return await asyncio.to_thread(
+                return await owned_to_thread(
                     self._isolated_torrent_files_service.create,
                     indexer_id=downloaded_torrent_file.indexer_id,
                     torrent_id=downloaded_torrent_file.torrent_id,

@@ -1,5 +1,6 @@
-import asyncio
 
+from app.common.async_utils import owned_to_thread
+from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.modules.stremio.constants import (
     SEARCH_ID,
@@ -56,7 +57,7 @@ class StremioCatalogsService:
             try:
                 meta_previews = await self.get_metas(torrent_id, media_type=media_type)
             except Exception as e:
-                logger.error("A lista lekérésénél hiba történt: %s", e)
+                logger.error("operation=catalog-id-search %s", network_error_fields(e))
                 meta_previews = []
             return StremioCatalogResponse(metas=meta_previews)
 
@@ -135,7 +136,7 @@ class StremioCatalogsService:
             ]
         except Exception as e:
             logger.error(
-                "Katalógus név szerinti keresési hiba (%s): %s", extra.search, e
+                "operation=catalog-name-search %s", network_error_fields(e)
             )
             meta_previews = []
 
@@ -176,7 +177,7 @@ class StremioCatalogsService:
             ),
         )
 
-        torrent_file = await asyncio.to_thread(
+        torrent_file = await owned_to_thread(
             self._torrent_files_service.find_by_id,
             indexer_id=indexer_id,
             torrent_id=torrent_id,

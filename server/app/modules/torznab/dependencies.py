@@ -27,7 +27,7 @@ def create_torznab_service(db: Session) -> TorznabService:
 
 
 def get_torznab_service(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> TorznabService:
     return create_torznab_service(db)
 

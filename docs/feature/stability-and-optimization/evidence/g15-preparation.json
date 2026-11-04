@@ -1,0 +1,159 @@
+{
+  "status": "Deterministic native size and actual localHTTP wiring PASS; full G15 gate NOT RUN",
+  "head": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+  "source": "cr17a-after-v7-source,pinned native2.1.1.0,602pytest/64snapshot,Ruff/based0",
+  "native_metadata": {
+    "fixture": "g15-native-torrent-metadata-size-wiring-v1",
+    "is_measurement": false,
+    "native_version": "2.1.1.0",
+    "rows": [
+      {
+        "logical_payload_bytes": 1073741824,
+        "piece_size": 262144,
+        "files": 1,
+        "piece_count": 4096,
+        "metadata_bytes": 82073,
+        "sha256": "cadbdf8e5a280df14c4d6151d6bfecdf7a695c64cabdaffaf2c9e1886f1836e0",
+        "native_state": "accepted"
+      },
+      {
+        "logical_payload_bytes": 17179869184,
+        "piece_size": 1048576,
+        "files": 100,
+        "piece_count": 16384,
+        "metadata_bytes": 332982,
+        "sha256": "01f322bdcd6fcee228bf2cfab11f3faadbe0aac09dc792ca1bf054da1feafa5d",
+        "native_state": "accepted"
+      },
+      {
+        "logical_payload_bytes": 274877906944,
+        "piece_size": 4194304,
+        "files": 1000,
+        "piece_count": 65536,
+        "metadata_bytes": 1362823,
+        "sha256": "632578595ac0f4d7135fab08ff7404f020fce5a75bf00aae00504efe6da0d6f2",
+        "native_state": "accepted"
+      },
+      {
+        "logical_payload_bytes": 1099511627776,
+        "piece_size": 1048576,
+        "files": 10000,
+        "piece_count": 1048576,
+        "metadata_bytes": 21491624,
+        "sha256": "ae5774d062b7f70d672820517597925641689e0a27f6a51f4a561acc4d88b9ee",
+        "native_state": "accepted"
+      },
+      {
+        "logical_payload_bytes": 1099511627776,
+        "piece_size": 4194304,
+        "files": 50000,
+        "piece_count": 262144,
+        "metadata_bytes": 7792983,
+        "sha256": "f79161b9bfa90dc6f674747500661854820b985c56891a0d3d71fc88fb2dfd77",
+        "native_state": "accepted"
+      },
+      {
+        "logical_payload_bytes": 1099511627776,
+        "piece_size": 262144,
+        "files": 10000,
+        "piece_count": 4194304,
+        "metadata_bytes": 84406183,
+        "sha256": "6272def2f47e45293177b33558abbd154b39f320452613f55b80e0ae65cf8781",
+        "native_state": "rejected",
+        "exception_kind": "RuntimeError"
+      }
+    ],
+    "payload_verified": false,
+    "scope": "Synthetic deterministic metadata, actual native parsing only; no HTTP/origin/auth/admission test or production size-policy decision."
+  },
+  "real_http_wiring": {
+    "fixture": "g15-real-http-auth-decoding-wiring-v1",
+    "is_measurement": false,
+    "rows": [
+      {
+        "kind": "small",
+        "decoded_bytes": 82073,
+        "sha256": "cadbdf8e5a280df14c4d6151d6bfecdf7a695c64cabdaffaf2c9e1886f1836e0",
+        "native_state": "accepted",
+        "wall_seconds": 0.005539413999940734
+      },
+      {
+        "kind": "many-files",
+        "decoded_bytes": 1362823,
+        "sha256": "632578595ac0f4d7135fab08ff7404f020fce5a75bf00aae00504efe6da0d6f2",
+        "native_state": "accepted",
+        "wall_seconds": 0.008666290000292065
+      },
+      {
+        "kind": "large-valid",
+        "decoded_bytes": 21491624,
+        "sha256": "ae5774d062b7f70d672820517597925641689e0a27f6a51f4a561acc4d88b9ee",
+        "native_state": "accepted",
+        "wall_seconds": 0.0830510530004176
+      },
+      {
+        "kind": "login-redirect",
+        "decoded_bytes": 82073,
+        "sha256": "cadbdf8e5a280df14c4d6151d6bfecdf7a695c64cabdaffaf2c9e1886f1836e0",
+        "native_state": "accepted",
+        "wall_seconds": 0.08949507600027573
+      },
+      {
+        "kind": "cdn-redirect",
+        "decoded_bytes": 82073,
+        "sha256": "cadbdf8e5a280df14c4d6151d6bfecdf7a695c64cabdaffaf2c9e1886f1836e0",
+        "native_state": "accepted",
+        "wall_seconds": 0.003009618999385566
+      },
+      {
+        "kind": "chunked-large",
+        "decoded_bytes": 67108864,
+        "sha256": "e20a69eca39368572e90b9135738a613838f954987a0b44b6220889c171cbb76",
+        "native_state": "rejected",
+        "wall_seconds": 0.21347571699971013
+      },
+      {
+        "kind": "gzip-large",
+        "decoded_bytes": 134217728,
+        "sha256": "8fb4c93e9cdd636cfe06929df7ec7cc521fe3fd3affdfe81fc13d8fcb737d26a",
+        "native_state": "rejected",
+        "wall_seconds": 0.312376533999668
+      },
+      {
+        "kind": "drip",
+        "decoded_bytes": 40960,
+        "sha256": "672f5349216f25c12860319716042fc0d86695debb77e7b144d26f7ca4bc7286",
+        "native_state": "rejected",
+        "wall_seconds": 4.008803003000139
+      }
+    ],
+    "login_calls": 1,
+    "max_concurrent": 1,
+    "server_counts": {
+      "small": 2,
+      "many-files": 1,
+      "large-valid": 1,
+      "login-redirect": 2,
+      "login-required": 1,
+      "login": 1,
+      "cdn-redirect": 1,
+      "chunked-large": 1,
+      "gzip-large": 1,
+      "drip": 1
+    },
+    "external_http_blocked": 0,
+    "scope": "Private local HTTP tracker/CDN, actual IndexerClient and relogin, native parsing. Single wiring pass;4s drip is not an overall-deadline gate. No size/origin/admission policy selected."
+  },
+  "fixture_hashes": {
+    "scripts/probe_cr_torrent_metadata_sizes.py": "ae4df3ab93935cd8961f7efd36b5d8bd125c57d1a7d56d3858a9f0e5c896ed4c",
+    "scripts/fixtures/g15_http_server.py": "6272a2a03bc2446d3413470712f0ef58371abbe46a8ae0550633bd1fc126d55f",
+    "scripts/probe_cr_download_wiring.py": "37f8b39ecab4f282cbf6ba4e183dc84901895a1f70f69d055042c0e8b512ecfb"
+  },
+  "resource": "Private internal Docker network,no publishedports; client2CPU4,5/1GiB,serverCPU15/512MiB; sourcesRO,tmpfs synthetic appdata. Only synthetic credentials/cookies, no real tracker/profile.",
+  "interpretation": "Native accepts21491624B metadata (1TiB logical payload/10000files), so an arbitrary8MiB default would reject this accepted synthetic profile. This is not proof of actual tracker size distribution or permission to select a prodlimit. No code/default/origin policy changed.",
+  "open": [
+    "Full repeated encoded/decoded bytes, peakmemory/task/burst/perstage timing Cbaseline/ABC and after-ownership control",
+    "Longer drip/deadline/cancellation and reference origin/admission contracts",
+    "Representative-normal size/origin decision before download limits; current4s drip and single passes are wiring only"
+  ]
+}

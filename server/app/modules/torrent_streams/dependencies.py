@@ -36,6 +36,6 @@ def create_torrent_streams_service(
 
 
 def get_torrent_streams_service(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> TorrentStreamsService:
     return create_torrent_streams_service(db)

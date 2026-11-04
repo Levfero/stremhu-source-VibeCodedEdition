@@ -1,8 +1,6 @@
-import asyncio
-
 from fastapi import HTTPException
 
-from app.common.async_utils import fire_and_forget
+from app.common.async_utils import fire_and_forget, owned_to_thread
 from app.common.database import isolated_db_session
 from app.common.logger import logger
 from app.modules.torrent_files.models import TorrentFileModel
@@ -17,7 +15,7 @@ class IsolatedTorrentFilesService:
         self, identifiers: TorrentFileIdentifier | list[TorrentFileIdentifier]
     ) -> None:
         """Azonnal elindítja a touch-ot a háttérben, de nem várja meg az eredményét."""
-        fire_and_forget(asyncio.to_thread(self._touch, identifiers))
+        fire_and_forget(owned_to_thread(self._touch, identifiers))
 
     def find_by_id(self, indexer_id: str, torrent_id: str) -> TorrentFileModel | None:
         """Kikeresi a .torrent fájlt, rövid életű session-ben."""

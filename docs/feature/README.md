@@ -46,7 +46,7 @@ A dokumentumok az egyes funkciók eredetét és technikai összefüggéseit muta
 | Katalógus és meta | [Stremio catalog search](stremio-catalog-search.md) | catalog, meta, movie, series, névkeresés | [catalogs_service.py](../../server/app/modules/stremio/catalogs_service.py) |
 | Külső torrentfelirat | [Torrent subtitles](torrent-subtitles.md) | SRT, ASS, SSA, VTT, active playback, fallback, Range | [stream/router.py](../../server/app/modules/stream/router.py), [subtitles.py](../../server/app/modules/stream/utils/subtitles.py) |
 | Hangsáv- és feliratattribútum | [Audio/subtitle detection](audio-subtitle-detection.md) | Tech Info, NFO, MediaInfo, japán hangsáv, magyar felirat | [tech_info_parser.py](../../server/app/modules/media_attributes/tech_info_parser.py) |
-| Stabilitás és biztonsági audit | [Branch-összefoglaló](stability-and-optimization.md) → [munkacsomag](stability-and-optimization/README.md) | CR01–CR19, auth, TLS, cache, WAL, cancellation | Audit és értékelt terv, nem kész implementáció |
+| Stabilitás és biztonsági audit | [Branch-összefoglaló](stability-and-optimization.md) → [munkacsomag](stability-and-optimization/README.md) | CR01–CR19, auth, TLS, cache, WAL, cancellation | Audit és értékelt terv; [aktuális végrehajtás](stability-and-optimization.md#execution-status) |
 
 <!-- doc-anchor:doc-torteneti-munkak-es-azonositok -->
 <a id="doc-torteneti-munkak-es-azonositok"></a>

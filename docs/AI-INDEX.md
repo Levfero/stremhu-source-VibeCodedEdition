@@ -74,7 +74,7 @@ A rövid backend-útvonalak a `server/app/modules/` alatt értendők, a `common/
 <a id="doc-cr01cr19-kozvetlen-navigacio"></a>
 ## CR01–CR19 közvetlen navigáció
 
-Az audit állítást vizsgál, a terv dönt a végrehajthatóságról. A státusz és sorrend kanonikus helye a terv értékelési és munkacsomag-táblája; a keresőindex nem másolja ezt újra. Minden `#crNN` kifejezett, stabil szakaszazonosító.
+Az audit állítást vizsgál, a terv dönt a végrehajthatóságról. A tényleges eredmény a [kanonikus végrehajtási állapotban](feature/stability-and-optimization.md#execution-status) található. A státusz és sorrend kanonikus helye a terv értékelési és munkacsomag-táblája; a keresőindex nem másolja ezt újra. Minden `#crNN` kifejezett, stabil szakaszazonosító.
 
 | Azonosító / téma | Audit | Terv | Első forrás |
 |---|---|---|---|

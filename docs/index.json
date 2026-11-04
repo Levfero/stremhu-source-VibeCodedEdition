@@ -1263,7 +1263,7 @@
       "doc_id": "feature-stability-and-optimization-readme",
       "title": "Stabilitás és optimalizálás — auditmunkacsomag",
       "kind": "navigation",
-      "status": "planning-only",
+      "status": "implementation-in-progress",
       "audience": [
         "developer",
         "ai-agent"
@@ -1307,7 +1307,7 @@
       "doc_id": "feature-stability-and-optimization",
       "title": "Stabilitás és optimalizálás — branch-összefoglaló",
       "kind": "feature-overview",
-      "status": "planning-only",
+      "status": "implementation-in-progress",
       "audience": [
         "developer",
         "ai-agent"
@@ -1318,15 +1318,41 @@
         "stability",
         "optimization"
       ],
-      "source_commit": "2615596f7cd181454dc5ae3e1ec9e4d215e3b154",
-      "baseline": null,
-      "verification": "structure-only",
-      "structure_reviewed": "2026-11-03",
+      "source_commit": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@2615596f (PR); pinned A/B/C + frozen C snapshots (measurement)",
+      "verification": "source + working-tree checks; execution record below",
+      "structure_reviewed": "2026-11-04",
       "related_docs": [
         "docs/feature/stability-and-optimization/README.md",
         "docs/AI-INDEX.md"
       ],
-      "source_paths": [],
+      "source_paths": [
+        "server/app/config.py",
+        "server/app/run.py",
+        "server/app/main.py",
+        "server/app/scheduler.py",
+        "server/app/common/",
+        "server/app/modules/auth/",
+        "server/app/modules/me/",
+        "server/app/modules/pairings/",
+        "server/app/modules/stream/",
+        "server/app/modules/stremio/",
+        "server/app/modules/users/",
+        "server/app/modules/relay/",
+        "server/app/modules/torrents/",
+        "server/app/modules/network/",
+        "server/app/modules/torrent_streams/",
+        "server/app/modules/torznab/",
+        "server/app/modules/indexer_definitions/",
+        "server/alembic/",
+        "server/tests/",
+        "client/src/shared/queries/",
+        "client/src/features/change-password/",
+        "scripts/",
+        "server/app/modules/indexers/",
+        "server/app/modules/torrent_files/",
+        "server/app/modules/torrent_source_provider/"
+      ],
       "sections": [
         {
           "title": "Cél és tényleges státusz",
@@ -1347,6 +1373,31 @@
           "title": "Végrehajtás és ellenőrzés",
           "anchor": "doc-vegrehajtas-es-ellenorzes",
           "level": 2
+        },
+        {
+          "title": "Végrehajtási állapot",
+          "anchor": "execution-status",
+          "level": 2
+        },
+        {
+          "title": "Funkcióeredet és változtatási mátrix",
+          "anchor": "implementation-origin",
+          "level": 2
+        },
+        {
+          "title": "G17 ownership-döntés",
+          "anchor": "execution-g17",
+          "level": 3
+        },
+        {
+          "title": "Commit-ellenőrzési checkpoint",
+          "anchor": "checkpoint-through-19",
+          "level": 3
+        },
+        {
+          "title": "CR17/b saját baseline",
+          "anchor": "execution-cr17b-baseline",
+          "level": 3
         }
       ]
     },

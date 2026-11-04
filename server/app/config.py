@@ -1,13 +1,15 @@
 import ipaddress
+import os
 import sys
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 
-from app.common.validators import validate_domain
+from app.common.validators import normalize_browser_origin, validate_domain
 
 
 class NodeEnv(str, Enum):
@@ -23,12 +25,14 @@ class Config(BaseSettings):
         ),
         env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     node_env: NodeEnv = NodeEnv.PROD
     version: str = "0.0.0"
     description: str = "Torrentalapú streaming magyar torrentoldalakra építve."
-    session_secret: str = "stremhu-source"
+    session_secret: str = Field(min_length=32, repr=False)
+    session_allowed_origins: list[str] = Field(default_factory=list, repr=False)
     host_ip: str = Field(
         default="",
     )
@@ -43,6 +47,21 @@ class Config(BaseSettings):
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)
     subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+
+    @field_validator("session_secret")
+    @classmethod
+    def validate_session_secret(cls, value: str) -> str:
+        if value.strip() == "stremhu-source" or not value.strip():
+            raise ValueError("A SESSION_SECRET erős, egyedi aláírókulcs legyen.")
+        return value
+
+    @field_validator("session_allowed_origins")
+    @classmethod
+    def validate_session_allowed_origins(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if normalize_browser_origin(value)[0] != "https":
+                raise ValueError("Csak explicit HTTPS böngésző-origin engedélyezhető.")
+        return values
 
     @property
     def libtorrent_port(self) -> int:
@@ -98,12 +117,12 @@ class Config(BaseSettings):
                 ip = ipaddress.ip_address(self.host_ip)
             except ValueError:
                 raise ValueError(
-                    f"A megadott `HOST_IP` ({self.host_ip}) formátuma érvénytelen! Kérlek érvényes IPv4 címet adj meg!"
+                    "A megadott `HOST_IP` formátuma érvénytelen! Kérlek érvényes IPv4 címet adj meg!"
                 )
 
             if ip.is_loopback:
                 raise ValueError(
-                    f"A megadott `HOST_IP` ({self.host_ip}) nem lehet a localhost!"
+                    "A megadott `HOST_IP` nem lehet a localhost!"
                 )
 
         return self
@@ -117,14 +136,28 @@ class Config(BaseSettings):
         return validate_domain(value)
 
 
+def load_config(*, load_dotenv: bool | None = None, **values: Any) -> Config:
+    """Load settings through an explicit, dotenv-free test boundary when requested."""
+    if load_dotenv is None:
+        load_dotenv = os.environ.get("STREMHU_LOAD_DOTENV", "true").lower() not in {
+            "false",
+            "0",
+            "no",
+        }
+    if not load_dotenv:
+        # Public BaseSettings argument, verified against the installed version.
+        values["_env_file"] = None
+    return Config(**values)
+
+
 try:
-    config = Config()
+    config = load_config()
 except ValidationError as e:
     console = Console()
     console.print(
         "\n[bold red]‼️  Konfigurációs hiba történt az indítás során:[/bold red]\n"
     )
-    for error in e.errors():
+    for error in e.errors(include_input=False, include_context=False):
         field_path = " -> ".join(str(loc) for loc in error["loc"])
         msg = error["msg"]
 

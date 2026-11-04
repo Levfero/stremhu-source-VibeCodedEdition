@@ -1,0 +1,575 @@
+{
+  "status": "Functional preparation PASS; full unchanged baseline profiles RUNNING, G04 decision OPEN",
+  "head": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+  "scope": "Actual client route/row hooks, real QueryClient and synthetic intercepted trailing-slash torrent API, isolated production/profiling build; no app product change.",
+  "profile_image": "sha256:9a92ca614f3f89793af0ca05c944424d99d34b06a8b8cc6ef4d31ba2493e4e9b",
+  "browser_image": "sha256:948e3846c8caf6a61e29dffaa2f57b29e2373bbe06c3a79243ed53fb007ef644",
+  "fixture_files": {
+    "scripts/g04/entry.tsx": "1e42719193a6708acab95e92bb293c7f75fd4ce7a993e57307b9ba161cf8e5e8",
+    "scripts/g04/index.html": "1817f3fa9b723a7ba95aa120efbb878673c9b7aeb27c8e8118b98d1d0ac289b6",
+    "scripts/g04/probe.cjs": "2af58fb2315fb139ce0adb8b8f2e912752dadf0f628947328b9e43558c0ab90e",
+    "scripts/g04/server.cjs": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd",
+    "scripts/g04/vite.config.ts": "d04dbe73f15ab08decff31928d898b659bc0f078184adad8e50e0b8225cd1909"
+  },
+  "smoke": {
+    "fixture": "g04-fixture-smoke-not-measurement-v2",
+    "is_measurement": false,
+    "browser": "156.0.8078.80",
+    "heapMode": false,
+    "rows": [
+      {
+        "count": 20,
+        "pattern": "one",
+        "requests": 20,
+        "navigations": 0,
+        "elapsed_ms": 30019.318008000002,
+        "routeRenders": 22,
+        "rowRenders": {
+          "0000000000000000000000000000000000000001": 20,
+          "0000000000000000000000000000000000000002": 20,
+          "0000000000000000000000000000000000000003": 20,
+          "0000000000000000000000000000000000000004": 20,
+          "0000000000000000000000000000000000000005": 20,
+          "0000000000000000000000000000000000000006": 20,
+          "0000000000000000000000000000000000000007": 20,
+          "0000000000000000000000000000000000000008": 20,
+          "0000000000000000000000000000000000000009": 20,
+          "000000000000000000000000000000000000000a": 20,
+          "000000000000000000000000000000000000000b": 20,
+          "000000000000000000000000000000000000000c": 20,
+          "000000000000000000000000000000000000000d": 20,
+          "000000000000000000000000000000000000000e": 20,
+          "000000000000000000000000000000000000000f": 20,
+          "0000000000000000000000000000000000000010": 20,
+          "0000000000000000000000000000000000000011": 20,
+          "0000000000000000000000000000000000000012": 20,
+          "0000000000000000000000000000000000000013": 20,
+          "0000000000000000000000000000000000000014": 20
+        },
+        "commits": [
+          {
+            "phase": "mount",
+            "actualDuration": 4.599999999860302,
+            "commitTime": 76.19999999995343
+          },
+          {
+            "phase": "update",
+            "actualDuration": 22.100000000558794,
+            "commitTime": 376.80000000004657
+          },
+          {
+            "phase": "update",
+            "actualDuration": 1.099999999627471,
+            "commitTime": 382.69999999995343
+          },
+          {
+            "phase": "update",
+            "actualDuration": 6.699999999953434,
+            "commitTime": 1891.6999999999534
+          },
+          {
+            "phase": "update",
+            "actualDuration": 6.5,
+            "commitTime": 3395.100000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 7.600000000325963,
+            "commitTime": 4899.300000000047
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.7000000001862645,
+            "commitTime": 6400
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.1000000000931323,
+            "commitTime": 7903.5
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.0999999998603016,
+            "commitTime": 9407.199999999953
+          },
+          {
+            "phase": "update",
+            "actualDuration": 4.000000000232831,
+            "commitTime": 10911.100000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.4999999995343387,
+            "commitTime": 12413.800000000047
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.8999999999068677,
+            "commitTime": 13916.600000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.599999999627471,
+            "commitTime": 15419.600000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.0000000002328306,
+            "commitTime": 16923.399999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 4.899999999906868,
+            "commitTime": 18428.5
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.800000000046566,
+            "commitTime": 19931.899999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.3999999999068677,
+            "commitTime": 21433.300000000047
+          },
+          {
+            "phase": "update",
+            "actualDuration": 4.199999999953434,
+            "commitTime": 22936.199999999953
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.0000000002328306,
+            "commitTime": 24438.600000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 5.599999999860302,
+            "commitTime": 25943.899999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.300000000046566,
+            "commitTime": 27444.800000000047
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.3999999999068677,
+            "commitTime": 28948.199999999953
+          }
+        ],
+        "heap": [],
+        "errors": []
+      }
+    ]
+  },
+  "smoke_is_not_a_measurement": true,
+  "resource_isolation": "Only task-owned Docker --internal network, no host published ports, browser2CPU affinity12,13/2GiB and static server1CPU affinity14/512MiB. Network and server removed after probe.",
+  "retention_controls": "Profiler commit samples transferred outside measured browser heap before each GC sample; bounded row-counter identities are instrumentation. Heap profile lasts30min+15s and includes50 navigations plus real10min gcTime wait. No leak claim.",
+  "historical_fixture_failures": [
+    "BuildKit interpreted a raw sha256 image ID as a registry name; retried with verified local tag and pull=false.",
+    "First API intercept glob missed the actual trailing slash; query existed but errored. Fixed URL predicate and readiness now requires query success. Raw failures retained, excluded from measurements."
+  ],
+  "open": [
+    "Two unchanged C full5min/cell baseline profiles at0/20/100/500 andstable/one/all/stalled",
+    "Full30min+15s heap/50 navigation/GC traces and retainer analysis as needed",
+    "Relevant ABC and gate decision before any observer/memo optimization"
+  ],
+  "baseline_preparation": {
+    "state": "RUNNING, no completed gate inferred",
+    "protocol": {
+      "id": "g04-unmodified-production-profile-baseline-v1",
+      "status": "BASELINE PREPARATION, not a G04 optimization decision",
+      "head": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+      "client_source": "Fixed isolated profiling image built from current client, no route/query/row optimization; actual production/profiling React entry with test counters",
+      "profile_image": "sha256:9a92ca614f3f89793af0ca05c944424d99d34b06a8b8cc6ef4d31ba2493e4e9b",
+      "browser_image": "sha256:948e3846c8caf6a61e29dffaa2f57b29e2373bbe06c3a79243ed53fb007ef644",
+      "fixture_hashes": {
+        "probe.cjs": "01f38b92ceb1a926e8c8d984b950c156bc3b97bb60ce1d4dea30b1939ddc5860",
+        "server.cjs": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd"
+      },
+      "sampling": "Two unchanged C groups, each5 independent repeats of the full16-cell profile. Each0/20/100/500 xstable/one/all/stalled cell lasts300real seconds after3 successful adaptive polls; no warmup/cold sample mixed into measured counters. Two distinct1815second heap series include50 real navigations and actual10min gcTime after final unmount. No shortening/virtual clock.",
+      "order": "a0,b0,heap-a,heap-b,a1,b1,a2,b2,a3,b3,a4,b4 sequential, fresh browser per run/context per cell. Total at least861minutes before warmup/overhead; controller persists independently of an interaction turn.",
+      "resource": "Local Docker Desktop internal task-owned network, no host ports; browser2CPU affinity12,13/2GiB, static server1CPU affinity14/512MiB; read-only image/source, task-labelled disposable output volume for heap snapshots; synthetic fixed API only.",
+      "metrics": "Cold loading/profiler separate; measured API arrival count/times, route and per-row render count, React actualDuration and commit count; per-cell cgroup CPU/anon/file/current/peak. HeapCDP samples afterGC, final query count and retained snapshot; profiler history removed from measured browser heap everyminute.",
+      "noise": "After five independent repeats per unchanged group, J=max(abs(group medians),counter resolution), full baseline ranges retained. Candidate only if measured observer/render cost justifies it; future acceptance needs beyond-J target benefit, unchanged freshness/background1.5/5second policy and payload, no new error, common side-effect gates.",
+      "limits": "No product frontend code change. ABC client profiles require comparable builds; image/runtime/backend list costs are not React optimization evidence. Two long heap runs cannot be replaced by a30second wiring smoke."
+    },
+    "controller_log": "g04-baseline-controller-v1.stdout"
+  },
+  "warmup_window_smoke_v4": {
+    "fixture": "g04-fixture-smoke-not-measurement-v3",
+    "is_measurement": false,
+    "browser": "156.0.8078.80",
+    "heapMode": false,
+    "rows": [
+      {
+        "count": 20,
+        "pattern": "one",
+        "requests": 19,
+        "cold": {
+          "wall_ms": 108.25644999999997,
+          "requests": 1,
+          "routeRenders": 3,
+          "rowRenders": {
+            "0000000000000000000000000000000000000001": 1,
+            "0000000000000000000000000000000000000002": 1,
+            "0000000000000000000000000000000000000003": 1,
+            "0000000000000000000000000000000000000004": 1,
+            "0000000000000000000000000000000000000005": 1,
+            "0000000000000000000000000000000000000006": 1,
+            "0000000000000000000000000000000000000007": 1,
+            "0000000000000000000000000000000000000008": 1,
+            "0000000000000000000000000000000000000009": 1,
+            "000000000000000000000000000000000000000a": 1
+          },
+          "commits": [
+            {
+              "phase": "mount",
+              "actualDuration": 5.600000000093132,
+              "commitTime": 80.5
+            }
+          ]
+        },
+        "warmupRequests": 3,
+        "request_times_ms": [
+          1472.0288110000001,
+          2975.665924,
+          4479.228424,
+          5983.230866000001,
+          7486.634051,
+          8989.846383,
+          10492.911173,
+          11996.045239,
+          13499.260406999998,
+          15002.629185999998,
+          16505.858744999998,
+          18009.325588,
+          19512.372463,
+          21015.842886,
+          22518.663051,
+          24021.693089,
+          25525.176402999998,
+          27028.460535,
+          28532.469042
+        ],
+        "navigations": 0,
+        "elapsed_ms": 30022.654698,
+        "routeRenders": 19,
+        "rowRenders": {
+          "0000000000000000000000000000000000000001": 19,
+          "0000000000000000000000000000000000000002": 19,
+          "0000000000000000000000000000000000000003": 19,
+          "0000000000000000000000000000000000000004": 19,
+          "0000000000000000000000000000000000000005": 19,
+          "0000000000000000000000000000000000000006": 19,
+          "0000000000000000000000000000000000000007": 19,
+          "0000000000000000000000000000000000000008": 19,
+          "0000000000000000000000000000000000000009": 19,
+          "000000000000000000000000000000000000000a": 19,
+          "000000000000000000000000000000000000000b": 19,
+          "000000000000000000000000000000000000000c": 19,
+          "000000000000000000000000000000000000000d": 19,
+          "000000000000000000000000000000000000000e": 19,
+          "000000000000000000000000000000000000000f": 19,
+          "0000000000000000000000000000000000000010": 19,
+          "0000000000000000000000000000000000000011": 19,
+          "0000000000000000000000000000000000000012": 19,
+          "0000000000000000000000000000000000000013": 19,
+          "0000000000000000000000000000000000000014": 19
+        },
+        "commits": [
+          {
+            "phase": "update",
+            "actualDuration": 5.2999999998137355,
+            "commitTime": 4901.700000000186
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.1000000005587935,
+            "commitTime": 6402.300000000279
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.8999999994412065,
+            "commitTime": 7906.600000000093
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.200000000651926,
+            "commitTime": 9412
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.5,
+            "commitTime": 10913.30000000028
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.900000000372529,
+            "commitTime": 12416.80000000028
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.6999999997206032,
+            "commitTime": 13919
+          },
+          {
+            "phase": "update",
+            "actualDuration": 5.099999999627471,
+            "commitTime": 15424.5
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.6999999997206032,
+            "commitTime": 16925.80000000028
+          },
+          {
+            "phase": "update",
+            "actualDuration": 4.900000000372529,
+            "commitTime": 18432.700000000186
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.8999999994412065,
+            "commitTime": 19933.399999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.800000000745058,
+            "commitTime": 21435.80000000028
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.3999999999068677,
+            "commitTime": 22939.5
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.6000000000931323,
+            "commitTime": 24442.700000000186
+          },
+          {
+            "phase": "update",
+            "actualDuration": 5.899999999906868,
+            "commitTime": 25947.899999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.5,
+            "commitTime": 27447.700000000186
+          },
+          {
+            "phase": "update",
+            "actualDuration": 2.7999999998137355,
+            "commitTime": 28951.700000000186
+          },
+          {
+            "phase": "update",
+            "actualDuration": 5.7999999998137355,
+            "commitTime": 30457.899999999907
+          },
+          {
+            "phase": "update",
+            "actualDuration": 3.8000000002793968,
+            "commitTime": 31960.399999999907
+          }
+        ],
+        "heap": [],
+        "errors": []
+      }
+    ]
+  },
+  "profile_runtime_versions": {
+    "node": "v24.22.2",
+    "react": "19.3.0",
+    "reactDom": "19.3.0",
+    "reactQuery": "5.104.2",
+    "router": "1.170.44",
+    "vite": "8.3.4"
+  },
+  "first_full_profile": {
+    "is_measurement": true,
+    "rows": [
+      {
+        "count": 0,
+        "pattern": "stable",
+        "requests": 60,
+        "elapsed_ms": 300263.87910200004,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 0,
+        "pattern": "one",
+        "requests": 60,
+        "elapsed_ms": 300269.869174,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 0,
+        "pattern": "all",
+        "requests": 60,
+        "elapsed_ms": 300258.45117300004,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 0,
+        "pattern": "stalled",
+        "requests": 60,
+        "elapsed_ms": 300269.4259899999,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 20,
+        "pattern": "stable",
+        "requests": 60,
+        "elapsed_ms": 300271.04394899984,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 20,
+        "pattern": "one",
+        "requests": 199,
+        "elapsed_ms": 300229.4691309999,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 3980,
+        "commit_actual_duration_p95_ms": 4
+      },
+      {
+        "count": 20,
+        "pattern": "all",
+        "requests": 199,
+        "elapsed_ms": 300223.49329699995,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 3980,
+        "commit_actual_duration_p95_ms": 4.2000000001862645
+      },
+      {
+        "count": 20,
+        "pattern": "stalled",
+        "requests": 199,
+        "elapsed_ms": 300235.76927900035,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 100,
+        "pattern": "stable",
+        "requests": 60,
+        "elapsed_ms": 300267.0676719998,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 100,
+        "pattern": "one",
+        "requests": 199,
+        "elapsed_ms": 300222.7344109998,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 19900,
+        "commit_actual_duration_p95_ms": 13.299999999813735
+      },
+      {
+        "count": 100,
+        "pattern": "all",
+        "requests": 199,
+        "elapsed_ms": 300225.0221079998,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 19900,
+        "commit_actual_duration_p95_ms": 12.900000000372529
+      },
+      {
+        "count": 100,
+        "pattern": "stalled",
+        "requests": 199,
+        "elapsed_ms": 300220.0279069999,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 500,
+        "pattern": "stable",
+        "requests": 59,
+        "elapsed_ms": 300318.0957249999,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      },
+      {
+        "count": 500,
+        "pattern": "one",
+        "requests": 199,
+        "elapsed_ms": 300242.2068360001,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 99500,
+        "commit_actual_duration_p95_ms": 56.30000000167638
+      },
+      {
+        "count": 500,
+        "pattern": "all",
+        "requests": 199,
+        "elapsed_ms": 300225.505535,
+        "routeRenders": 199,
+        "errors": [],
+        "commits": 199,
+        "total_row_renders": 99500,
+        "commit_actual_duration_p95_ms": 56.10000000242144
+      },
+      {
+        "count": 500,
+        "pattern": "stalled",
+        "requests": 199,
+        "elapsed_ms": 300226.86510200053,
+        "routeRenders": 0,
+        "errors": [],
+        "commits": 0,
+        "total_row_renders": 0,
+        "commit_actual_duration_p95_ms": null
+      }
+    ],
+    "raw_file": "g04-before-a-0-v1.json",
+    "raw_sha256": "9f80a47a6490e9c41ad4f3c0bea47aa9ab393dfe5a3fc818411422d4336d2d2f",
+    "note": "Only first of ten full unchanged profiles. No noise-qualified optimization or heap decision yet."
+  }
+}

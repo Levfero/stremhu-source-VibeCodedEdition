@@ -11,6 +11,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass, Session, sessionmaker
 from sqlalchemy.types import DateTime, TypeDecorator
 
+from app.common.commit_actions import commit_session, discard_commit_actions
 from app.config import config
 
 # Naming convention is CRITICAL for SQLite migrations in Alembic
@@ -57,7 +58,7 @@ class Base(
 
 
 connect_args = {"check_same_thread": False, "timeout": 10.0}
-engine = create_engine(config.database_url, connect_args=connect_args)
+engine = create_engine(config.database_url, connect_args=connect_args, hide_parameters=True)
 
 
 # Biztosítjuk a Foreign Key megszorítások, a WAL mód és a szinkronizáció beállítását minden SQLite kapcsolatnál
@@ -77,12 +78,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def db_session() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+        try:
+            yield db
+        except BaseException:
+            db.rollback()
+            raise
+        else:
+            commit_session(db)
     finally:
+        discard_commit_actions(db)
         db.close()
 
 
@@ -90,12 +94,15 @@ def db_session() -> Generator[Session, None, None]:
 def isolated_db_session() -> Generator[Session, None, None]:
     db = SessionLocal(expire_on_commit=False)
     try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+        try:
+            yield db
+        except BaseException:
+            db.rollback()
+            raise
+        else:
+            commit_session(db)
     finally:
+        discard_commit_actions(db)
         db.close()
 
 

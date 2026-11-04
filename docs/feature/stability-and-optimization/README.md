@@ -2,7 +2,7 @@
 doc_id: "feature-stability-and-optimization-readme"
 title: "Stabilitás és optimalizálás — auditmunkacsomag"
 kind: "navigation"
-status: "planning-only"
+status: "implementation-in-progress"
 audience: ["developer", "ai-agent"]
 tags: ["CR01-CR19", "audit", "implementation-plan", "evidence"]
 source_commit: "2615596f7cd181454dc5ae3e1ec9e4d215e3b154"
@@ -18,7 +18,7 @@ source_paths: []
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Audit-/tervezési munkakör, nem igazolt CR-implementáció. A mérési kapuk és a konkrét feladat engedélye érvényes.
+> **Státusz:** Az audit és a terv történeti; az aktuális eredmény a [kanonikus végrehajtási állapotban](../stability-and-optimization.md#execution-status) olvasható.
 
 **Kapcsolódó:** [audit.md](audit.md) · [implementation-plan.md](implementation-plan.md) · [stability-and-optimization.md](../stability-and-optimization.md)
 

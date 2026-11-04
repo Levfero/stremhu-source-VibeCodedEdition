@@ -40,7 +40,7 @@ def create_stremio_catalogs_service(
 
 
 def get_stremio_catalogs_service(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> StremioCatalogsService:
     return create_stremio_catalogs_service(db)
 
@@ -58,7 +58,7 @@ def create_stremio_service(
 
 
 def get_stremio_service(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> StremioService:
     return create_stremio_service(db)
 

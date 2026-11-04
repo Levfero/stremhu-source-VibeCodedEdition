@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from app.common.async_utils import owned_to_thread
+from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexer_accounts.schemas import (
@@ -26,6 +28,7 @@ from app.modules.indexers.schemas.internal import (
 from app.modules.media_attributes.utils import resolve_attribute_ids
 from app.modules.settings.schemas.internal import SystemSettings
 from app.modules.settings.service import SettingsService
+from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
 
@@ -72,7 +75,7 @@ class IndexersService:
         indexer_definition = self._indexer_definitions_service.get_by_id(
             payload.indexer_id
         )
-        indexer_account = await asyncio.to_thread(
+        indexer_account = await owned_to_thread(
             self._indexer_accounts_service.find_by_id,
             indexer_definition.id,
         )
@@ -92,7 +95,7 @@ class IndexersService:
                 )
             )
 
-            indexer_account = await asyncio.to_thread(
+            indexer_account = await owned_to_thread(
                 self._indexer_accounts_service.create,
                 IndexerAccountCreate(
                     indexer_id=indexer_definition.id,
@@ -122,7 +125,7 @@ class IndexersService:
                 detail=str(e),
             )
         except Exception as e:
-            logger.error(e)
+            logger.error("operation=indexer-login %s", network_error_fields(e))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Bejelentkezés közben hiba történt, próbáld újra!",
@@ -175,7 +178,7 @@ class IndexersService:
         self,
         torrent_id: str,
     ) -> tuple[list[IndexerTorrent], list[str]]:
-        indexer_accounts = await asyncio.to_thread(
+        indexer_accounts = await owned_to_thread(
             self._indexer_accounts_service.find_list
         )
 
@@ -237,7 +240,7 @@ class IndexersService:
         indexer_id: str,
         torrent_id: str,
     ) -> IndexerTorrent:
-        indexer_account = await asyncio.to_thread(
+        indexer_account = await owned_to_thread(
             self._indexer_accounts_service.get_by_id, indexer_id
         )
 
@@ -269,14 +272,15 @@ class IndexersService:
         self,
         imdb_id: str,
     ) -> tuple[list[IndexerTorrent], list[str]]:
-        indexer_accounts = await asyncio.to_thread(
+        source_epoch = stream_cache_state.revision("")[0]
+        indexer_accounts = await owned_to_thread(
             self._indexer_accounts_service.find_list
         )
 
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
         ) -> list[IndexerTorrent]:
-            cache_key = (indexer_account.indexer_id, imdb_id.strip().lower())
+            cache_key = (indexer_account.indexer_id, f"{source_epoch}:{imdb_id.strip().lower()}")
             now = time.monotonic()
             indexer_definition_torrents: list[Any] | None = None
             cached = _imdb_tracker_cache.get(cache_key)
@@ -352,7 +356,7 @@ class IndexersService:
         query: str,
         media_type: str | None = None,
     ) -> tuple[list[IndexerTorrent], list[str]]:
-        indexer_accounts = await asyncio.to_thread(
+        indexer_accounts = await owned_to_thread(
             self._indexer_accounts_service.find_list
         )
 
@@ -452,10 +456,10 @@ class IndexersService:
         )
 
     async def cleanup_torrents_by_rules(self) -> None:
-        indexer_accounts = await asyncio.to_thread(
+        indexer_accounts = await owned_to_thread(
             self._indexer_accounts_service.find_list
         )
-        system_settings = await asyncio.to_thread(self._settings_service.get_system)
+        system_settings = await owned_to_thread(self._settings_service.get_system)
 
         tasks = [
             self.cleanup_torrent_by_rules(indexer_account, system_settings)
@@ -470,7 +474,7 @@ class IndexersService:
     ) -> None:
         try:
             if system_settings is None:
-                system_settings = await asyncio.to_thread(
+                system_settings = await owned_to_thread(
                     self._settings_service.get_system
                 )
 
@@ -503,7 +507,7 @@ class IndexersService:
                 return
 
             # Futtatjuk a letöltött torrentek takarítását
-            await asyncio.to_thread(
+            await owned_to_thread(
                 self._torrents_service.cleanup_tracker_torrents,
                 indexer_id=indexer_account.indexer_id,
                 keep_seed_seconds=keep_seed_seconds,
@@ -512,7 +516,5 @@ class IndexersService:
             logger.info(
                 f"✅ Sikeres takarítás lefutott az indexerhez: {indexer_account.indexer_id}"
             )
-        except Exception:
-            logger.exception(
-                f"‼️ Hiba történt a(z) '{indexer_account.indexer_id}' indexer takarítása során.",
-            )
+        except Exception as exc:
+            logger.error("operation=indexer-cleanup provider=%s %s", indexer_account.indexer_id, network_error_fields(exc))

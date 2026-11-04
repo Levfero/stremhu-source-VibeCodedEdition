@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import humanize
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydash import compact
 
 from app.common.schemas.internal import ImdbInfo, SeriesInfo
+from app.common.validators import validate_numeric_media_id
 from app.modules.media_attributes.constants import MediaAttributeKey
 from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
@@ -637,28 +638,31 @@ class TorrentStreamId(BaseModel):
     file_index: int | None = None
 
 
+NumericMediaId = Annotated[str, AfterValidator(validate_numeric_media_id)]
+
+
 class TvdbStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TVDB
-    tvdb_id: str
+    tvdb_id: NumericMediaId
     series_info: SeriesInfo | None = None
 
 
 class KitsuStreamId(BaseModel):
     type: StreamIdType = StreamIdType.KITSU
-    kitsu_id: str
+    kitsu_id: NumericMediaId
     episode: int | None = None
     series_info: SeriesInfo | None = None
 
 
 class TmdbStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TMDB
-    tmdb_id: str
+    tmdb_id: NumericMediaId
     series_info: SeriesInfo | None = None
 
 
 class MalStreamId(BaseModel):
     type: StreamIdType = StreamIdType.MAL
-    mal_id: str
+    mal_id: NumericMediaId
     episode: int | None = None
     series_info: SeriesInfo | None = None
 

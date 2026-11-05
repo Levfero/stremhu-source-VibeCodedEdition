@@ -1,0 +1,32 @@
+# Phase 0 PoC-only disposable image (isolated from production Dockerfile)
+# Base: existing local stremhu-source:repo-master (Debian 12 Bookworm + Python 3.12 + libtorrent 2.1.1)
+FROM stremhu-source:repo-master
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    wireguard-tools \
+    nftables \
+    natpmpc \
+    tcpdump \
+    strace \
+    procps \
+    libcap2-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dedicated unprivileged system accounts & shared IPC/downloads groups for Phase 0 Rev. 4 PoCs:
+# - stremhu-app (10000:10000): unprivileged FastAPI web process
+# - stremhu-worker (10001:10001): mandatory unprivileged Torrent Worker (Invariant #8)
+# - stremhu-ipc (GID 10002): shared group strictly for Worker UDS + /dev/shm pool (0660)
+# - stremhu-downloads (GID 10003): shared group strictly for /app/data/downloads (2770)
+RUN groupadd --gid 10000 stremhu-app \
+    && useradd --uid 10000 --gid 10000 --no-create-home --shell /usr/sbin/nologin stremhu-app \
+    && groupadd --gid 10001 stremhu-worker \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin stremhu-worker \
+    && groupadd --gid 10002 stremhu-ipc \
+    && groupadd --gid 10003 stremhu-downloads \
+    && usermod -aG stremhu-ipc,stremhu-downloads stremhu-app \
+    && usermod -aG stremhu-ipc,stremhu-downloads stremhu-worker \
+    && mkdir -p /run/stremhu /poc
+
+WORKDIR /poc
+ENTRYPOINT ["python3"]

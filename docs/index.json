@@ -1318,9 +1318,9 @@
         "stability",
         "optimization"
       ],
-      "source_commit": "d2f0d1e5446c26ca56cf611f91e9264aabf9e19b",
+      "source_commit": "c41eefadf7e91bfeba5cc960b74e7954c2d4a7fe",
       "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@2615596f (PR); pinned A/B/C + frozen C snapshots (measurement)",
-      "verification": "source + working-tree checks; execution record below",
+      "verification": "source + checked isolated snapshots; execution record below",
       "structure_reviewed": "2026-11-04",
       "related_docs": [
         "docs/feature/stability-and-optimization/README.md",
@@ -1397,6 +1397,11 @@
         {
           "title": "CR17/b saját baseline",
           "anchor": "execution-cr17b-baseline",
+          "level": 3
+        },
+        {
+          "title": "CR17/a drain-kiegészítés",
+          "anchor": "execution-cr17a-drain-followup",
           "level": 3
         }
       ]

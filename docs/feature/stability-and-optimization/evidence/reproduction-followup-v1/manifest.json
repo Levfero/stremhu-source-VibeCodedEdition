@@ -1,0 +1,247 @@
+{
+  "status": "Reproduction source evidence only; no new gate completion",
+  "scope": "Only explicitly listed Python fixture/controller/assessor files. No dotenv,privatekey,actualHOST,DB or unknownlocalfile. Controllers reference original owned execution-root layout and frozen source manifests; this is an evidence archive,not an install/bootstrap command. Native-scope refs are V4; original V3 coldreference attempts are excluded from acceptance. Coldfixtures skip the postcold heap loop: inherited1800s header is not a measuredlongrun.",
+  "files": {
+    "cr17b-policy-fixture-v2.py": {
+      "sha256": "77355b57bea4d9c55d1a16f14fa30341f82fe3bb6de8d18c49350cc33b17ae4e",
+      "group": "cleanup",
+      "measurement_raw_sha256": "d4f03a59f1a8e83f23e7965491049019625cd9a4ca8e920ee5e7cef7f8a83ae2",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "cr17b-policy-reference-fixture-v4.py": {
+      "sha256": "3fa4fc974a40393166241248a5217da00a3696927a3a50274b3dfde8ceb1c1fa",
+      "group": "cleanup",
+      "measurement_raw_sha256": "100d33e953adf13175b0e594e014309554420b9f7626ee2da950c6ba295c6408",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "assess_cr17a_drain_v2.py": {
+      "sha256": "148e29edd9829c8d6a0cbc9d83a3a0c3d082bcf131e90cd9b92201bf323504d7",
+      "group": "cleanup",
+      "measurement_raw_sha256": "148e29edd9829c8d6a0cbc9d83a3a0c3d082bcf131e90cd9b92201bf323504d7",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "diagnose_cr17a_sql_invariant_v2.py": {
+      "sha256": "b59bbb007bda6628d8080dfe89cbc1550f84bb70b224bd845b1d6ab6fcfcb843",
+      "group": "cleanup",
+      "measurement_raw_sha256": "b59bbb007bda6628d8080dfe89cbc1550f84bb70b224bd845b1d6ab6fcfcb843",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "diagnose_cr17a_complete_metrics_v2.py": {
+      "sha256": "73fc4445278ccbf8c79873027286137e26e2e7092d1325cb722a7d78ce6412ba",
+      "group": "cleanup",
+      "measurement_raw_sha256": "73fc4445278ccbf8c79873027286137e26e2e7092d1325cb722a7d78ce6412ba",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_cr17a_cold_focus_v3.py": {
+      "sha256": "69c2945686108b6c9f24eb773d91236bf789a07037d6241b6a18abc7ab0f60f1",
+      "group": "cleanup",
+      "measurement_raw_sha256": "69c2945686108b6c9f24eb773d91236bf789a07037d6241b6a18abc7ab0f60f1",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "cr17a-cold-focus-fixture-v3.py": {
+      "sha256": "372eade5af770e7de3603d1b2c7239a5da8025af5e3548486de3e8759de278c6",
+      "group": "cleanup",
+      "measurement_raw_sha256": "4a958c70b3dcc27b2735912f714c6a6c480f97b21372ad912c77d4f1bbb7a5d0",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_cr17a_cold_reference_v4.py": {
+      "sha256": "e539d2964c592e680986c37dbf5ccd726bd61ecb95727d21ef306a14596bc682",
+      "group": "cleanup",
+      "measurement_raw_sha256": "3beb6b55734b95cb6c91850dfecec7f7944b02a2b846525fff63bdda3aacfe43",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "cr17a-cold-reference-fixture-v4.py": {
+      "sha256": "9e59cd361d1ca08a6076e64dcffc20381b8d0a7ea832b46d9270e09894dca1b1",
+      "group": "cleanup",
+      "measurement_raw_sha256": "6dcd3040a42307a299b028eed85e182f8dd94c323d81f00d27022dc1229cf8c2",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_cr17a_sql_cache_diagnostic_v5.py": {
+      "sha256": "4d6cac673a024d5633b8b38846953e3a8e3a7d57e66c363aed00692747572c46",
+      "group": "cleanup",
+      "measurement_raw_sha256": "795f25037fdb6fc9f52f89376232456134d20d85bc2d9559f0a3890b74f5e2f0",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "cr17a-sql-cache-fixture-v5.py": {
+      "sha256": "aea0d90bfc26b4977039798d09c1feb62e158b83a8fb99429c1fac2382033f5c",
+      "group": "cleanup",
+      "measurement_raw_sha256": "50889551e13751ed4eb01cf5f7e62fa63ee1c47799d20e5f0517bebec94a93d1",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "assess_cr17a_composite_v3.py": {
+      "sha256": "28fc67cce66259ed4d6ab05639a2fa3ef123543054424e2b427f7176dc386a55",
+      "group": "cleanup",
+      "measurement_raw_sha256": "28fc67cce66259ed4d6ab05639a2fa3ef123543054424e2b427f7176dc386a55",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "watch_cr17a_composite_v3.py": {
+      "sha256": "31e57984fd70e315ea4034de4fcf387664e60e1dcf3d0170aff53f4491dd9437",
+      "group": "cleanup",
+      "measurement_raw_sha256": "31e57984fd70e315ea4034de4fcf387664e60e1dcf3d0170aff53f4491dd9437",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g15_tls_origin_probe_v1.py": {
+      "sha256": "49f8be0f23493297489c35c2594c6972eb74d1dac9a803b667adbe6c762cfbf4",
+      "group": "g15",
+      "measurement_raw_sha256": "49f8be0f23493297489c35c2594c6972eb74d1dac9a803b667adbe6c762cfbf4",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g15_tls_origin_server_v1.py": {
+      "sha256": "a1987f9f2c58ed39763ec37d78f8f0673a45081e8493022e36aab6d71c2b90c1",
+      "group": "g15",
+      "measurement_raw_sha256": "a1987f9f2c58ed39763ec37d78f8f0673a45081e8493022e36aab6d71c2b90c1",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_g15_tls_origins_v1.py": {
+      "sha256": "b7cdccd3abc76e08f6b44ba4b7e158ef770f29163f471585ad997599aafd65a2",
+      "group": "g15",
+      "measurement_raw_sha256": "b7cdccd3abc76e08f6b44ba4b7e158ef770f29163f471585ad997599aafd65a2",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "assess_g15_tls_origins_v1.py": {
+      "sha256": "f850e851c66ab24532c3f6afc00928ab66adbb1bfbe22a1bad960a447f467b49",
+      "group": "g15",
+      "measurement_raw_sha256": "f850e851c66ab24532c3f6afc00928ab66adbb1bfbe22a1bad960a447f467b49",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g15_deadline_probe_v1.py": {
+      "sha256": "a811e3d5196b00bcd2c0824823b4cc86f23aacd8d9fcd01fb8d20dc6b939b95b",
+      "group": "g15",
+      "measurement_raw_sha256": "a811e3d5196b00bcd2c0824823b4cc86f23aacd8d9fcd01fb8d20dc6b939b95b",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g15_deadline_server_v1.py": {
+      "sha256": "3ac4d17d221472be9c524636600e38fd56e54fba7abf89f3ef8e5315ac59a5af",
+      "group": "g15",
+      "measurement_raw_sha256": "3ac4d17d221472be9c524636600e38fd56e54fba7abf89f3ef8e5315ac59a5af",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_g15_deadline_v1.py": {
+      "sha256": "7b68fc55feb27cd9c65a2d7f89a65cafd2b430f166e983b62456faeb59fd7511",
+      "group": "g15",
+      "measurement_raw_sha256": "7b68fc55feb27cd9c65a2d7f89a65cafd2b430f166e983b62456faeb59fd7511",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "summarize_complete_independent_baselines_v1.py": {
+      "sha256": "f479a19c885f49c2679f4d52b120f88fbfd7dff76e391cd419fc600af0463254",
+      "group": "g15",
+      "measurement_raw_sha256": "f479a19c885f49c2679f4d52b120f88fbfd7dff76e391cd419fc600af0463254",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g01_matrix_native_v3.py": {
+      "sha256": "3045f7b92e4815d15629f05459b207f5ae1a4f0d80ed4d73869fa59c22679116",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "3fcd726312991660d97e8e5fdf11790bc64f10c95b4297afd40fc3a6cea21ead",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "prepare_g01_matrix_fixture_v3.py": {
+      "sha256": "20fedf5030103201234b3409a0392fd1f958dd549a2af77dd676c3b6d6da9cc6",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "20fedf5030103201234b3409a0392fd1f958dd549a2af77dd676c3b6d6da9cc6",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_g01_matrix_smoke_v3.py": {
+      "sha256": "cf081abcfb8d629fab9251f705063a78e4a75b9ad5b362a749f5b931a4c46d77",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "cf081abcfb8d629fab9251f705063a78e4a75b9ad5b362a749f5b931a4c46d77",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g01_paced_native_v1.py": {
+      "sha256": "1620c169d653643bb290e7b0dd54b2c816e56137a06441d1840886ffdfad21e4",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "1620c169d653643bb290e7b0dd54b2c816e56137a06441d1840886ffdfad21e4",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g01_seed_server_v1.py": {
+      "sha256": "daa0dee2dd1e13788f2c1913093d5f6fda8f639a3743512c143094b1284f015a",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "daa0dee2dd1e13788f2c1913093d5f6fda8f639a3743512c143094b1284f015a",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "g01-separated-seed-base-v1.py": {
+      "sha256": "96fe25ca92d59a4a1024ce9fc1fe162771017c3aa2b0aea34eee561f451ab2af",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "0f53af0b63c51322a807107388524cd1096f949f5c33c5e560791f24567b71f3",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_g01_paced_smoke_v1.py": {
+      "sha256": "46d9de8d1bfd75fc0fc3df8e297107e2925f9180e03e158d686ade0d413e1b01",
+      "group": "g01-preparation-not-yet-benchmark",
+      "measurement_raw_sha256": "c1be9005bcfa7b6cc6990628f9bcfe5cf35c32ed191cf2906fb0801ff78cf23b",
+      "publication_line_endings": "LF; raw measurement SHA above may refer to original Windows CRLF bytes"
+    },
+    "run_cr17a_cold_gc_diagnostic_v4.py": {
+      "sha256": "b299808ff1c6287e1e75b133609f819d66d1d0b245a705780b2ac195adad300b",
+      "measurement_raw_sha256": "b299808ff1c6287e1e75b133609f819d66d1d0b245a705780b2ac195adad300b",
+      "group": "cleanup-GC-diagnostic",
+      "publication_line_endings": "LF; original raw measurement digest retained"
+    },
+    "cr17a-cold-gc-diagnostic-fixture-v4.py": {
+      "sha256": "2fb929e3cd12c53366ab09f4ad1ce34772176a45636113931d11a5d77768aed2",
+      "measurement_raw_sha256": "c75b939e4536b23d1dbb62ba08125c904a7cbcb3df58f6be0f7ead64593685ef",
+      "group": "cleanup-GC-diagnostic",
+      "publication_line_endings": "LF; original raw measurement digest retained"
+    },
+    "g01_matrix_native_v4.py": {
+      "sha256": "e57f51dd33b5cb5aabac17a37d434a37dd9cbdd720de81f1cb0bb41ca5240c08",
+      "measurement_raw_sha256": "dab29c3f96a2aabaa37046719c2143a94f2a92bdb2a01a104c98e9b730894aa9",
+      "group": "G01edgewiring",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "prepare_g01_matrix_idle_fix_v4.py": {
+      "sha256": "cd5fe8925cb4c84e213afac7d76c1b5df5b332cb8285da7a44b11cd65b0ae306",
+      "measurement_raw_sha256": "cd5fe8925cb4c84e213afac7d76c1b5df5b332cb8285da7a44b11cd65b0ae306",
+      "group": "G01edgewiring",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "run_g01_matrix_smoke_v4.py": {
+      "sha256": "c5089aadf83bea3c402a40cb931570d39775f798793aba4448f971a3cd60acef",
+      "measurement_raw_sha256": "002d7f1692f91a2545a1289de23300d2deeb73e57080a431eb8c855932ed96c6",
+      "group": "G01edgewiring",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "run_cr17a_approved_cold_v5.py": {
+      "sha256": "dd5d82af6afa5d105096c59c0d07d7a27ebd62f7956ac14905b56f7bb3e04c49",
+      "measurement_raw_sha256": "b9d398873e80f4e7ac9cd6456727a7ddbe29ffbd3c387aabdb653989ea3fb5d6",
+      "group": "approved-cold-V5",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "cr17a-cold-qualified-fixture-v5.py": {
+      "sha256": "79760c8ec204759d2180cc7ba44a1711d3930c2ec040a1d06025e9557a365064",
+      "measurement_raw_sha256": "95afad681108e30985d086350445a12ecab26e9b1acce3dd3f8830d1718860d7",
+      "group": "approved-cold-V5",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "assess_cr17a_approved_v5.py": {
+      "sha256": "21cfd84a4d42a678836e9a72d92edcb2e57d713c879df4e0b3be286649a722c0",
+      "measurement_raw_sha256": "6b4a7cdaa54bf30f091cb1bc62aeaa789ed46c863173b2e49d577d55a63b625a",
+      "group": "approved-cold-V5",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "watch_cr17a_approved_v5.py": {
+      "sha256": "d69410bda14be45f9ba5fd42b4caa0ec53a41efab4f3d387bc9c96e0498ac0c7",
+      "measurement_raw_sha256": "d676c0d56c2ed41cdb81b880779766edbe19e2564de58df700fa804251891876",
+      "group": "approved-cold-V5",
+      "publication_line_endings": "LF; raw source digest retained"
+    },
+    "g15_gzip_probe_v3.py": {
+      "sha256": "4b7b75db3e73acd38eb00a07b6f1137fa8e0151bf7f73b34ac498b7d47c62f57",
+      "measurement_raw_sha256": "5ed0a7a3c5b8f76fcce185ef499fd48d8014fd51df2f5cc38eb7379a4782507f",
+      "group": "G15gzip-component",
+      "publication_line_endings": "LF; original measured bytes digest retained"
+    },
+    "run_g15_gzip_controls_v3.py": {
+      "sha256": "e47eecf23eb272041da5004981e4c6c6f2a9cfc7d1ef58c6774f73a226b75160",
+      "measurement_raw_sha256": "fea1cb78b9fad0ac72dd11444578741be8c0f89c608033a6ac3760b2c2990fae",
+      "group": "G15gzip-component",
+      "publication_line_endings": "LF; original measured bytes digest retained"
+    },
+    "capture_g15_gzip_fixture_envelope_v3.py": {
+      "sha256": "ae0a743dc7e0577ee89514d7755b1f75fa904bfeef1a8d7c391347a28f6250c3",
+      "measurement_raw_sha256": "ae0a743dc7e0577ee89514d7755b1f75fa904bfeef1a8d7c391347a28f6250c3",
+      "group": "G15gzip-component",
+      "publication_line_endings": "LF; original measured bytes digest retained"
+    }
+  },
+  "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."
+}

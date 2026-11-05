@@ -4346,5 +4346,743 @@
     "resource": "Same2CPU affinity0,1/1GiB,localDockerDesktop networknone,owned disposable local-volume DB,ROsources.",
     "sampling": "Same9x400s reader/writer cells and1s WAL/native transaction traces as C. Actual18s A/B API/model wiring alreadyPASS; these smokes are not acceptance data.",
     "decision_limits": "No production PRAGMA/checkpoint change. Baseline A/B failures are recorded, never relabelled success; no numerical speed claim from a single full reference."
-  }
+  },
+  "completed_long_preparations_after_checkpoint": {
+    "g02-before-a-v1": {
+      "raw_sha256": "951977495804ff42a9cb2b1f5430d68d81493b73d090b0f2db2f03471a067b7b",
+      "measured_seconds": 3600.072073496,
+      "diagnostic_passive": false,
+      "final_checkouts": 0,
+      "native_transaction_states": {
+        "BEGIN:False": 73709,
+        "UPDATE:True": 94472,
+        "COMMIT:True": 73685,
+        "SELECT:False": 95291,
+        "SELECT:True": 20811,
+        "ROLLBACK:True": 24
+      },
+      "final_checkpoint_after_readers_closed": [
+        0,
+        424,
+        424
+      ],
+      "cells": [
+        {
+          "reader": "short",
+          "writers": 1,
+          "commit_p95_ms": 0.135514,
+          "commit_p99_ms": 0.224165,
+          "transaction_p95_ms": 1.618775,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 4140632,
+          "wal_last_bytes": 4140632,
+          "wal_header_generations": 9
+        },
+        {
+          "reader": "short",
+          "writers": 4,
+          "commit_p95_ms": 0.113088,
+          "commit_p99_ms": 0.515135,
+          "transaction_p95_ms": 3.026859,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4218912,
+          "wal_last_bytes": 4218912,
+          "wal_header_generations": 13
+        },
+        {
+          "reader": "short",
+          "writers": 8,
+          "commit_p95_ms": 0.118108,
+          "commit_p99_ms": 0.518396,
+          "transaction_p95_ms": 3.12355,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 4461992,
+          "wal_last_bytes": 4461992,
+          "wal_header_generations": 27
+        },
+        {
+          "reader": "select-await",
+          "writers": 1,
+          "commit_p95_ms": 0.126489,
+          "commit_p99_ms": 0.168769,
+          "transaction_p95_ms": 1.846764,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 4461992,
+          "wal_last_bytes": 4461992,
+          "wal_header_generations": 4
+        },
+        {
+          "reader": "select-await",
+          "writers": 4,
+          "commit_p95_ms": 0.101075,
+          "commit_p99_ms": 0.458799,
+          "transaction_p95_ms": 2.34871,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4461992,
+          "wal_last_bytes": 4461992,
+          "wal_header_generations": 14
+        },
+        {
+          "reader": "select-await",
+          "writers": 8,
+          "commit_p95_ms": 0.123819,
+          "commit_p99_ms": 0.497825,
+          "transaction_p95_ms": 2.968241,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 4461992,
+          "wal_last_bytes": 4461992,
+          "wal_header_generations": 26
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 1,
+          "commit_p95_ms": 0.129189,
+          "commit_p99_ms": 0.181647,
+          "transaction_p95_ms": 1.818835,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 5285992,
+          "wal_last_bytes": 5285992,
+          "wal_header_generations": 3
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 4,
+          "commit_p95_ms": 0.14622,
+          "commit_p99_ms": 0.59943,
+          "transaction_p95_ms": 2.45819,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 20468192,
+          "wal_last_bytes": 20468192,
+          "wal_header_generations": 7
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 8,
+          "commit_p95_ms": 0.17652,
+          "commit_p99_ms": 0.644239,
+          "transaction_p95_ms": 4.214006,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 50165152,
+          "wal_last_bytes": 50165152,
+          "wal_header_generations": 7
+        }
+      ]
+    },
+    "g02-before-b-v1": {
+      "raw_sha256": "9dbc41dac9e8bd7b754fa2fe7e38cc8ea438c308bd5bb46589c3010a1b070c78",
+      "measured_seconds": 3600.0829911029996,
+      "diagnostic_passive": false,
+      "final_checkouts": 0,
+      "native_transaction_states": {
+        "BEGIN:False": 73718,
+        "UPDATE:True": 94481,
+        "SELECT:False": 95294,
+        "COMMIT:True": 73694,
+        "SELECT:True": 20811,
+        "ROLLBACK:True": 24
+      },
+      "final_checkpoint_after_readers_closed": [
+        0,
+        424,
+        424
+      ],
+      "cells": [
+        {
+          "reader": "short",
+          "writers": 1,
+          "commit_p95_ms": 0.134179,
+          "commit_p99_ms": 0.232186,
+          "transaction_p95_ms": 1.583462,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4140632,
+          "wal_last_bytes": 4140632,
+          "wal_header_generations": 9
+        },
+        {
+          "reader": "short",
+          "writers": 4,
+          "commit_p95_ms": 0.105266,
+          "commit_p99_ms": 0.285335,
+          "transaction_p95_ms": 2.380442,
+          "errors": 0,
+          "counters": {
+            "transactions": 15986
+          },
+          "wal_peak_bytes": 4140632,
+          "wal_last_bytes": 4140632,
+          "wal_header_generations": 13
+        },
+        {
+          "reader": "short",
+          "writers": 8,
+          "commit_p95_ms": 0.107664,
+          "commit_p99_ms": 0.445498,
+          "transaction_p95_ms": 3.008415,
+          "errors": 0,
+          "counters": {
+            "transactions": 31971
+          },
+          "wal_peak_bytes": 4416672,
+          "wal_last_bytes": 4416672,
+          "wal_header_generations": 27
+        },
+        {
+          "reader": "select-await",
+          "writers": 1,
+          "commit_p95_ms": 0.105676,
+          "commit_p99_ms": 0.141268,
+          "transaction_p95_ms": 1.538715,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4416672,
+          "wal_last_bytes": 4416672,
+          "wal_header_generations": 4
+        },
+        {
+          "reader": "select-await",
+          "writers": 4,
+          "commit_p95_ms": 4.109175,
+          "commit_p99_ms": 6.499493,
+          "transaction_p95_ms": 5.557691,
+          "errors": 0,
+          "counters": {
+            "transactions": 15986
+          },
+          "wal_peak_bytes": 20801912,
+          "wal_last_bytes": 20801912,
+          "wal_header_generations": 7
+        },
+        {
+          "reader": "select-await",
+          "writers": 8,
+          "commit_p95_ms": 0.111936,
+          "commit_p99_ms": 0.604386,
+          "transaction_p95_ms": 3.837315,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 20801912,
+          "wal_last_bytes": 20801912,
+          "wal_header_generations": 27
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 1,
+          "commit_p95_ms": 0.126748,
+          "commit_p99_ms": 0.1659,
+          "transaction_p95_ms": 1.793074,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 20801912,
+          "wal_last_bytes": 20801912,
+          "wal_header_generations": 3
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 4,
+          "commit_p95_ms": 0.125517,
+          "commit_p99_ms": 0.608087,
+          "transaction_p95_ms": 2.500198,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 49530672,
+          "wal_last_bytes": 49530672,
+          "wal_header_generations": 3
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 8,
+          "commit_p95_ms": 0.174721,
+          "commit_p99_ms": 0.622729,
+          "transaction_p95_ms": 4.682587,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 49530672,
+          "wal_last_bytes": 49530672,
+          "wal_header_generations": 8
+        }
+      ]
+    },
+    "g02-before-diagnostic-v1": {
+      "raw_sha256": "8338121ab7feb0eaf94f9a425be10b785b376729a3e77a520983c587cc32864f",
+      "measured_seconds": 3600.073436097,
+      "diagnostic_passive": true,
+      "final_checkouts": 0,
+      "native_transaction_states": {
+        "BEGIN:False": 73728,
+        "UPDATE:True": 94491,
+        "SELECT:False": 95296,
+        "COMMIT:True": 73704,
+        "SELECT:True": 20811,
+        "ROLLBACK:True": 24
+      },
+      "final_checkpoint_after_readers_closed": [
+        0,
+        644,
+        644
+      ],
+      "cells": [
+        {
+          "reader": "short",
+          "writers": 1,
+          "commit_p95_ms": 0.125578,
+          "commit_p99_ms": 1.304342,
+          "transaction_p95_ms": 1.510875,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4132392,
+          "wal_last_bytes": 4132392,
+          "wal_header_generations": 41
+        },
+        {
+          "reader": "short",
+          "writers": 4,
+          "commit_p95_ms": 0.092756,
+          "commit_p99_ms": 0.408767,
+          "transaction_p95_ms": 2.277756,
+          "errors": 0,
+          "counters": {
+            "transactions": 15988
+          },
+          "wal_peak_bytes": 4132392,
+          "wal_last_bytes": 4132392,
+          "wal_header_generations": 38
+        },
+        {
+          "reader": "short",
+          "writers": 8,
+          "commit_p95_ms": 0.102237,
+          "commit_p99_ms": 0.471001,
+          "transaction_p95_ms": 4.04549,
+          "errors": 0,
+          "counters": {
+            "transactions": 31970
+          },
+          "wal_peak_bytes": 4268352,
+          "wal_last_bytes": 4268352,
+          "wal_header_generations": 40
+        },
+        {
+          "reader": "select-await",
+          "writers": 1,
+          "commit_p95_ms": 0.111377,
+          "commit_p99_ms": 0.212264,
+          "transaction_p95_ms": 1.60474,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4268352,
+          "wal_last_bytes": 4268352,
+          "wal_header_generations": 39
+        },
+        {
+          "reader": "select-await",
+          "writers": 4,
+          "commit_p95_ms": 0.114477,
+          "commit_p99_ms": 0.621532,
+          "transaction_p95_ms": 2.870053,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4268352,
+          "wal_last_bytes": 4268352,
+          "wal_header_generations": 37
+        },
+        {
+          "reader": "select-await",
+          "writers": 8,
+          "commit_p95_ms": 0.106737,
+          "commit_p99_ms": 0.590049,
+          "transaction_p95_ms": 4.025618,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 4268352,
+          "wal_last_bytes": 4268352,
+          "wal_header_generations": 40
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 1,
+          "commit_p95_ms": 0.120298,
+          "commit_p99_ms": 0.16499,
+          "transaction_p95_ms": 1.630226,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 7725032,
+          "wal_last_bytes": 7725032,
+          "wal_header_generations": 8
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 4,
+          "commit_p95_ms": 0.099437,
+          "commit_p99_ms": 0.371186,
+          "transaction_p95_ms": 2.13845,
+          "errors": 0,
+          "counters": {
+            "transactions": 15988
+          },
+          "wal_peak_bytes": 42394832,
+          "wal_last_bytes": 42394832,
+          "wal_header_generations": 8
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 8,
+          "commit_p95_ms": 0.165982,
+          "commit_p99_ms": 0.603483,
+          "transaction_p95_ms": 3.511801,
+          "errors": 0,
+          "counters": {
+            "transactions": 31974
+          },
+          "wal_peak_bytes": 81856192,
+          "wal_last_bytes": 81856192,
+          "wal_header_generations": 8
+        }
+      ]
+    },
+    "g02-full-reference-A-v1": {
+      "raw_sha256": "4e9ca29c17f58e78e1fe793d4c80b87e4f98259544ddea2579816faa0615e339",
+      "measured_seconds": 3600.074783132999,
+      "diagnostic_passive": false,
+      "final_checkouts": 0,
+      "native_transaction_states": {
+        "BEGIN:False": 73712,
+        "UPDATE:True": 94475,
+        "SELECT:False": 95294,
+        "COMMIT:True": 73688,
+        "SELECT:True": 20811,
+        "ROLLBACK:True": 24
+      },
+      "final_checkpoint_after_readers_closed": [
+        0,
+        344,
+        344
+      ],
+      "cells": [
+        {
+          "reader": "short",
+          "writers": 1,
+          "commit_p95_ms": 0.115209,
+          "commit_p99_ms": 0.169645,
+          "transaction_p95_ms": 1.490659,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4140632,
+          "wal_last_bytes": 4140632,
+          "wal_header_generations": 9
+        },
+        {
+          "reader": "short",
+          "writers": 4,
+          "commit_p95_ms": 0.109438,
+          "commit_p99_ms": 0.602963,
+          "transaction_p95_ms": 2.640243,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4334272,
+          "wal_last_bytes": 4334272,
+          "wal_header_generations": 13
+        },
+        {
+          "reader": "short",
+          "writers": 8,
+          "commit_p95_ms": 0.1426,
+          "commit_p99_ms": 0.635565,
+          "transaction_p95_ms": 4.403206,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 4375472,
+          "wal_last_bytes": 4375472,
+          "wal_header_generations": 27
+        },
+        {
+          "reader": "select-await",
+          "writers": 1,
+          "commit_p95_ms": 0.118608,
+          "commit_p99_ms": 0.1557,
+          "transaction_p95_ms": 1.719176,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 4375472,
+          "wal_last_bytes": 4375472,
+          "wal_header_generations": 4
+        },
+        {
+          "reader": "select-await",
+          "writers": 4,
+          "commit_p95_ms": 0.099407,
+          "commit_p99_ms": 0.610636,
+          "transaction_p95_ms": 2.323935,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4532032,
+          "wal_last_bytes": 4532032,
+          "wal_header_generations": 14
+        },
+        {
+          "reader": "select-await",
+          "writers": 8,
+          "commit_p95_ms": 0.100486,
+          "commit_p99_ms": 0.593699,
+          "transaction_p95_ms": 3.792496,
+          "errors": 0,
+          "counters": {
+            "transactions": 31969
+          },
+          "wal_peak_bytes": 4532032,
+          "wal_last_bytes": 4532032,
+          "wal_header_generations": 26
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 1,
+          "commit_p95_ms": 0.107747,
+          "commit_p99_ms": 0.139849,
+          "transaction_p95_ms": 1.557842,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 7832152,
+          "wal_last_bytes": 7832152,
+          "wal_header_generations": 3
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 4,
+          "commit_p95_ms": 0.132519,
+          "commit_p99_ms": 0.524854,
+          "transaction_p95_ms": 2.439209,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 40952832,
+          "wal_last_bytes": 40952832,
+          "wal_header_generations": 5
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 8,
+          "commit_p95_ms": 0.17406,
+          "commit_p99_ms": 0.63296,
+          "transaction_p95_ms": 2.799762,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 40952832,
+          "wal_last_bytes": 40952832,
+          "wal_header_generations": 8
+        }
+      ]
+    },
+    "g02-full-reference-B-v1": {
+      "raw_sha256": "2c9cc3fa402764f0c7b3e928b0001f016e854a67bfeee5e690da70666bd639c2",
+      "measured_seconds": 3600.0735896389997,
+      "diagnostic_passive": false,
+      "final_checkouts": 0,
+      "native_transaction_states": {
+        "BEGIN:False": 73716,
+        "UPDATE:True": 94479,
+        "SELECT:False": 95297,
+        "COMMIT:True": 73692,
+        "SELECT:True": 20811,
+        "ROLLBACK:True": 24
+      },
+      "final_checkpoint_after_readers_closed": [
+        0,
+        392,
+        392
+      ],
+      "cells": [
+        {
+          "reader": "short",
+          "writers": 1,
+          "commit_p95_ms": 0.122028,
+          "commit_p99_ms": 0.235905,
+          "transaction_p95_ms": 1.499336,
+          "errors": 0,
+          "counters": {
+            "transactions": 3997
+          },
+          "wal_peak_bytes": 4140632,
+          "wal_last_bytes": 4140632,
+          "wal_header_generations": 9
+        },
+        {
+          "reader": "short",
+          "writers": 4,
+          "commit_p95_ms": 0.088086,
+          "commit_p99_ms": 0.405356,
+          "transaction_p95_ms": 2.234705,
+          "errors": 0,
+          "counters": {
+            "transactions": 15987
+          },
+          "wal_peak_bytes": 4251872,
+          "wal_last_bytes": 4251872,
+          "wal_header_generations": 13
+        },
+        {
+          "reader": "short",
+          "writers": 8,
+          "commit_p95_ms": 0.097937,
+          "commit_p99_ms": 0.572308,
+          "transaction_p95_ms": 4.074285,
+          "errors": 0,
+          "counters": {
+            "transactions": 31971
+          },
+          "wal_peak_bytes": 4420792,
+          "wal_last_bytes": 4420792,
+          "wal_header_generations": 27
+        },
+        {
+          "reader": "select-await",
+          "writers": 1,
+          "commit_p95_ms": 0.107787,
+          "commit_p99_ms": 0.139289,
+          "transaction_p95_ms": 1.620995,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 4420792,
+          "wal_last_bytes": 4420792,
+          "wal_header_generations": 4
+        },
+        {
+          "reader": "select-await",
+          "writers": 4,
+          "commit_p95_ms": 0.096907,
+          "commit_p99_ms": 0.443568,
+          "transaction_p95_ms": 2.513543,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 4420792,
+          "wal_last_bytes": 4420792,
+          "wal_header_generations": 14
+        },
+        {
+          "reader": "select-await",
+          "writers": 8,
+          "commit_p95_ms": 0.114537,
+          "commit_p99_ms": 0.591267,
+          "transaction_p95_ms": 3.244384,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 4420792,
+          "wal_last_bytes": 4420792,
+          "wal_header_generations": 26
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 1,
+          "commit_p95_ms": 0.117647,
+          "commit_p99_ms": 0.172171,
+          "transaction_p95_ms": 1.741038,
+          "errors": 0,
+          "counters": {
+            "transactions": 3996
+          },
+          "wal_peak_bytes": 5055272,
+          "wal_last_bytes": 5055272,
+          "wal_header_generations": 4
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 4,
+          "commit_p95_ms": 0.125668,
+          "commit_p99_ms": 0.447588,
+          "transaction_p95_ms": 2.664786,
+          "errors": 0,
+          "counters": {
+            "transactions": 15984
+          },
+          "wal_peak_bytes": 20435232,
+          "wal_last_bytes": 20435232,
+          "wal_header_generations": 7
+        },
+        {
+          "reader": "explicit-snapshot",
+          "writers": 8,
+          "commit_p95_ms": 0.129597,
+          "commit_p99_ms": 0.608438,
+          "transaction_p95_ms": 4.68015,
+          "errors": 0,
+          "counters": {
+            "transactions": 31968
+          },
+          "wal_peak_bytes": 89947872,
+          "wal_last_bytes": 89947872,
+          "wal_header_generations": 6
+        }
+      ]
+    }
+  },
+  "remaining_gate": "G02 remains open: CR17/b,c,d not implemented, final C post control and actual search ownership/transaction interpretation still required. Explicit BEGIN is deliberate stress; ordinary SELECT:False is not a long native SQLite transaction. No PRAGMA/checkpoint product change."
 }

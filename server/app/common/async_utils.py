@@ -64,5 +64,9 @@ async def drain_background_tasks() -> None:
     async def drain() -> None:
         while _background_tasks:
             await asyncio.gather(*tuple(_background_tasks), return_exceptions=True)
+            # gather(done tasks) can finish synchronously. Their registered
+            # discard/exception callbacks must run before checking the set again.
+            if _background_tasks:
+                await asyncio.sleep(0)
 
     await await_owned_task(asyncio.create_task(drain(), name="background-drain"))

@@ -241,6 +241,71 @@
       "measurement_raw_sha256": "ae0a743dc7e0577ee89514d7755b1f75fa904bfeef1a8d7c391347a28f6250c3",
       "group": "G15gzip-component",
       "publication_line_endings": "LF; original measured bytes digest retained"
+    },
+    "assess_policy_primary_short_v6.py": {
+      "sha256": "3092e97a8a6b9ca70730147b4be2585c7047e76b396aa4420c4bf7be2d302444",
+      "group": "policy20-v6",
+      "measurement_raw_sha256": "8e2edbe3749e6a9c7c62a13a24447fb8c84c09eb0fd99d7f691b48883688cff0"
+    },
+    "assess_policy_composite_v6.py": {
+      "sha256": "6c398a4e13615f71797a4bd98121d82f131f8359fe28b9002f208108ac3574d4",
+      "group": "policy20-v6",
+      "measurement_raw_sha256": "6c398a4e13615f71797a4bd98121d82f131f8359fe28b9002f208108ac3574d4"
+    },
+    "run_cr17b_noise_gc_v7.py": {
+      "sha256": "fd960698e65b35e4a90d8ed125091fb055ca1ef69244df1a94b552837f1ee3f3",
+      "group": "policy20-v7-diagnostic",
+      "measurement_raw_sha256": "fd960698e65b35e4a90d8ed125091fb055ca1ef69244df1a94b552837f1ee3f3"
+    },
+    "analyze_cr17b_noise_gc_v7.py": {
+      "sha256": "50c49a95d82c4493abc2a48019f0cb3fae50d39ff9b5b7f1badd6788eaa7ef33",
+      "group": "policy20-v7-diagnostic",
+      "measurement_raw_sha256": "50c49a95d82c4493abc2a48019f0cb3fae50d39ff9b5b7f1badd6788eaa7ef33"
+    },
+    "cr17c_after_v1.py": {
+      "sha256": "808b550d0027ef41eb874abd062c5f864a2d9722b9e7b7028b1f0de645e2f295",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "808b550d0027ef41eb874abd062c5f864a2d9722b9e7b7028b1f0de645e2f295"
+    },
+    "assess_cr17c_after_v1.py": {
+      "sha256": "55f28e4d7d265b3fb40c197bafa06ef990dbaeba95b6b98601f3c9f924ffb2a4",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "55f28e4d7d265b3fb40c197bafa06ef990dbaeba95b6b98601f3c9f924ffb2a4"
+    },
+    "cr17c-policy-fixture-v1.py": {
+      "sha256": "4abcb05c5218d3e673ad8e3ba1094247b6683eeb5a6b4cdb065638008d5635c0",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "0a752b7cf55907670efbd0de0f7928fd62a67b436006925782d51d3815cf5ec8"
+    },
+    "cr17c-policy-reference-fixture-v1.py": {
+      "sha256": "ff825e3388e9464db094bc00e6a437a59efd219f2cbe107eafcaf88869ce0565",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "e95cdf01e078d1f20902c3451baaec1eff6219e973ebce084488b36dade42d4f"
+    },
+    "cr17c-policy-direct-fixture-v1.py": {
+      "sha256": "a00778664bb08d7a6550cfbd33fb5b9c1fc42567601a914f181f9d24e8b39f8d",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "432121a1700e1f0db5674bb28a3386beee93121655ba64e8a5f651c3252b0226"
+    },
+    "cr17c-kodi-ownership-observation-v1.py": {
+      "sha256": "036fe2e4bb82e6eb883c03830cd1de2424ea956822cd87d513627cca60a30ca2",
+      "group": "packet21b-gate",
+      "measurement_raw_sha256": "c30f92d79906ac3c0804ec93e0de030398c7d550f2edf79166c8ccba7a3aa459"
+    },
+    "cr17c-cold-diagnostic-v1.py": {
+      "sha256": "2f9ce2ca454bba033a4b38ad62967a7a0b24b2a9728f6ddf4c059db0f864a67e",
+      "group": "packet21b-cold-gc-diagnostic",
+      "measurement_raw_sha256": "2f9ce2ca454bba033a4b38ad62967a7a0b24b2a9728f6ddf4c059db0f864a67e"
+    },
+    "run_cr17c_cold_diag_v1.py": {
+      "sha256": "ac36e330633c99db2b5a2f9e37108258810ab781b04567117b8be998fd6ce4fe",
+      "group": "packet21b-cold-gc-diagnostic",
+      "measurement_raw_sha256": "ac36e330633c99db2b5a2f9e37108258810ab781b04567117b8be998fd6ce4fe"
+    },
+    "summarize_cr17c_cold_diag_v1.py": {
+      "sha256": "bd56402d71fbc93b3c94414f611f11407d05629aaf5ea5a77ffe8a5984e925c8",
+      "group": "packet21b-cold-gc-diagnostic",
+      "measurement_raw_sha256": "bd56402d71fbc93b3c94414f611f11407d05629aaf5ea5a77ffe8a5984e925c8"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

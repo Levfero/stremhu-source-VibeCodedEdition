@@ -1,6 +1,6 @@
 {
-  "status": "OPEN packet20; policy candidate waits for cleanup-v2 exit",
-  "head": "c41eefadf7e91bfeba5cc960b74e7954c2d4a7fe",
+  "status": "SET ASIDE by user decision 2026-11-06: compositeV6 FAIL 4/241 unchanged; V7 left unique-result-key-warm-metadata c8 p95 as regression candidate. SourceV4 code preserved on local branch archive/cr17b-policy-snapshot-v4 (a099da5); packet 21 builds on 050cb337. No policycommit.",
+  "head": "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d",
   "checked_candidate": {
     "id": "cr17b-checked-v1",
     "checked_utc": "2026-11-04T18:13:44.191359+00:00",
@@ -1967,5 +1967,52 @@
     "scope": "Current conditional-cleanup SourceV2. Prior unconditional-source observations remain separate; errors are residual provider/file ownership evidence for21/22, not successful policy timings."
   },
   "prepared_after_controllers": "cr17b_after_v5.py plus direct/KodiV5,NOTlaunched; requires fresh userapproved cleanupV5PASS and actual same-source commit/push marker. Mainshort/reference anddirect/Kodi serialCPU8,9; two full1800s policyafter runs CPU6,7. CombinedSourceV3 unchanged622/64.",
-  "cleanup_prerequisite": "SourceV2 finalV5PASS,328Python/fresh604/64;publication pending. Policyafter stillrequires actual verified commit/push marker."
+  "cleanup_prerequisite": "SourceV2 finalV5PASS,328Python/fresh604/64;publication pending. Policyafter stillrequires actual verified commit/push marker.",
+  "latest_candidate_manifest": "cr17b-checked-v4-manifest.json",
+  "latest_candidate_checks": {
+    "targeted": 48,
+    "pytest": 626,
+    "snapshots": 64,
+    "warnings": 20,
+    "pytest_seconds": 16.35,
+    "ruff_exit": 0,
+    "basedpyright_exit": 0
+  },
+  "source_v3_after_failure": "cr17b-v3-after-failure-progress-v5.json",
+  "inflight_reader_reproduction": "cr17b-policy-inflight-repro-v4.json",
+  "change_from_previous_candidate": "Only active policyreads for same user/key/bothrevision/reader share existingSingleflight. No completedpolicycache or inventednumericaladmissionlimit. Ownedworker returnsimmutablevalues and is joined evenforKodi-only shutdown. Registry lifetime tied activeauthenticatedsearchowners; overallboundedsearchadmission remainsCR15c.",
+  "source_v4_after_v6": {
+    "protocol": "cr17b-policy-after-composite-v6-protocol.json",
+    "primary_short": "cr17b-primary-short-assessment-v6.json",
+    "composite": "cr17b-policy-composite-assessment-v6.json",
+    "status": "FAIL",
+    "gate_checks": 241,
+    "failures": [
+      "heap same-result-key c8 p95",
+      "heap unique-result-key-warm-metadata c8 p95",
+      "heap cold user1 wall_seconds",
+      "kodi (20,same-result-key,4) identity: empty successful set, assessor erratum not payload mismatch"
+    ],
+    "observations": "Direct all budgets PASS; cold SQL10->4; heap growth over30min equal on Source2 baseline; Kodi DetachedInstanceError281->96 of12280 requests; upstream A direct5/5 preexisting DetachedInstanceError.",
+    "next": "User decision required: diagnostics/noise estimate, new candidate, or explicitly approved preregistered new budget with fresh measurements."
+  },
+  "noise_gc_diagnostic_v7": {
+    "protocol": "cr17b-noise-gc-diagnostic-v7-protocol.json",
+    "analysis": "cr17b-noise-gc-diagnostic-v7-analysis.json",
+    "gc_shift_pairs": "5/5",
+    "gc_hypothesis_supported_preregistered": false,
+    "median_combined_cold_diff_ms": -19.02,
+    "c8_p95_within_noise": {
+      "same-result-key": true,
+      "unique-result-key-warm-metadata": false
+    },
+    "status": "diagnostic only; V6 FAIL unchanged"
+  },
+  "decision": {
+    "date": "2026-11-06",
+    "by": "user",
+    "choice": "set aside; continue with 21b on 050cb337",
+    "archive_branch": "archive/cr17b-policy-snapshot-v4",
+    "archive_commit": "a099da5"
+  }
 }

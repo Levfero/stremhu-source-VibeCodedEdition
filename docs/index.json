@@ -1259,6 +1259,90 @@
       ]
     },
     {
+      "path": "docs/feature/stability-and-optimization/cr17cd-plan.md",
+      "doc_id": "feature-stability-and-optimization-cr17cd-plan",
+      "title": "CR17/c–d — provider/file ownership terv (21–22. csomag)",
+      "kind": "implementation-plan",
+      "status": "blocked-on-user-decision",
+      "audience": [
+        "developer",
+        "ai-agent"
+      ],
+      "tags": [
+        "CR17",
+        "CR17/c",
+        "CR17/d",
+        "ownership",
+        "DetachedInstanceError",
+        "DTO"
+      ],
+      "source_commit": "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d",
+      "baseline": "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)",
+      "verification": "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), ownership gate passed; cold GC diagnostic v1",
+      "structure_reviewed": "2026-11-06",
+      "related_docs": [
+        "docs/feature/stability-and-optimization/implementation-plan.md",
+        "docs/feature/stability-and-optimization.md"
+      ],
+      "source_paths": [
+        "server/app/modules/torrent_source_provider/",
+        "server/app/modules/torrent_files/",
+        "server/app/modules/indexers/",
+        "server/app/modules/torrent_streams/",
+        "server/app/modules/stremio/",
+        "server/app/modules/kodi/",
+        "server/app/modules/torznab/",
+        "server/app/common/database.py"
+      ],
+      "sections": [
+        {
+          "title": "Cél és hatókör",
+          "anchor": "doc-cel-es-hatokor",
+          "level": 2
+        },
+        {
+          "title": "Bizonyíték és hibamechanizmus",
+          "anchor": "doc-bizonyitek",
+          "level": 2
+        },
+        {
+          "title": "Célarchitektúra",
+          "anchor": "doc-cel-architektura",
+          "level": 2
+        },
+        {
+          "title": "Csomagbontás",
+          "anchor": "doc-csomagbontas",
+          "level": 2
+        },
+        {
+          "title": "Függőség a 20. csomagtól",
+          "anchor": "doc-fuggoseg-a-20-csomagtol",
+          "level": 2
+        },
+        {
+          "title": "Teszt- és mérési kapu",
+          "anchor": "doc-teszt-es-meresi-kapu",
+          "level": 2
+        },
+        {
+          "title": "Kritikus invariánsok",
+          "anchor": "doc-invariansok",
+          "level": 2
+        },
+        {
+          "title": "Rollback",
+          "anchor": "doc-rollback",
+          "level": 2
+        },
+        {
+          "title": "Nyitott kérdések",
+          "anchor": "doc-nyitott-kerdesek",
+          "level": 2
+        }
+      ]
+    },
+    {
       "path": "docs/feature/stability-and-optimization/README.md",
       "doc_id": "feature-stability-and-optimization-readme",
       "title": "Stabilitás és optimalizálás — auditmunkacsomag",
@@ -1318,7 +1402,7 @@
         "stability",
         "optimization"
       ],
-      "source_commit": "c41eefadf7e91bfeba5cc960b74e7954c2d4a7fe",
+      "source_commit": "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d",
       "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@2615596f (PR); pinned A/B/C + frozen C snapshots (measurement)",
       "verification": "source + checked isolated snapshots; execution record below",
       "structure_reviewed": "2026-11-04",

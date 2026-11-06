@@ -3492,6 +3492,94 @@
     "cr17a-cleanup-ready-v5.json": {
       "measurement_raw_sha256": "5ff6776c0a7064670d6ffad99d8bad44bad995b1e218686a51e0992b50d2ef8e",
       "publication_lf_sha256": "b11d59d361b77316dadd8b48e02337edfe60e1cc106419a0b20b909152e80116"
+    },
+    "cr17b-primary-short-assessment-v5.json": {
+      "measurement_raw_sha256": "f0f10c7ad4567c393b3c3e91f99ce9729c5e77035d00f6422e66ee9cf17d8c2d",
+      "publication_lf_sha256": "2d9bf2e8c23151a59e9e0374cad510ccd6f321a0145564b29c6b2e9a4493f916"
+    },
+    "cr17b-v3-after-failure-progress-v5.json": {
+      "measurement_raw_sha256": "f0889567ddac16ad09c82582076cbbef808838446b33cde86e88d4fb6942425e",
+      "publication_lf_sha256": "f5b42af0c5e6d4e08eb8f3a9c53729254b5c5c12ca594aaffe359a94c351efea"
+    },
+    "cr17b-checked-v4-manifest.json": {
+      "measurement_raw_sha256": "685da44bf9836f4c7a38d2440e885dce219aa1d29631a5556500ad197dc2cdc4",
+      "publication_lf_sha256": "728345b1fd8f07c0746c7cd8d54ac4dadfb7680f841c95b0c52240ef80d36365"
+    },
+    "cr17b-policy-inflight-repro-v4.json": {
+      "measurement_raw_sha256": "680a3502c3c462c72ad27055497443e9a351bf53ab15c5a2a1cc52c9df618c81",
+      "publication_lf_sha256": "b546ecaebeb499b924afc9ae3bc50d4a30efa76cfc10f61656da0e55eb1def18"
+    },
+    "cr17b-policy-after-composite-v5-protocol.json": {
+      "measurement_raw_sha256": "1e861d11b69172e9e21558cd5f39cc0c8bf3e4fa18a99b9cfb936ffd2da9c9a3",
+      "publication_lf_sha256": "aee6b7ac15083fc293aed0cd552b92fd5b5e040696bb6a5e18a53bb2de3d61d4"
+    },
+    "cr17b-policy-after-composite-v6-protocol.json": {
+      "measurement_raw_sha256": "fba00938b55478b3c5cd6ae089b1d92af5f32ed224ca283f3e4bd374927d5792",
+      "publication_lf_sha256": "63bdd6878ccbfd250064936a5c474e6de694d6d20275eb1ba953223faa59f974"
+    },
+    "cr17b-primary-short-v6-assessor-registration.json": {
+      "measurement_raw_sha256": "33548f04dd726e80f1aa3b76890041991da580bf1c57ef1ec326fb731e797e99",
+      "publication_lf_sha256": "6fff14144999ce812ed691e01e8a77c96172fb3386fb677268bd8c18c8a9f043"
+    },
+    "cr17b-primary-short-assessment-v6.json": {
+      "measurement_raw_sha256": "f8a76f9e3024b8b081712a1f46014dcb6f63123f78fee58ed9175395577ad4d5",
+      "publication_lf_sha256": "0b8cffdbf89a31535202ce91fee8a06478da5cb982309496a0a6d909bd7f055a"
+    },
+    "cr17b-policy-composite-assessment-v6.json": {
+      "measurement_raw_sha256": "0559e98248981b3d3a4154af856cbb1ceee4328dfb61c46f9c96991bf426d491",
+      "publication_lf_sha256": "d0c700188c80acaa04193b74e9cf5989f2b6bb1906bb30201ba6c2a967fb8073"
+    },
+    "cr17b-after-long-v6-protocol.json": {
+      "measurement_raw_sha256": "75cc29c30056f5fbf82206878c86551bf9a412710bb14328a312a9f9fdfc1c92",
+      "publication_lf_sha256": "be1b5e59b08aa865f96a1ebde18631a4afd4e704d614c0c1afc7618de0052df3"
+    },
+    "cr17b-after-short-v6-protocol.json": {
+      "measurement_raw_sha256": "b907cefc039c0cfe5d9b08621ca7bf3d1b853dddec73c401b3b9f9d07b14e1d6",
+      "publication_lf_sha256": "5478f7276eb31a7f6167bab246824dbd739c12aec3e1967f650deac78fa91fad"
+    },
+    "cr17b-after-references-v6-protocol.json": {
+      "measurement_raw_sha256": "d988119d81cda5ad622d3c2dca5e6dcb719b4c96e2f90e22dbab5ea0e043d10b",
+      "publication_lf_sha256": "936f7e02657d5f4124204d0095f3fafb567da9c07a937dca26b1ebdd0ded1e9d"
+    },
+    "cr17b-after-smoke-v6-protocol.json": {
+      "measurement_raw_sha256": "57dc441f611798c59decfa32567799431f837096e127e79a9d12e8e6f5e02c60",
+      "publication_lf_sha256": "49a5a6208f7f95edbe3a9d3d482b49d0e4b88a2fc91ad1a80d2b25c43f1c1ad6"
+    },
+    "cr17b-complementary-after-v6-complete.json": {
+      "measurement_raw_sha256": "8c636414076d9df2c8620b93f21cb7e422322a79c692ead06602d2a027a9b706",
+      "publication_lf_sha256": "8c636414076d9df2c8620b93f21cb7e422322a79c692ead06602d2a027a9b706"
+    },
+    "cr17b-v6-short-observations-attempted.json": {
+      "measurement_raw_sha256": "4f35aba17b9cdb97ba62a97e56549ab474dc6153497ac8108527b50d30dff635",
+      "publication_lf_sha256": "4f35aba17b9cdb97ba62a97e56549ab474dc6153497ac8108527b50d30dff635"
+    },
+    "cr17b-noise-gc-diagnostic-v7-protocol.json": {
+      "measurement_raw_sha256": "cc08fe8773fe8a89d2c947ce61585299bee22cbfe9fde425f653571ad3d682c5",
+      "publication_lf_sha256": "40a42fab5f081918f070ba8e804392094d616a3541b037467949694d97ffc75d"
+    },
+    "cr17b-noise-gc-diagnostic-v7-analysis.json": {
+      "measurement_raw_sha256": "4c900baffbfced7e7eee1e36fac14dd3a5d42d51488f134ccfc3cd1b54d40367",
+      "publication_lf_sha256": "6beb8579d1ca3f569e09cd8ed8b4595189d0cf8ea4038d24891ab163499b8e14"
+    },
+    "cr17c-after-v1-protocol.json": {
+      "measurement_raw_sha256": "c9d0dd376968e245059ab8078a76794eebc09cf417c0453f3850ab29e0ec400a",
+      "publication_lf_sha256": "4e5e4f4ab77905a9539eefb341fe602670a6d04cbee2c2322b216a693a11b621"
+    },
+    "cr17c-after-v1-assessment.json": {
+      "measurement_raw_sha256": "f5032fa5d604a97e38eb8b8c31210dcecf1132955020fb9672493c1a343bd0cc",
+      "publication_lf_sha256": "ca3af298d4a8f3b7b86bc646a7cad7c963f62849313279f57c332927331bfe4e"
+    },
+    "cr17c-after-v1-complete.json": {
+      "measurement_raw_sha256": "f1b1094311862c6c10f259900c4337495901a41816566a196c70c6a57c318adf",
+      "publication_lf_sha256": "f1b1094311862c6c10f259900c4337495901a41816566a196c70c6a57c318adf"
+    },
+    "cr17c-checked-v1-manifest.json": {
+      "measurement_raw_sha256": "8ad38ecb0a2932f933aff8b0cfe9548d7d106c0322c85fddc37948f196424385",
+      "publication_lf_sha256": "8d7d5dadc8356b82f0c33918d844750065b211ca5cc1d5d6c83bb6e2a25094e1"
+    },
+    "cr17c-cold-gc-diagnostic-v1.json": {
+      "measurement_raw_sha256": "eb8262497112f19ef16a4bcf423216e19e56f0bf03200edde35d76895b827079",
+      "publication_lf_sha256": "90282049673aeedf8b9b7fef7d4b0a8531f76a71a9c969f7745834cb3a9d56b9"
     }
   }
 }

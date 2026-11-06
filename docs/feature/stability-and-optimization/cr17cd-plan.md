@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/torrent_source_provider/", "server/app/module
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Terv, felhasználói döntésre vár. A 21a kész. A 21b funkcionálisan ellenőrzött, az ownership-kapu teljesült, de a regisztrált runtime-kapu (`cr17c-after-v1`) egy soron FAIL; a 21b nincs commitolva. A 22 helyi WIP-ágon előkészítve, nem mérve. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
+> **Státusz:** Terv, felhasználói döntésre vár. A 21a kész. A 21b funkcionálisan ellenőrzött, az ownership-kapu teljesült, de a regisztrált runtime-kapu (`cr17c-after-v1`) egy soron FAIL; a 21b nincs commitolva. A 22 helyi WIP-ágon előkészítve és funkcionálisan ellenőrizve, nem mérve. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
 
 **Kapcsolódó:** [implementation-plan.md — CR17](implementation-plan.md#cr17) · [stability-and-optimization.md](../stability-and-optimization.md)
 <!-- doc-nav:end -->
@@ -173,6 +173,16 @@ Exit139 ebben a futásban nem fordult elő; az egyetlen sikertelen futás az A d
 1. A 21b elfogadása a FAIL tudatában, a diagnosztika alapján, felhasználói kivételként rögzítve; ezután commit és a 22. csomag mérése.
 2. Új, előre regisztrált `cr17c-after-v2` kapu, amelyben a hidegkérések GC-fázisa mindkét ágon azonosan kontrollált (pl. `gc.collect()` minden hidegkérés előtt, vagy a két hidegkérés összegére vonatkozó keret), minden más változatlan. Becsült futásidő ~4 óra.
 3. A 21b félretétele; ekkor a Kodi/direct `DetachedInstanceError` megmarad.
+
+<!-- doc-anchor:doc-22-elokeszites -->
+<a id="doc-22-elokeszites"></a>
+### 22 előkészítés: állapotmentes megosztott keresés (helyi WIP, nem mért)
+
+A helyi `wip/cr17d-owned-shared-task` ág (`22731a4`, a 21b WIP-commitra épül, nincs pusholva):
+- `indexers/search.py`: folyamatszintű `IndexerSearchService`; az accountokat saját izolált Sessionben olvassa és refként adja vissza. Az `IndexersService` ide delegál.
+- A provider Singleflight-factoryja csak állapotmentes függőséget zár be (`_SourceSearch`), a request `self`-et és Sessiont nem; a fájlsnapshot-olvasás is izolált Sessionben fut. A provider konstruktora két argumentumos, db nélkül.
+- Ellenőrzés (helyi, nem Docker): célzott tesztek, Ruff 0 → basedpyright 0 → 609 passed / 64 snapshot. Új tesztek: tulajdonos cancel után nincs request-Session-munka és pool-checkout; az izolált account-olvasás refet ad, ORM nélkül. Az utóbbi a basedpyright által jelzett hibás `IndexerAccountsService`-konstrukciót fogja meg, amely futásidőben `TypeError` lett volna. Ownership-trace: 4/4 eset, átfedő Session-hívás nincs, pool 0.
+- Mérés nem futott; a 22 kapuja a 21b-döntés után következik.
 
 <!-- doc-anchor:doc-fuggoseg-a-20-csomagtol -->
 <a id="doc-fuggoseg-a-20-csomagtol"></a>

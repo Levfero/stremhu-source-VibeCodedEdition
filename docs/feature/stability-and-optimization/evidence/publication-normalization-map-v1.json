@@ -3644,6 +3644,22 @@
     "g13conv-v1-complete.json": {
       "measurement_raw_sha256": "be0ba73ee2428cfb189f8d1d1c87345e0b69c9628fd647d3f051a2514d38e8ae",
       "publication_lf_sha256": "be0ba73ee2428cfb189f8d1d1c87345e0b69c9628fd647d3f051a2514d38e8ae"
+    },
+    "g02-post-cr17-v2-protocol.json": {
+      "measurement_raw_sha256": "0ee84ef203bb92103541dc951d70fbeeec7e91cf5a79cf19dea2d341090de8b3",
+      "publication_lf_sha256": "e240a75966d814950f78604586568ab37ca4a94f54205a7927128cd889af1a40"
+    },
+    "g02-post-cr17-v2-source-manifest.json": {
+      "measurement_raw_sha256": "e935679ebf89fefb4f4e0470d751a229404991073570bc6f38d36aec06a4dbba",
+      "publication_lf_sha256": "aa6e169bf4d90f33671adb9276cf0ca73a0768872a8ac484872c50c53fdcda1a"
+    },
+    "g02-post-cr17-v2-assessment.json": {
+      "measurement_raw_sha256": "c2813e9456439770b4a3b97c9a2f96c31e2d724df944367fcfa0b0e05b309fc9",
+      "publication_lf_sha256": "f2d240d5ae2f44695482695202589af57442d664bf7893c2d4716e0a85f53124"
+    },
+    "g02-post-cr17-v2-complete.json": {
+      "measurement_raw_sha256": "ab4ef8919209d72dc93242cc1d8e73454f0dd0fa3b1ff84c5435e54ee04060b1",
+      "publication_lf_sha256": "ab4ef8919209d72dc93242cc1d8e73454f0dd0fa3b1ff84c5435e54ee04060b1"
     }
   }
 }

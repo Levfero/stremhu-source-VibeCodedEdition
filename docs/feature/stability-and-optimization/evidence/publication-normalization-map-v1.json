@@ -3732,6 +3732,22 @@
     "burst27-diag-phase-cost.json": {
       "measurement_raw_sha256": "f2e769fde7a92c046401364b36b839e1f2afd38ad045dbfd19928b898ba8b7cd",
       "publication_lf_sha256": "b1c89aa3b01262983cad74fd21de0c138936b80d44d993daf6dc15d426413c9b"
+    },
+    "cr15a-after-v2-protocol.json": {
+      "measurement_raw_sha256": "463b7dc0254f71f85acfe737d61ddb606a3f3754aa1d31f82a0e67fccc2e3bb2",
+      "publication_lf_sha256": "8d6456b0b24518489414d0c4f404ababaa90d4328d1e0b5e358ca5862b1c9dec"
+    },
+    "cr15a-after-v2-assessment.json": {
+      "measurement_raw_sha256": "81d83b62406615602290b6d3b1b55a95b7169549d56c7b8c5e6949e8731e52da",
+      "publication_lf_sha256": "f5dcf88b70aeee9af25fa7dc79a01587c4492ecd83b46da169354c4ca1d0d39f"
+    },
+    "cr15a-after-v2-complete.json": {
+      "measurement_raw_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1",
+      "publication_lf_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1"
+    },
+    "cr15a-after-v2-source-manifest.json": {
+      "measurement_raw_sha256": "01fc8873c10b8d3367dec11e19fe6b9327b82823b2291b1ce69ba111701f634c",
+      "publication_lf_sha256": "c84079849ba0e3add6f2b9e0594b7b16fe4cbe23af3e9928445c79be74e0cc40"
     }
   }
 }

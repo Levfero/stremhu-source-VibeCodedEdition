@@ -45,7 +45,8 @@ async def test_download_error_and_wrapped_traceback_are_safe(caplog, failure):
     adapter._client = IndexerClient(adapter, transport=httpx.MockTransport(respond))
     try:
         with pytest.raises(IndexerDefinitionException) as error:
-            await adapter.download_torrent(f"https://fixture.invalid/{MARKER}?key={MARKER}")
+            # The tracker's own domain (26b host policy); the transport is mocked.
+            await adapter.download_torrent(f"https://ncore.pro/{MARKER}?key={MARKER}")
         rendered = "".join(traceback.format_exception(error.value))
         assert MARKER not in rendered
         assert MARKER not in caplog.text

@@ -17,6 +17,7 @@ from app.modules.indexer_definitions.exceptions import (
     AuthenticationOtherException,
     CredentialsRequiredException,
     IndexerDefinitionException,
+    IndexerDownloadHostNotAllowedException,
     IndexerResponseTooLargeException,
 )
 from app.modules.indexer_definitions.protocols import IndexerAccountStorage
@@ -95,15 +96,31 @@ class IndexerClient(httpx.AsyncClient):
         """
         return await self._guarded(lambda: self._read_bounded(url, max_bytes))
 
+    def _check_download_host(self, url: httpx.URL) -> None:
+        """CR15/b (26b), felhasználói döntés 2026-11-07: letöltés csak a tracker saját
+        domainjére vagy aldomainjére mehet, a tracker sémájával (élesben HTTPS).
+
+        A horgony a kliens base URL-je, ami élesben az adapter ``url``-je; ha nincs
+        beállítva, maga az adapter ``url``-je.
+        """
+        base = self.base_url if self.base_url.host else httpx.URL(self._definition.url)
+        base_host = base.host.lower()
+        host = url.host.lower()
+        if not base_host or url.scheme != base.scheme or not (host == base_host or host.endswith("." + base_host)):
+            # Csak a host kerül az üzenetbe; a letöltési URL kulcsot tartalmazhat.
+            raise IndexerDownloadHostNotAllowedException(f"A letöltési cél nem a tracker saját domainje: {host or '-'}")
+
     async def _send_following_unread(self, url: httpx.URL | str) -> httpx.Response:
         """Kézi átirányítás-követés: a HTTPX a követett redirect törzsét korlát nélkül olvasná.
 
         A következő kérést a HTTPX publikus ``next_request`` mezője adja (relatív Location,
-        metódus, cookie- és fejlécszabályok változatlanul); a history megmarad.
+        metódus, cookie- és fejlécszabályok változatlanul); a history megmarad. Minden lépés
+        célját a küldés előtt ellenőrzi (``_check_download_host``).
         """
         request = self.build_request("GET", url)
         history: list[httpx.Response] = []
         while True:
+            self._check_download_host(request.url)
             response = await self.send(request, stream=True, follow_redirects=False)
             next_request = response.next_request if self.follow_redirects else None
             if next_request is None:

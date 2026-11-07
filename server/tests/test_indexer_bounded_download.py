@@ -43,7 +43,11 @@ async def make_adapter(handler, semaphore: int | None = None):
     if semaphore is not None:
         adapter._semaphore = asyncio.Semaphore(semaphore)
     adapter._client = IndexerClient(
-        adapter, transport=httpx.MockTransport(handler), follow_redirects=True
+        adapter,
+        transport=httpx.MockTransport(handler),
+        follow_redirects=True,
+        # The tracker's own domain for the 26b download host policy.
+        base_url="https://fixture.invalid",
     )
     adapter._detect_authentication_error = lambda response: None
     return adapter

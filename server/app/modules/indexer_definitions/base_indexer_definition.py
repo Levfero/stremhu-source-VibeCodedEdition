@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import httpx
 import pydash
@@ -45,6 +45,27 @@ _DEFAULT_HEADERS = {
 }
 
 
+class _CappedStream(httpx.AsyncByteStream):
+    """Nyers válaszfolyam burka: a korlát átlépésekor azonnal megáll, a zárást továbbadja."""
+
+    def __init__(self, stream: httpx.SyncByteStream | httpx.AsyncByteStream, max_bytes: int) -> None:
+        if not isinstance(stream, httpx.AsyncByteStream):
+            raise TypeError("async byte stream expected")
+        self._stream = stream
+        self._max_bytes = max_bytes
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        size = 0
+        async for chunk in self._stream:
+            size += len(chunk)
+            if size > self._max_bytes:
+                raise IndexerResponseTooLargeException
+            yield chunk
+
+    async def aclose(self) -> None:
+        await self._stream.aclose()
+
+
 class IndexerClient(httpx.AsyncClient):
     def __init__(self, definition: "BaseIndexerDefinition", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,15 +94,17 @@ class IndexerClient(httpx.AsyncClient):
     ) -> httpx.Response:
         response = await self.send(self.build_request("GET", url), stream=True)
         try:
-            declared = response.headers.get("content-length", "")
-            if (
-                declared.isdigit()
-                and int(declared) > max_bytes
-                and "content-encoding" not in response.headers
-            ):
-                raise IndexerResponseTooLargeException
-            # Darablista és egyetlen join: a bytearray-növelés és a bytes()-másolat
-            # 21,5 MB-nál ~3,5x CPU-t vitt (cr15a-after-v1 FAIL).
+            if "content-encoding" not in response.headers:
+                declared = response.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > max_bytes:
+                    raise IndexerResponseTooLargeException
+                # Tömörítetlen törzs: a HTTPX saját aread()-je fut (azonos memóriaút a sima
+                # get()-tel), csak a nyers folyamot számoljuk. A cr15a-after-v1/v2 saját
+                # pufferelése egymás utáni nagy letöltéseknél ismételhetően lassabb volt.
+                response.stream = _CappedStream(response.stream, max_bytes)
+                await response.aread()
+                return response
+            # Tömörített törzs: a dekódolt bájtokat számoljuk (tömörítési bomba ellen).
             chunks: list[bytes] = []
             size = 0
             async for chunk in response.aiter_bytes():

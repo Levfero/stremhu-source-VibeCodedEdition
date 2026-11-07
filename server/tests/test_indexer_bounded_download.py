@@ -61,8 +61,10 @@ async def test_body_within_limit_is_returned_decoded(encoding):
     try:
         response = await adapter._client.get_bounded("https://fixture.invalid/t", max_bytes=len(payload))
         assert response.content == payload
-        assert "content-encoding" not in response.headers
-        assert response.headers["content-length"] == str(len(payload))
+        if encoding:
+            # Only the decoded (rebuilt) response gets new encoding/length headers.
+            assert "content-encoding" not in response.headers
+            assert response.headers["content-length"] == str(len(payload))
     finally:
         await adapter.close()
 
@@ -200,5 +202,22 @@ async def test_session_error_on_bounded_download_relogs_once_and_keeps_redirect_
         assert results == [b"d4:infod4:name1:aee"] * 3
         assert login_calls == 1
         assert seen_history[0] == (1, "https://cdn.fixture.invalid/file.torrent", "https://fixture.invalid/download")
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.anyio
+async def test_identity_body_keeps_the_original_response_and_redirect_history():
+    def handler(request):
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "/t"})
+        return httpx.Response(200, headers={"content-length": "4", "x-origin": "fixture"}, stream=CountingStream(b"abcd"))
+
+    adapter = await make_adapter(handler)
+    try:
+        response = await adapter._client.get_bounded("https://fixture.invalid/start", max_bytes=4)
+        assert response.content == b"abcd"
+        assert response.headers["x-origin"] == "fixture" and response.headers["content-length"] == "4"
+        assert [str(item.url) for item in response.history] == ["https://fixture.invalid/start"]
     finally:
         await adapter.close()

@@ -3676,6 +3676,22 @@
     "g13conv-v2-after-source-manifest.json": {
       "measurement_raw_sha256": "00821ce2dcadb12fb17b8a84f08d680feaab121fbddca9779cc46e229892f618",
       "publication_lf_sha256": "a0e2f5d08f4adf08607267dcf554e99c58404552be545d0ddc0077d61e835953"
+    },
+    "cr15a-after-v1-protocol.json": {
+      "measurement_raw_sha256": "38926e1ea49fc7b2c67b14b4ab9d720c8cd5c8453be0a452e1b9a4752687ab59",
+      "publication_lf_sha256": "ccba44099a793b54e59dc6d20675b921efce7b951b33797ae521140a44efa4fb"
+    },
+    "cr15a-after-v1-assessment.json": {
+      "measurement_raw_sha256": "03f1c77e0d77da0301987fa3d26459610d327216a599ee7768d383d2586c37c9",
+      "publication_lf_sha256": "f469205715a7c0b1d332f1b88318acfa78a9c028a157ef60cc5c581d33382aa0"
+    },
+    "cr15a-after-v1-complete.json": {
+      "measurement_raw_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1",
+      "publication_lf_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1"
+    },
+    "cr15a-after-v1-source-manifest.json": {
+      "measurement_raw_sha256": "9843d70d0bb1e1dfabe430837105b8d4fad198f1368eb973fbde049a8b6964f8",
+      "publication_lf_sha256": "b45e5bc3bc6d416a8ae51f821a5b9d3ee862928a38061432eeca95b6b0cfc7bb"
     }
   }
 }

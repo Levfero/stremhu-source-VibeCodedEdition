@@ -7,7 +7,6 @@ from app.common.torrent_info import TorrentFileInfo, TorrentInfo
 from app.main import app
 from app.modules.auth.dependencies import get_auth_service
 from app.modules.auth.service import AuthService
-from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexers.schemas.internal import IndexerTorrent
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.dependencies import get_stremio_catalogs_service
@@ -20,11 +19,13 @@ from app.modules.stremio.schemas import (
 from app.modules.stremio.utils import parse_stream_id
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_files.models import TorrentFileModel
+from app.modules.torrent_files.schemas import TorrentFileSnapshot
 from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.schemas import TorrentSource
 from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 from app.modules.torrent_streams.schemas import TorrentStream
 from app.modules.users.models import UserModel
+from tests.helpers import make_account_ref
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ def mock_torrent_file():
     )
     torrent_file._cached_info = info
     torrent_file.info_hash = "abc123hash"
-    return torrent_file
+    return TorrentFileSnapshot.from_model(torrent_file)
 
 
 @pytest.fixture
@@ -128,7 +129,7 @@ def mock_movie_torrent_file():
     )
     torrent_file._cached_info = info
     torrent_file.info_hash = "movie123hash"
-    return torrent_file
+    return TorrentFileSnapshot.from_model(torrent_file)
 
 
 @pytest.mark.anyio
@@ -143,11 +144,7 @@ async def test_direct_query_catalog_search(mock_torrent_file, mock_movie_torrent
             download_url="https://ncore.invalid/dl",
             imdb_id="tt2531336",
             seeders=50,
-            indexer_account=IndexerAccountModel(
-                indexer_id="ncore",
-                username="teszt",
-                password="pw",
-            ),
+            indexer_account=make_account_ref("ncore"),
         ),
         torrent_file=mock_torrent_file,
     )
@@ -158,11 +155,7 @@ async def test_direct_query_catalog_search(mock_torrent_file, mock_movie_torrent
             download_url="https://ncore.invalid/dl2",
             imdb_id="tt0373690",
             seeders=30,
-            indexer_account=IndexerAccountModel(
-                indexer_id="ncore",
-                username="teszt",
-                password="pw",
-            ),
+            indexer_account=make_account_ref("ncore"),
         ),
         torrent_file=mock_movie_torrent_file,
     )
@@ -230,11 +223,7 @@ async def test_series_parser_safeguard_filters_series_from_movie_catalog(
             download_url="https://ncore.invalid/dl",
             imdb_id="tt2531336",
             seeders=100,
-            indexer_account=IndexerAccountModel(
-                indexer_id="ncore",
-                username="teszt",
-                password="pw",
-            ),
+            indexer_account=make_account_ref("ncore"),
         ),
         torrent_file=mock_torrent_file,
     )
@@ -244,11 +233,7 @@ async def test_series_parser_safeguard_filters_series_from_movie_catalog(
             download_url="https://ncore.invalid/dl2",
             imdb_id="tt0373690",
             seeders=10,
-            indexer_account=IndexerAccountModel(
-                indexer_id="ncore",
-                username="teszt",
-                password="pw",
-            ),
+            indexer_account=make_account_ref("ncore"),
         ),
         torrent_file=mock_movie_torrent_file,
     )
@@ -321,11 +306,7 @@ def test_torrent_stream_filtering_by_file_index(mock_torrent_file):
     idx_torrent = IndexerTorrent(
         torrent_id="999888",
         download_url="https://ncore.invalid/dl",
-        indexer_account=IndexerAccountModel(
-            indexer_id="ncore",
-            username="teszt",
-            password="pw",
-        ),
+        indexer_account=make_account_ref("ncore"),
     )
 
     # 1. Összes videofájl lekérése (file_index=None)

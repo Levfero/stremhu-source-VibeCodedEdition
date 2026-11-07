@@ -2,13 +2,13 @@
 doc_id: "feature-stability-and-optimization-cr17cd-plan"
 title: "CR17/c–d — provider/file ownership terv (21–22. csomag)"
 kind: "implementation-plan"
-status: "blocked-on-user-decision"
+status: "implementation-in-progress"
 audience: ["developer", "ai-agent"]
 tags: ["CR17", "CR17/c", "CR17/d", "ownership", "DetachedInstanceError", "DTO"]
 source_commit: "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d"
 baseline: "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)"
-verification: "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), ownership gate passed; cold GC diagnostic v1"
-structure_reviewed: "2026-11-06"
+verification: "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), cold GC diagnostic v1; superseding preregistered gate cr17c-after-v2 (GC-controlled colds) PASS 316/316; 22 prepared locally (609 pytest), not measured"
+structure_reviewed: "2026-11-07"
 related_docs: ["docs/feature/stability-and-optimization/implementation-plan.md", "docs/feature/stability-and-optimization.md"]
 source_paths: ["server/app/modules/torrent_source_provider/", "server/app/modules/torrent_files/", "server/app/modules/indexers/", "server/app/modules/torrent_streams/", "server/app/modules/stremio/", "server/app/modules/kodi/", "server/app/modules/torznab/", "server/app/common/database.py"]
 ---
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/torrent_source_provider/", "server/app/module
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Terv, felhasználói döntésre vár. A 21a kész. A 21b funkcionálisan ellenőrzött, az ownership-kapu teljesült, de a regisztrált runtime-kapu (`cr17c-after-v1`) egy soron FAIL; a 21b nincs commitolva. A 22 helyi WIP-ágon előkészítve és funkcionálisan ellenőrizve, nem mérve. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
+> **Státusz:** Végrehajtás alatt. A 21a kész. A 21b `cr17c-after-v1` kapuja egy soron FAIL maradt (érvényes, felmentés nélkül); a felhasználó döntése szerint az azt felváltó, előre regisztrált `cr17c-after-v2` kapu (GC-kontrollált hidegkérések) 316/316 PASS, a 21b ezután commitolva. A 22 helyi WIP-ágon előkészítve és funkcionálisan ellenőrizve, mérése következik. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
 
 **Kapcsolódó:** [implementation-plan.md — CR17](implementation-plan.md#cr17) · [stability-and-optimization.md](../stability-and-optimization.md)
 <!-- doc-nav:end -->
@@ -132,7 +132,7 @@ Következmény a célarchitektúrára:
 - Szükséges mezők: `indexer_id`, `torrent_id`, `info_hash`, `created_at`, `info`; az `IndexerDefinitionRef`-hez `id`, `name` és a Kodi/attributes szerializáció teljes mezőkészlete (2. nyitott kérdés).
 - Leltár-kiegészítés a 21b-ből: a `stremio/service.py` `_can_borrow_subtitle` `getattr`-ral olvassa a `download_full_torrent` accountflaget (és a definíció `requires_full_download` mezőjét). A pont-attribútumos keresés ezt nem találta, az elbukó teszt jelezte. Az `IndexerAccountRef` ezért hordozza ezt a flaget; jelszó, cookie, TOTP és username nem kerül bele.
 
-### 21b állapot: Session nélküli keresési eredmény (nem commitolt munkafa 050cb33 felett)
+### 21b állapot: Session nélküli keresési eredmény (050cb33 felett)
 
 | Elem | Megvalósítás |
 |---|---|
@@ -150,7 +150,7 @@ Ellenőrzés (helyi, nem Docker):
 - Új payload-azonossági teszt: a Kodi `indexer` mező a refből ugyanaz, mint az ORM-ből; a ref reprezentációja nem tartalmaz hitelesítő adatot.
 - Ruff 0 → basedpyright 0 → 607 passed / 64 snapshot, 0 failed.
 - Hét meglévő tesztfájl fixture-jei ORM helyett a ref/snapshot értéket építik; az elvárt értékek nem változtak.
-- A 21b forrás befagyasztva: `cr17c-checked-v1-manifest.json` (336 fájl). A kód a feature ágon nincs commitolva; a helyi `29118e7` WIP-commit és a munkafa őrzi.
+- A 21b forrás befagyasztva: `cr17c-checked-v1-manifest.json` (336 fájl). A kód a `cr17c-after-v2` PASS után, ugyanezzel a forrással került commitba a feature ágon.
 
 <!-- doc-anchor:doc-21b-runtime-kapu -->
 <a id="doc-21b-runtime-kapu"></a>
@@ -174,6 +174,25 @@ Exit139 ebben a futásban nem fordult elő; az egyetlen sikertelen futás az A d
 2. Új, előre regisztrált `cr17c-after-v2` kapu, amelyben a hidegkérések GC-fázisa mindkét ágon azonosan kontrollált (pl. `gc.collect()` minden hidegkérés előtt, vagy a két hidegkérés összegére vonatkozó keret), minden más változatlan. Becsült futásidő ~4 óra.
 3. A 21b félretétele; ekkor a Kodi/direct `DetachedInstanceError` megmarad.
 
+**Döntés (2026-11-07, felhasználó):** 2. pont, új v2 kapu. A v1 FAIL a bizonyítékok között változatlanul megmarad.
+
+<!-- doc-anchor:doc-21b-runtime-kapu-v2 -->
+<a id="doc-21b-runtime-kapu-v2"></a>
+### 21b runtime-kapu: `cr17c-after-v2` — PASS (316/316)
+
+A v1-et felváltó, a v2-adatok előtt regisztrált protokoll: [protokoll](evidence/cr17c-after-v2-protocol.json), [értékelés](evidence/cr17c-after-v2-assessment.json), [befejezési jelölő](evidence/cr17c-after-v2-complete.json); scriptek és a fixture-generátor a [reprodukciós archívumban](evidence/reproduction-followup-v1/manifest.json) (`packet21b-gate-v2` csoport).
+
+Egyetlen eltérés a v1-től: minden hidegkérés előtt, az időmérésen kívül, teljes `gc.collect()` fut minden ágon és fixture-ben, és a kérés alatti generációnkénti gyűjtésszám megfigyelésként rögzül. Források (before Source2, after befagyasztott 21b, B baseline), sorozatok, ismétlésszám, rotáció és a V6 keretek változatlanok; a controller- és assessor-hash a futás előtt rögzítve.
+
+| Kapu | Eredmény |
+|---|---|
+| Ownership | Kodi C: before 276 HTTP 500 (mind `DetachedInstanceError`, 34 cellában), after 12 280× HTTP 200, 0 hiba. Direct after 10/10 teljes |
+| Rövid, direct, heap cellák (p95, CPU, SQL, memória, payload/sorrend/darabszám) | Mind a kereten belül |
+| heap/cold0 falidő | before 344/339/351 ms, after 337/342/338 ms, keret 362 ms |
+| heap/cold1 falidő | before 77,4/80,9/74,3 ms, after 82,3/75,8/81,3 ms, keret 87,5 ms |
+
+A pinned upstream A direct referenciája 4/5 futásban `DetachedInstanceError`-ral bukott, egy futás teljes lett; a hiba versenyhelyzet-függő (3. nyitott kérdés). Exit139 nem fordult elő.
+
 <!-- doc-anchor:doc-22-elokeszites -->
 <a id="doc-22-elokeszites"></a>
 ### 22 előkészítés: állapotmentes megosztott keresés (helyi WIP, nem mért)
@@ -182,7 +201,7 @@ A helyi `wip/cr17d-owned-shared-task` ág (`22731a4`, a 21b WIP-commitra épül,
 - `indexers/search.py`: folyamatszintű `IndexerSearchService`; az accountokat saját izolált Sessionben olvassa és refként adja vissza. Az `IndexersService` ide delegál.
 - A provider Singleflight-factoryja csak állapotmentes függőséget zár be (`_SourceSearch`), a request `self`-et és Sessiont nem; a fájlsnapshot-olvasás is izolált Sessionben fut. A provider konstruktora két argumentumos, db nélkül.
 - Ellenőrzés (helyi, nem Docker): célzott tesztek, Ruff 0 → basedpyright 0 → 609 passed / 64 snapshot. Új tesztek: tulajdonos cancel után nincs request-Session-munka és pool-checkout; az izolált account-olvasás refet ad, ORM nélkül. Az utóbbi a basedpyright által jelzett hibás `IndexerAccountsService`-konstrukciót fogja meg, amely futásidőben `TypeError` lett volna. Ownership-trace: 4/4 eset, átfedő Session-hívás nincs, pool 0.
-- Mérés nem futott; a 22 kapuja a 21b-döntés után következik.
+- Mérés még nem futott; a 22 kapuja (`cr17d-after-v1`, a v2-vel azonos GC-kontrollált hidegkérésekkel, before = befagyasztott 21b) a 21b commit után következik.
 
 <!-- doc-anchor:doc-fuggoseg-a-20-csomagtol -->
 <a id="doc-fuggoseg-a-20-csomagtol"></a>

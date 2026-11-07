@@ -1263,7 +1263,7 @@
       "doc_id": "feature-stability-and-optimization-cr17cd-plan",
       "title": "CR17/c–d — provider/file ownership terv (21–22. csomag)",
       "kind": "implementation-plan",
-      "status": "blocked-on-user-decision",
+      "status": "implementation-in-progress",
       "audience": [
         "developer",
         "ai-agent"
@@ -1278,8 +1278,8 @@
       ],
       "source_commit": "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d",
       "baseline": "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)",
-      "verification": "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), ownership gate passed; cold GC diagnostic v1",
-      "structure_reviewed": "2026-11-06",
+      "verification": "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), cold GC diagnostic v1; superseding preregistered gate cr17c-after-v2 (GC-controlled colds) PASS 316/316; 22 prepared locally (609 pytest), not measured",
+      "structure_reviewed": "2026-11-07",
       "related_docs": [
         "docs/feature/stability-and-optimization/implementation-plan.md",
         "docs/feature/stability-and-optimization.md"

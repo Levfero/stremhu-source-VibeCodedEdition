@@ -13,7 +13,11 @@ from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_files.models import TorrentFileModel
-from app.modules.torrent_files.schemas import TorrentFileIdentifier, TorrentFilesFilter
+from app.modules.torrent_files.schemas import (
+    TorrentFileIdentifier,
+    TorrentFilesFilter,
+    TorrentFileSnapshot,
+)
 from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.schemas import TorrentSource
 
@@ -193,13 +197,12 @@ class TorrentSourceProviderService:
         ]
 
         current_torrent_files = await owned_to_thread(
-            self._torrent_files_service.find_list,
-            filter=TorrentFilesFilter(identifiers=torrent_file_ids),
+            self._find_snapshots, torrent_file_ids
         )
 
         self._isolated_torrent_files_service.touch(torrent_file_ids)
 
-        current_torrent_files_map: dict[tuple[str, str], TorrentFileModel] = {
+        current_torrent_files_map: dict[tuple[str, str], TorrentFileSnapshot] = {
             (
                 current_torrent_file.indexer_id,
                 current_torrent_file.torrent_id,
@@ -227,11 +230,10 @@ class TorrentSourceProviderService:
             if result is not None:
                 downloaded_items.append(result)
 
-        created_torrent_files: list[TorrentFileModel] = []
+        created_torrent_files: list[TorrentFileSnapshot] = []
         if downloaded_items:
             created_torrent_files = await owned_to_thread(
-                self._isolated_torrent_files_service.create_many,
-                downloaded_items,
+                self._store_snapshots, downloaded_items
             )
 
         torrent_files = current_torrent_files + created_torrent_files
@@ -266,6 +268,26 @@ class TorrentSourceProviderService:
             return torrent_sources[0] if torrent_sources else None
 
         return torrent_sources
+
+    def _find_snapshots(
+        self, identifiers: list[TorrentFileIdentifier]
+    ) -> list[TorrentFileSnapshot]:
+        # A snapshot még a worker Sessionjében épül; a megosztott eredmény
+        # így a tulajdonos request commitja/zárása után is olvasható.
+        return [
+            TorrentFileSnapshot.from_model(torrent_file)
+            for torrent_file in self._torrent_files_service.find_list(
+                filter=TorrentFilesFilter(identifiers=identifiers)
+            )
+        ]
+
+    def _store_snapshots(
+        self, items: list[tuple[str, str, bytes]]
+    ) -> list[TorrentFileSnapshot]:
+        return [
+            TorrentFileSnapshot.from_model(torrent_file)
+            for torrent_file in self._isolated_torrent_files_service.create_many(items)
+        ]
 
     async def _download_torrent_bytes(
         self, indexer_torrent: IndexerTorrent

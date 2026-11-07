@@ -10,6 +10,7 @@ from app.common.logger import logger
 from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexer_accounts.schemas import (
     IndexerAccountCreate,
+    IndexerAccountRef,
     IndexerAccountUpdate,
 )
 from app.modules.indexer_accounts.service import IndexerAccountsService
@@ -174,16 +175,26 @@ class IndexersService:
         self._torrents_service.delete_by_indexer_id(indexer_id)
         self._indexer_accounts_service.delete(indexer_id)
 
+    def _find_account_refs(self) -> list[IndexerAccountRef]:
+        # A megosztott keresési eredménybe csak Session nélküli érték kerülhet.
+        return [
+            IndexerAccountRef.from_model(indexer_account)
+            for indexer_account in self._indexer_accounts_service.find_list()
+        ]
+
+    def _get_account_ref(self, indexer_id: str) -> IndexerAccountRef:
+        return IndexerAccountRef.from_model(
+            self._indexer_accounts_service.get_by_id(indexer_id)
+        )
+
     async def get_torrents_by_torrent_id(
         self,
         torrent_id: str,
     ) -> tuple[list[IndexerTorrent], list[str]]:
-        indexer_accounts = await owned_to_thread(
-            self._indexer_accounts_service.find_list
-        )
+        indexer_accounts = await owned_to_thread(self._find_account_refs)
 
         async def fetch_and_map(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> IndexerTorrent | None:
             indexer_definition = self._indexer_definitions_service.get_by_id(
                 indexer_account.indexer_id
@@ -207,7 +218,7 @@ class IndexersService:
             )
 
         async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> IndexerTorrent | None:
             try:
                 return await asyncio.wait_for(
@@ -240,9 +251,7 @@ class IndexersService:
         indexer_id: str,
         torrent_id: str,
     ) -> IndexerTorrent:
-        indexer_account = await owned_to_thread(
-            self._indexer_accounts_service.get_by_id, indexer_id
-        )
+        indexer_account = await owned_to_thread(self._get_account_ref, indexer_id)
 
         indexer_definition = self._indexer_definitions_service.get_by_id(
             indexer_account.indexer_id
@@ -273,12 +282,10 @@ class IndexersService:
         imdb_id: str,
     ) -> tuple[list[IndexerTorrent], list[str]]:
         source_epoch = stream_cache_state.revision("")[0]
-        indexer_accounts = await owned_to_thread(
-            self._indexer_accounts_service.find_list
-        )
+        indexer_accounts = await owned_to_thread(self._find_account_refs)
 
         async def fetch_and_map(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> list[IndexerTorrent]:
             cache_key = (indexer_account.indexer_id, f"{source_epoch}:{imdb_id.strip().lower()}")
             now = time.monotonic()
@@ -323,7 +330,7 @@ class IndexersService:
             ]
 
         async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> list[IndexerTorrent]:
             try:
                 return await asyncio.wait_for(
@@ -356,12 +363,10 @@ class IndexersService:
         query: str,
         media_type: str | None = None,
     ) -> tuple[list[IndexerTorrent], list[str]]:
-        indexer_accounts = await owned_to_thread(
-            self._indexer_accounts_service.find_list
-        )
+        indexer_accounts = await owned_to_thread(self._find_account_refs)
 
         async def fetch_and_map(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> list[IndexerTorrent]:
             cache_key = (
                 indexer_account.indexer_id,
@@ -412,7 +417,7 @@ class IndexersService:
             ]
 
         async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountModel,
+            indexer_account: IndexerAccountRef,
         ) -> list[IndexerTorrent]:
             try:
                 return await asyncio.wait_for(

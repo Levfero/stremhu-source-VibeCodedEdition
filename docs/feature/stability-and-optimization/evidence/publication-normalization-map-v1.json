@@ -3580,6 +3580,18 @@
     "cr17c-cold-gc-diagnostic-v1.json": {
       "measurement_raw_sha256": "eb8262497112f19ef16a4bcf423216e19e56f0bf03200edde35d76895b827079",
       "publication_lf_sha256": "90282049673aeedf8b9b7fef7d4b0a8531f76a71a9c969f7745834cb3a9d56b9"
+    },
+    "cr17c-after-v2-protocol.json": {
+      "measurement_raw_sha256": "e4137947310644bc563d610fcf7bb4fd243604389493c5fe4953cda7ba2169bd",
+      "publication_lf_sha256": "c279efe5ff4d8bd52a1e4905699368309f257c24a821459c8821e88cb3a26b4e"
+    },
+    "cr17c-after-v2-assessment.json": {
+      "measurement_raw_sha256": "ab57c3bc2cbf9223f4c66d5d8c96ca5bf1c0bf055338fe72bf1f54001767ac1f",
+      "publication_lf_sha256": "3eabe846cdf190d74c03c8811609dada1b309a3d6f636eaa31428e54d48e30d0"
+    },
+    "cr17c-after-v2-complete.json": {
+      "measurement_raw_sha256": "968694d1361a37d7ebc0c44bf957febced06a81e4548dbffcd7ab1074ff3993d",
+      "publication_lf_sha256": "968694d1361a37d7ebc0c44bf957febced06a81e4548dbffcd7ab1074ff3993d"
     }
   }
 }

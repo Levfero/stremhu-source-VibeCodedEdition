@@ -5,6 +5,7 @@ import pytest
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentFileInfo, TorrentInfo
 from app.modules.indexer_accounts.models import IndexerAccountModel
+from app.modules.indexer_accounts.schemas import IndexerAccountRef, IndexerDefinitionRef
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.stream.utils.subtitles import ass_to_vtt
 from app.modules.stremio.enums import ShortManifestResource
@@ -232,7 +233,7 @@ def test_stremio_stream_includes_subtitles():
     )
 
     t_stream = TorrentStream(
-        indexer_account=dummy_indexer_account,
+        indexer_account=IndexerAccountRef.from_model(dummy_indexer_account),
         torrent_id="1",
         info_hash="hash",
         torrent_name="Noragami Aragoto",
@@ -240,7 +241,7 @@ def test_stremio_stream_includes_subtitles():
         file_size=1000000,
         file_index=0,
         play_url="http://localhost:7070/api/key/stream/token",
-        attributes=[dummy_indexer_def],
+        attributes=[IndexerDefinitionRef.from_model(dummy_indexer_def)],
         subtitles=[sub],
         is_persisted_torrent=False,
     )
@@ -327,7 +328,7 @@ async def test_get_streams_and_subtitles_caching_deduplication():
         label="Hungarian",
     )
     t_stream = TorrentStream(
-        indexer_account=dummy_indexer_account,
+        indexer_account=IndexerAccountRef.from_model(dummy_indexer_account),
         torrent_id="1",
         info_hash="hash_cache_test",
         torrent_name="Test Movie",
@@ -335,7 +336,7 @@ async def test_get_streams_and_subtitles_caching_deduplication():
         file_size=1000000,
         file_index=0,
         play_url="http://test-app.com/api/key/stream/token",
-        attributes=[dummy_indexer_def],
+        attributes=[IndexerDefinitionRef.from_model(dummy_indexer_def)],
         subtitles=[sub],
         is_persisted_torrent=False,
     )
@@ -414,7 +415,7 @@ async def test_active_playback_selects_only_played_torrent_subtitle():
     )
 
     s1 = TorrentStream(
-        indexer_account=dummy_indexer_account,
+        indexer_account=IndexerAccountRef.from_model(dummy_indexer_account),
         torrent_id="2114813",
         info_hash="hash_naruto_1",
         torrent_name="Naruto Pack 1",
@@ -422,12 +423,12 @@ async def test_active_playback_selects_only_played_torrent_subtitle():
         file_size=115115777,
         file_index=447,
         play_url="http://test-app.com/api/key/stream/tok1",
-        attributes=[dummy_indexer_def],
+        attributes=[IndexerDefinitionRef.from_model(dummy_indexer_def)],
         subtitles=[sub1],
         is_persisted_torrent=False,
     )
     s2 = TorrentStream(
-        indexer_account=dummy_indexer_account,
+        indexer_account=IndexerAccountRef.from_model(dummy_indexer_account),
         torrent_id="3246976",
         info_hash="hash_naruto_2",
         torrent_name="Naruto Pack 2",
@@ -435,7 +436,7 @@ async def test_active_playback_selects_only_played_torrent_subtitle():
         file_size=262617522,
         file_index=2,
         play_url="http://test-app.com/api/key/stream/tok2",
-        attributes=[dummy_indexer_def],
+        attributes=[IndexerDefinitionRef.from_model(dummy_indexer_def)],
         subtitles=[sub2],
         is_persisted_torrent=False,
     )
@@ -499,7 +500,7 @@ async def test_fallback_subtitles_respects_toggle_and_download_full_torrent():
     )
 
     s_without_sub = TorrentStream(
-        indexer_account=ncore_acc,
+        indexer_account=IndexerAccountRef.from_model(ncore_acc),
         torrent_id="2355325",
         info_hash="hash_fma_1",
         torrent_name="FMA PluSUltra",
@@ -507,12 +508,12 @@ async def test_fallback_subtitles_respects_toggle_and_download_full_torrent():
         file_size=500000000,
         file_index=0,
         play_url="http://test-app.com/api/key/stream/tok_nosub",
-        attributes=[ncore_def],
+        attributes=[IndexerDefinitionRef.from_model(ncore_def)],
         subtitles=None,
         is_persisted_torrent=False,
     )
     s_with_sub = TorrentStream(
-        indexer_account=ncore_acc,
+        indexer_account=IndexerAccountRef.from_model(ncore_acc),
         torrent_id="812207",
         info_hash="hash_fma_2",
         torrent_name="FMA BD",
@@ -520,7 +521,7 @@ async def test_fallback_subtitles_respects_toggle_and_download_full_torrent():
         file_size=700000000,
         file_index=0,
         play_url="http://test-app.com/api/key/stream/tok_sub",
-        attributes=[ncore_def],
+        attributes=[IndexerDefinitionRef.from_model(ncore_def)],
         subtitles=[sub1],
         is_persisted_torrent=False,
     )
@@ -561,7 +562,11 @@ async def test_fallback_subtitles_respects_toggle_and_download_full_torrent():
 
     # 3. Ha az indexeren be van kapcsolva a teljes torrent letöltése (download_full_torrent=True),
     # még bekapcsolt opció mellett SEM kölcsönöz feliratot!
-    ncore_acc.download_full_torrent = True
+    full_download_acc = IndexerAccountRef.from_model(ncore_acc).model_copy(
+        update={"download_full_torrent": True}
+    )
+    s_without_sub.indexer_account = full_download_acc
+    s_with_sub.indexer_account = full_download_acc
     user_full = UserModel(
         id="fma-user-full",
         username="test3",

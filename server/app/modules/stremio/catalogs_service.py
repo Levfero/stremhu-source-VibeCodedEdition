@@ -16,7 +16,10 @@ from app.modules.stremio.schemas import (
     StremioCatalogResponse,
 )
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
-from app.modules.torrent_files.schemas import TorrentFileIdentifier
+from app.modules.torrent_files.schemas import (
+    TorrentFileIdentifier,
+    TorrentFileSnapshot,
+)
 from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 from app.modules.users.models import UserModel
@@ -163,6 +166,15 @@ class StremioCatalogsService:
             for torrent_source in torrent_sources
         ]
 
+    def _find_torrent_file_snapshot(
+        self, indexer_id: str, torrent_id: str
+    ) -> TorrentFileSnapshot | None:
+        torrent_file = self._torrent_files_service.find_by_id(
+            indexer_id=indexer_id,
+            torrent_id=torrent_id,
+        )
+        return TorrentFileSnapshot.from_model(torrent_file) if torrent_file else None
+
     async def get_meta(
         self,
         indexer_id: str,
@@ -178,9 +190,7 @@ class StremioCatalogsService:
         )
 
         torrent_file = await owned_to_thread(
-            self._torrent_files_service.find_by_id,
-            indexer_id=indexer_id,
-            torrent_id=torrent_id,
+            self._find_torrent_file_snapshot, indexer_id, torrent_id
         )
 
         if not torrent_file:

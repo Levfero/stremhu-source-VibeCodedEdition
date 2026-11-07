@@ -778,6 +778,7 @@ async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
 
     from app.common.torrent_info import TorrentFileInfo, TorrentInfo
     from app.modules.indexer_accounts.models import IndexerAccountModel
+    from app.modules.indexer_accounts.schemas import IndexerAccountRef
     from app.modules.indexer_definitions.models import IndexerDefinitionModel
     from app.modules.preferences.service import PreferencesService
     from app.modules.torrent_source_provider.service import (
@@ -793,6 +794,7 @@ async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
         indexer_id="ncore", username="test", password="pwd"
     )
     dummy_indexer_account.indexer_definition = dummy_indexer_def
+    dummy_account_ref = IndexerAccountRef.from_model(dummy_indexer_account)
 
     t3_info = TorrentInfo(
         info_hash="hash3",
@@ -813,7 +815,7 @@ async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
         ],
     )
     mock_src_ep3 = MagicMock()
-    mock_src_ep3.indexer_torrent.indexer_account = dummy_indexer_account
+    mock_src_ep3.indexer_torrent.indexer_account = dummy_account_ref
     mock_src_ep3.indexer_torrent.torrent_id = "300"
     mock_src_ep3.indexer_torrent.imdb_id = "tt50140701"
     mock_src_ep3.indexer_torrent.seeders = 10
@@ -843,7 +845,7 @@ async def test_find_by_imdb_fallback_when_imdb_has_different_episode_only():
         ],
     )
     mock_src_ep1 = MagicMock()
-    mock_src_ep1.indexer_torrent.indexer_account = dummy_indexer_account
+    mock_src_ep1.indexer_torrent.indexer_account = dummy_account_ref
     mock_src_ep1.indexer_torrent.torrent_id = "100"
     mock_src_ep1.indexer_torrent.imdb_id = None
     mock_src_ep1.indexer_torrent.seeders = 20

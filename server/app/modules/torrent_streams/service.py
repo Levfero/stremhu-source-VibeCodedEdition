@@ -13,7 +13,7 @@ from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.common.torrent_info import TorrentInfo
-from app.modules.attributes.models import AttributeModel
+from app.modules.indexer_accounts.schemas import IndexerDefinitionRef
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.media_attributes.constants import MediaAttributeKey
 from app.modules.media_attributes.models import MediaAttributeModel
@@ -502,8 +502,10 @@ class TorrentStreamsService:
         preference_multiple_map: dict[str, bool],
         preference_strict_exclusion_map: dict[str, bool],
     ) -> bool:
-        attributes_by_preference: dict[str, list[AttributeModel]] = {}
-        unassociated_attributes: list[AttributeModel] = []
+        attributes_by_preference: dict[
+            str, list[MediaAttributeModel | IndexerDefinitionRef]
+        ] = {}
+        unassociated_attributes: list[MediaAttributeModel | IndexerDefinitionRef] = []
 
         for attribute in torrent_stream.attributes:
             if attribute.preference_id is not None:

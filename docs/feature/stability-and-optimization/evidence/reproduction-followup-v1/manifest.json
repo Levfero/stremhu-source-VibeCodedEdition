@@ -306,6 +306,46 @@
       "sha256": "bd56402d71fbc93b3c94414f611f11407d05629aaf5ea5a77ffe8a5984e925c8",
       "group": "packet21b-cold-gc-diagnostic",
       "measurement_raw_sha256": "bd56402d71fbc93b3c94414f611f11407d05629aaf5ea5a77ffe8a5984e925c8"
+    },
+    "cr17c_after_v2.py": {
+      "sha256": "15258a5ed76d4d6ddc1a5f05ed0aa23ca4ddab3a8c40ff7b9740cdb1fb8190c3",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "15258a5ed76d4d6ddc1a5f05ed0aa23ca4ddab3a8c40ff7b9740cdb1fb8190c3"
+    },
+    "assess_cr17c_after_v2.py": {
+      "sha256": "bce6f99ac1dab98a95f1a5dc3a1375dce67cd8baa01d1fedb6d2c70e2fbd40b5",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "bce6f99ac1dab98a95f1a5dc3a1375dce67cd8baa01d1fedb6d2c70e2fbd40b5"
+    },
+    "cr17c-policy-fixture-v2.py": {
+      "sha256": "1ecfeec8c6250c5ec23b71dd329a46464f336688aa2074a34a3c37ec321ffee4",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "74563a203ff6f32fc75d6de1ea0cb50a3228ad39aa20e8d21ca6d619e9d6c80e"
+    },
+    "cr17c-policy-reference-fixture-v2.py": {
+      "sha256": "201249b1ac5cb1697d9f3f054c374a7d4027c730a2554c573e91d605cabc3ec5",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "e57c8f99f2384341c408fcd55df7b40266c03ce86d95b7913e60ab46231c622c"
+    },
+    "cr17c-policy-direct-fixture-v2.py": {
+      "sha256": "8fbfd6979ac736c7b82e5b6409eb0ea47de9beee3f8d8f0465bf35243360419c",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "a7e7fbc674f3a37fc0265e89ec1a046f229a449eef2cbc95119b2a480108f887"
+    },
+    "cr17c-kodi-ownership-observation-v2.py": {
+      "sha256": "107b30989f683271c3c9c01193ae885e7f61bc77a94c808d249a39411a84472c",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "25b806e9ca600e0c8ca87d43b389b20f053f3095134d23193e9562157bf3326f"
+    },
+    "make_cr17c_v2_fixtures.py": {
+      "sha256": "215ef0f8992d4d10035b7c05ff806f0924921f60d4c7342d8cb06663386d088f",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "215ef0f8992d4d10035b7c05ff806f0924921f60d4c7342d8cb06663386d088f"
+    },
+    "smoke_cr17c_v2_wiring.py": {
+      "sha256": "40149d1c42a3bd92cbc73a4db94317e43096d08fb68e4f2e42e8db4bd907ef08",
+      "group": "packet21b-gate-v2",
+      "measurement_raw_sha256": "40149d1c42a3bd92cbc73a4db94317e43096d08fb68e4f2e42e8db4bd907ef08"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

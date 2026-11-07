@@ -25,7 +25,7 @@ from app.modules.stremio.enums import (
     ShortManifestResource,
     StreamIdType,
 )
-from app.modules.torrent_files.models import TorrentFileModel
+from app.modules.torrent_files.schemas import TorrentFileSnapshot
 
 if TYPE_CHECKING:
     from app.modules.torrent_streams.schemas import TorrentStream
@@ -490,7 +490,7 @@ class MetaPreview(BaseMeta):
     @classmethod
     def from_torrent_file(
         cls,
-        torrent_file: TorrentFileModel,
+        torrent_file: TorrentFileSnapshot,
         content_type: ContentType = ContentType.MOVIE,
         imdb_id: str | None = None,
         imdb_rating: str | None = None,
@@ -529,7 +529,7 @@ class MetaDetail(BaseMeta):
     @classmethod
     def from_torrent_file(
         cls,
-        torrent_file: TorrentFileModel,
+        torrent_file: TorrentFileSnapshot,
         content_type: ContentType = ContentType.MOVIE,
         imdb_id: str | None = None,
     ) -> MetaDetail:

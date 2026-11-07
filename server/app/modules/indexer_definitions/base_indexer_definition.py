@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 
 import httpx
 import pydash
@@ -9,11 +10,13 @@ import pyotp
 from app.common.async_utils import owned_to_thread
 from app.common.log_safety import network_error_fields, safe_endpoint_label
 from app.common.singleflight import Singleflight
+from app.config import config
 from app.modules.indexer_definitions.exceptions import (
     AuthenticationException,
     AuthenticationOtherException,
     CredentialsRequiredException,
     IndexerDefinitionException,
+    IndexerResponseTooLargeException,
 )
 from app.modules.indexer_definitions.protocols import IndexerAccountStorage
 from app.modules.indexer_definitions.schemas.internal import (
@@ -50,11 +53,62 @@ class IndexerClient(httpx.AsyncClient):
     async def request(
         self, method: str, url: httpx.URL | str, **kwargs
     ) -> httpx.Response:
+        return await self._guarded(
+            lambda: super(IndexerClient, self).request(method, url, **kwargs)
+        )
+
+    async def get_bounded(
+        self, url: httpx.URL | str, *, max_bytes: int
+    ) -> httpx.Response:
+        """GET, amelynek dekódolt törzse legfeljebb ``max_bytes`` bájt lehet.
+
+        A szemafort és a hitelesítési újrapróbát ugyanúgy kezeli, mint a
+        ``request()``; a szemafor a teljes törzsolvasás alatt foglalt.
+        Átirányítás közbeni válaszok törzsét a HTTPX továbbra is maga olvassa.
+        """
+        return await self._guarded(lambda: self._read_bounded(url, max_bytes))
+
+    async def _read_bounded(
+        self, url: httpx.URL | str, max_bytes: int
+    ) -> httpx.Response:
+        response = await self.send(self.build_request("GET", url), stream=True)
+        try:
+            declared = response.headers.get("content-length", "")
+            if (
+                declared.isdigit()
+                and int(declared) > max_bytes
+                and "content-encoding" not in response.headers
+            ):
+                raise IndexerResponseTooLargeException
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body += chunk
+                if len(body) > max_bytes:
+                    raise IndexerResponseTooLargeException
+        finally:
+            await response.aclose()
+        # A törzs már dekódolt: a kódolási/hossz fejléc a pufferelt válaszon nem érvényes.
+        headers = [
+            (key, value)
+            for key, value in response.headers.multi_items()
+            if key.lower() not in ("content-encoding", "content-length")
+        ]
+        return httpx.Response(
+            response.status_code,
+            headers=headers,
+            content=bytes(body),
+            request=response.request,
+            history=response.history,
+        )
+
+    async def _guarded(
+        self, send: Callable[[], Awaitable[httpx.Response]]
+    ) -> httpx.Response:
         if self._definition._closing:
             raise IndexerDefinitionException("Az indexer leállítás alatt áll.")
         # Concurrency limit (szemafor) kezelése
         async with self._definition._semaphore:
-            response = await super().request(method, url, **kwargs)
+            response = await send()
         # Hitelesítési hibák detektálása a kliens szintű válaszon
         auth_error = self._definition._detect_authentication_error(response)
 
@@ -65,7 +119,7 @@ class IndexerClient(httpx.AsyncClient):
 
                 # Kérés újraindítása (az új cookie-k automatikusan bekerülnek!)
                 async with self._definition._semaphore:
-                    response = await super().request(method, url, **kwargs)
+                    response = await send()
             case AuthCredentialError(message=message):
                 raise AuthenticationException(
                     message
@@ -295,7 +349,9 @@ class BaseIndexerDefinition(ABC):
 
     async def download_torrent(self, download_url: str) -> bytes:
         try:
-            response = await self._client.get(download_url)
+            response = await self._client.get_bounded(
+                download_url, max_bytes=config.indexer_torrent_max_bytes
+            )
             response.raise_for_status()
             return response.content
         except Exception as e:

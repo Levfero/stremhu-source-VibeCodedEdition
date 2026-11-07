@@ -47,6 +47,9 @@ class Config(BaseSettings):
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)
     subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+    # Indexerről letöltött .torrent dekódolt törzsének felső határa.
+    # FÜGGŐBEN: a végleges alapérték felhasználói RAM-keret döntés (G15/CR15a).
+    indexer_torrent_max_bytes: int = Field(default=48 * 1024 * 1024, gt=0)
 
     @field_validator("session_secret")
     @classmethod

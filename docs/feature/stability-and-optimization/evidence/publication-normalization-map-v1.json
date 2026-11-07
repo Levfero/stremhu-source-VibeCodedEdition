@@ -3700,6 +3700,38 @@
     "g03-v1-incomplete-assessment.json": {
       "measurement_raw_sha256": "218c036cf43257c2ebaec5f44b6de64277570b18d934cc4c764188f8cb80e095",
       "publication_lf_sha256": "8c9c1e639d7c4e27f60db6542da8fc6ce992002a85c39eea04387974d20520a9"
+    },
+    "burst27-v1-protocol.json": {
+      "measurement_raw_sha256": "508e363eba3fb3b1159795bc708c632eadfedd85676e1c0763454c5d6122b08f",
+      "publication_lf_sha256": "262c8769604c768b8074b8c1a42093fea155f4588f0fd948cdbabfd0736088a4"
+    },
+    "burst27-v2-protocol.json": {
+      "measurement_raw_sha256": "03d405c865f80cebeae20219baf621fd1accf941bfe39309df08a7d56ccff750",
+      "publication_lf_sha256": "4c0d431d307a0e2d4966964fbb8e93bf91b8946376598052babadf12b28bd13c"
+    },
+    "burst27-v3-protocol.json": {
+      "measurement_raw_sha256": "015f133a946daf09fba128f2f8adb4e94b325a0940c222b25e79eefe836f5b5c",
+      "publication_lf_sha256": "1fa8e9b90a2e69e65145cecca25545434e0f5794ed788fc8b99af598309664e7"
+    },
+    "burst27-v3-summary.json": {
+      "measurement_raw_sha256": "461684f4424810fbfcb1f21cd67fb05775e6ff2264618e43aaecb57ace24aa7b",
+      "publication_lf_sha256": "4d76de2722d2c320a4e34615ce9e4ff05704b167452e2e00fe495d66eb94d7c8"
+    },
+    "burst27-v3-complete.json": {
+      "measurement_raw_sha256": "dded7c381effb248cd7ef2c6ffa8095ca141f035c1f35a5ce2db59bbece703e0",
+      "publication_lf_sha256": "dded7c381effb248cd7ef2c6ffa8095ca141f035c1f35a5ce2db59bbece703e0"
+    },
+    "burst27-v1-source-manifest.json": {
+      "measurement_raw_sha256": "be163ec17e268e64eb6061b704b0e0a3d9d71ec84fe63d4b757b6db0277274d4",
+      "publication_lf_sha256": "8a685ce9bfa199267eec35e82625771bfc3ba1a6ec3c3ffc48042396e1dc1fed"
+    },
+    "cr15b-after-v2-source-manifest.json": {
+      "measurement_raw_sha256": "48755d34291deb1c92cdf4245a0ceb6cc5dcf07956d594b031d9681f5e120053",
+      "publication_lf_sha256": "0535b75ae8def18b5a5ad5dd6124e046594dbc9e01907da87594569240fa00ba"
+    },
+    "burst27-diag-phase-cost.json": {
+      "measurement_raw_sha256": "f2e769fde7a92c046401364b36b839e1f2afd38ad045dbfd19928b898ba8b7cd",
+      "publication_lf_sha256": "b1c89aa3b01262983cad74fd21de0c138936b80d44d993daf6dc15d426413c9b"
     }
   }
 }

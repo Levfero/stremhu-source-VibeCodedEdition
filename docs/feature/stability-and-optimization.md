@@ -117,7 +117,7 @@ A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [
 | 22 — CR17/d (22+22b) | Megvalósított; a `cr17d-after-v1` kapu FAIL maradt (35/316, memória), az azt felváltó 22b `cr17e-after-v1` kapu teljesült (316/316) | Folyamatszintű `IndexerSearchService` és állapotmentes Singleflight-factory: a megosztott keresés nem használja a request Sessiont. A 22 izolált olvasásai QueuePool-telítést okoztak (15 egyidejű checkout, before 10–11); a 22b egyhelyes `shared_read_session()` kapuval a before szintjén tartja a kapcsolatszámot. Ellenőrzés: 611 pytest/64 snapshot, Ruff/basedpyright 0, ownership-trace 4/4; memória, p95, CPU, SQL a kereten belül. Commit: `f7cdb1a`. Részletek: [CR17/c–d terv](stability-and-optimization/cr17cd-plan.md#doc-22b-megosztott-olvasasi-kapu). |
 | 23 — G01 → CR01/b | Lezárva felhasználói termékdöntéssel (2026-11-07), policyváltozás nélkül | A CR01/a egységes alkalmazója szerint a torrentenkénti limit tétlen torrentnél a beállított érték, aktív lejátszás alatt `max(beállítás, 50)` (`relay/service.py:apply_torrent_connection_policy`; az upstream `8c99c7d` lejátszás alatt fix 50-et állított, a fork `d16365d` tette alsó korláttá). A felület ezt „maximális számnak” nevezte. Döntés: a viselkedés marad, a felület mezője „Torrentenkénti kapcsolatok alapértéke” címet és a lejátszás alatti legalább 50-es értéket, valamint a globális felső határt megnevező leírást kapott (`relay/settings/-features/connection.tsx`). Az 50 tapasztalati érték, mérés nem igazolja; a G01 teljes mátrix és a hard-cap policy nem futott, mert a döntés nem igényli. Ellenőrzés: `npm run lint`, `npm run format`, `npm run build` (+`tsc`) a zárolt Node 24 konténerben. |
 | 24 — G06 → CR06 | Lezárva felhasználói termékdöntéssel (2026-11-07), változtatás nélkül | A LOCAL HTTPS-mód közös, publikus szolgáltatástól kapott kulcsa nem ad egyedi szerverazonosságot. A telepítésenként egyedi, saját aláírású tanúsítvány viszont megtörné a zéró konfigurációs működést: a Stremio/ExoPlayer (főleg Android TV-n) eldobná a kapcsolatot, saját gyökértanúsítványt a felhasználók nem telepítenek. Döntés: a LOCAL mód Plug & Play tartalékként változatlan marad; egyedi szerverazonosság a meglévő MANUAL (saját tanúsítvány / reverse proxy) vagy AUTO (ACME) móddal érhető el. G06-mérés nem futott. Részletek: [24 — TLS-döntés](#doc-24-tls-decision). |
-| 25–27, 29 | Soron következő / feltételes | 25 (CR15a): a `cr15a-after-v1` kapu FAIL (a korlátos olvasás másolási többletköltsége nagy válaszoknál); a javított jelölt `cr15a-after-v2` kapuja fut. G04 memo-jelölt (29) kapuja fut. 26–27 a CR15a után; a 26b letöltési hostszabálya szigorú: csak a tracker saját domainje és aldomainjei, HTTPS-en (felhasználói döntés, 2026-11-07). [v1 FAIL bizonyíték](stability-and-optimization/evidence/cr15a-after-v1-assessment.json). |
+| 25–27, 29 | Soron következő / feltételes | 25 (CR15a): a `cr15a-after-v1` kapu FAIL (a korlátos olvasás másolási többletköltsége nagy válaszoknál); a javított jelölt `cr15a-after-v2` kapuja fut. G04 memo-jelölt (29) kapuja fut. 26–27 a CR15a után; a 26b letöltési hostszabálya szigorú: csak a tracker saját domainje és aldomainjei, HTTPS-en (felhasználói döntés, 2026-11-07). [v1 FAIL bizonyíték](stability-and-optimization/evidence/cr15a-after-v1-assessment.json). A 27 leíró burst-alapmérése (`burst27-v3`) lefutott, SLO-döntésre vár ([27 — burst](#doc-27-burst-baseline)). |
 | 28 — G02 → CR02 | Lezárva méréssel: NO_CHANGE, PRAGMA/checkpoint változtatás nélkül | Két monitormentes 3600 s-os CR17 utáni C-kontroll (`aaa9ee5` forrás) az előre regisztrált szabályokkal: WAL-újrahasznosítás, commit/tranzakció p99 és szokásos WAL-csúcs mind a referencia keretén belül, egyszeri eltérés sincs; szokásos WAL-csúcs 4,4/4,4 MiB (keret 19,8 MiB), végső checkpoint teljes, pool 0. Részletek: [28 — G02](#doc-28-g02-cr17-utani-kontroll). |
 | 30 — G03 → CR03 | Lezárva: formálisan `INVALID` (19/20 adag), kódváltozás nélkül | A gzip a `streams/40` válasznál −64% bájtot ad, a c1 teljes p95 mob2-n 224 → 135 ms. LAN-on viszont a szerver-CPU és a késleltetés ismételhetően romlik. Az utolsó adag (mob2) a fixture-szerver kapcsolatbontása miatt elmaradt. A teljes LAN-adat mind a 12 szint–küszöb kombinációt kizárja, így a hiányzó adag a döntést nem változtathatja meg; újrafuttatás nincs. Részletek: [30 — G03](#doc-30-g03). |
 | 31 — G13-convert → CR13/c | Megvalósított; a G13-convert kapu OFFLOAD_CANDIDATE, a jelölt `g13conv-v2` kapuja PASS | A feliratvégpont az ASS→VTT dekódolást és konverziót eddig egyben, az event loopon futtatta (3 MB: ~46 ms, 8 MiB: ~126 ms blokkolás). Most 256 KiB-os dekódoló és ~32 K karakteres, sorvégen vágott konverziós szeletek között visszaadja a vezérlést; szál/processz nincs, a kimenet bájtazonos. Stall p95 (sorozatmediánok) 3 MB: 2,64/2,75 ms, 8 MiB: 3,92/3,90 ms; a konverzió falideje nem romlott. 27 új teszt, Ruff/basedpyright 0, 638 pytest/64 snapshot. Részletek: [31 — G13-convert](#doc-31-g13-convert). |
@@ -730,3 +730,38 @@ Kiemelt cellák a 19 teljes adagból (ismétlésmediánok, gzip 6-os szint; *mob
 **Döntés:** a CR03 nem kerül be, kódváltozás nincs. A gzip lassú linken mérhetően gyorsít, de a LAN-késleltetés és a szerver-CPU a közös kapun túl romlik, és írásban kijelölt CPU/UX-keret nem volt. Újrafuttatást nem indítottunk, mert az a döntést nem változtathatná meg. Útvonalra szűkített gzip csak új, előre rögzített CPU/latency-keretről szóló felhasználói termékdöntéssel és új kapuval kerülhet vissza. A Starlette `GZipMiddleware` a `q=0`-t figyelmen kívül hagyja, ezért ahhoz saját kódolásválasztás is kellene.
 
 **Korlátok:** a relé az adatot késlelteti, a TCP-kézfogást nem; TLS nem része a mérésnek. A szervermemória változatonként nem választható szét.
+
+<!-- doc-anchor:doc-27-burst-baseline -->
+<a id="doc-27-burst-baseline"></a>
+### 27 — CR15/c: burst-alapmérés a döntés előtt
+
+**Cél:** a terv szerint a keresési admission, a batch és a határidő számai mérésből és előre rögzített UX/SLO-keretből következnek. Ez a mérés a változatlan keresési út viselkedését írja le; paramétert nem választ, kapuja nincs.
+
+**Mérés (`burst27-v3`):** [protokoll](stability-and-optimization/evidence/burst27-v3-protocol.json), [összegzés](stability-and-optimization/evidence/burst27-v3-summary.json), [befejezési jelölő](stability-and-optimization/evidence/burst27-v3-complete.json), [forrásmanifest](stability-and-optimization/evidence/cr15b-after-v2-source-manifest.json); scriptek a `packet27-burst` archívumcsoportban.
+- **Út:** N egyszerre induló, különböző IMDb-keresés a valódi `TorrentSourceProviderService` → `IndexerSearchService` → adapter (`IndexerClient`, 5-ös szemafor, 48 MiB-os korlátos letöltés) → `_sync_torrent_files` → `create_many` (natív parse, SQLite) úton. Csak az adapter keresőoldal-feldolgozása szintetikus, privát fixture-ön.
+- **Forrás:** a beolvasandó fa, `f90e752` (CR15/a v2 + 26a).
+- **Terhelés:** keresésenként 40 jelölt. A „tipikus” keverék ~5,7 MB/keresés (51 KB–1,4 MB-os metaadatok). A „nehéz” stresszprofilban 8 jelöltből 1 egy 21,5 MB-os, 10 000 fájlos, natívan elfogadott torrent, ~111 MB/keresés.
+- **Erőforrás és ismétlés:** kliens 2 CPU / 1 GiB, a DB futásonként friss Docker-köteten; 5 ismétlés, rotált sorrend.
+- **Előzmények:** a `burst27-v1` ([protokoll](stability-and-optimization/evidence/burst27-v1-protocol.json)) tmpfs-DB-je a memóriakeretbe számított, a `burst27-v2` ([protokoll](stability-and-optimization/evidence/burst27-v2-protocol.json)) a CR15/a v1 forráson állt. Mindkettő regisztrált, de nem futott.
+
+| Keverék, N | Lefutott / OOM | p50 | p95 | anon-csúcs + | Event-loop késés max |
+|---|---|---|---|---|---|
+| tipikus, 1 | 5/5 / 0 | 1,2 s | 1,2 s | 15 MiB | 2 ms |
+| tipikus, 2 | 5/5 / 0 | 1,3 s | 1,3 s | 20 MiB | 31 ms |
+| tipikus, 4 | 5/5 / 0 | 2,1 s | 2,9 s | 36 MiB | 31 ms |
+| tipikus, 8 | 5/5 / 0 | 3,8 s | 6,2 s | 46 MiB | 32 ms |
+| tipikus, 16 | 5/5 / 0 | 7,6 s | 13,2 s | 67 MiB | 35 ms |
+| tipikus, 32 | 5/5 / 0 | 15,0 s | 26,3 s | 104 MiB | 45 ms |
+| nehéz, 1 | 5/5 / 0 | 5,4 s | 5,4 s | 479 MiB | 282 ms |
+| nehéz, 2 | 5/5 / 0 | 5,4 s | 5,4 s | 735 MiB | 347 ms |
+| nehéz, 4 | 2/5 / 3 | 9,5 s | 13,2 s | 841 MiB | 321 ms |
+
+Minden lefutott keresés helyes volt: 40 forrás, 0 indexerhiba, 40 egyedi info-hash; külső hívás nem történt.
+
+**Megfigyelések (leíró):**
+- **Sorba állás:** az adapter 5-ös szemaforja miatt az egyidejű keresések letöltései gyakorlatilag sorban futnak. A tipikus keresések válaszideje N-nel lineárisan nő, keresésenként ~0,8 s-mal; a megtartott letöltött bájt ezért egyszerre csak ~1 keresésnyi (~5–6 MiB).
+- **Memória:** tipikus terhelésnél kicsi, N=32-nél is ~100 MiB. A nehéz keresések költségét a nagy torrentek feldolgozása adja: egy ilyen keresés ~0,5 GiB anon csúcs, N=4-nél 1 GiB-on 5-ből 3 futás OOM. Darabszám-alapú admission ezt nem védi; bájtalapú keret kell.
+- **Event loop:** nehéz keresésnél ~0,3 s-ig blokkol, ami más kéréseket is késleltet.
+- **Gyorsítótár:** a feldolgozott torrentinfó-gyorsítótár darabszámra (2000) korlátos, méretre nem. [Diagnosztika](stability-and-optimization/evidence/burst27-diag-phase-cost.json), nem kapuadat: egy 10 000 fájlos, 21,5 MB-os torrent ~13 MiB-ot tart meg benne. Élesben nem mértük, statikus kockázat.
+
+**Következő lépés:** a felhasználó rögzíti az UX/SLO-keretet: legnagyobb keresési idő, egyszerre kiszolgálandó különböző keresések száma, memóriakeret. Csak ezután készül a 27-es kapu. A vázlat (admission, batch, határidő) helyi ágon van, ideiglenes számokkal.

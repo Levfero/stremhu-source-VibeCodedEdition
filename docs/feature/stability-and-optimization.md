@@ -117,8 +117,9 @@ A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [
 | 22 — CR17/d (22+22b) | Megvalósított; a `cr17d-after-v1` kapu FAIL maradt (35/316, memória), az azt felváltó 22b `cr17e-after-v1` kapu teljesült (316/316) | Folyamatszintű `IndexerSearchService` és állapotmentes Singleflight-factory: a megosztott keresés nem használja a request Sessiont. A 22 izolált olvasásai QueuePool-telítést okoztak (15 egyidejű checkout, before 10–11); a 22b egyhelyes `shared_read_session()` kapuval a before szintjén tartja a kapcsolatszámot. Ellenőrzés: 611 pytest/64 snapshot, Ruff/basedpyright 0, ownership-trace 4/4; memória, p95, CPU, SQL a kereten belül. Commit: `f7cdb1a`. Részletek: [CR17/c–d terv](stability-and-optimization/cr17cd-plan.md#doc-22b-megosztott-olvasasi-kapu). |
 | 23 — G01 → CR01/b | Lezárva felhasználói termékdöntéssel (2026-11-07), policyváltozás nélkül | A CR01/a egységes alkalmazója szerint a torrentenkénti limit tétlen torrentnél a beállított érték, aktív lejátszás alatt `max(beállítás, 50)` (`relay/service.py:apply_torrent_connection_policy`; az upstream `8c99c7d` lejátszás alatt fix 50-et állított, a fork `d16365d` tette alsó korláttá). A felület ezt „maximális számnak” nevezte. Döntés: a viselkedés marad, a felület mezője „Torrentenkénti kapcsolatok alapértéke” címet és a lejátszás alatti legalább 50-es értéket, valamint a globális felső határt megnevező leírást kapott (`relay/settings/-features/connection.tsx`). Az 50 tapasztalati érték, mérés nem igazolja; a G01 teljes mátrix és a hard-cap policy nem futott, mert a döntés nem igényli. Ellenőrzés: `npm run lint`, `npm run format`, `npm run build` (+`tsc`) a zárolt Node 24 konténerben. |
 | 24 — G06 → CR06 | Lezárva felhasználói termékdöntéssel (2026-11-07), változtatás nélkül | A LOCAL HTTPS-mód közös, publikus szolgáltatástól kapott kulcsa nem ad egyedi szerverazonosságot. A telepítésenként egyedi, saját aláírású tanúsítvány viszont megtörné a zéró konfigurációs működést: a Stremio/ExoPlayer (főleg Android TV-n) eldobná a kapcsolatot, saját gyökértanúsítványt a felhasználók nem telepítenek. Döntés: a LOCAL mód Plug & Play tartalékként változatlan marad; egyedi szerverazonosság a meglévő MANUAL (saját tanúsítvány / reverse proxy) vagy AUTO (ACME) móddal érhető el. G06-mérés nem futott. Részletek: [24 — TLS-döntés](#doc-24-tls-decision). |
-| 25–27, 29–30 | Soron következő / feltételes | 25 (CR15a): a `cr15a-after-v1` kapu FAIL (a korlátos olvasás másolási többletköltsége nagy válaszoknál); a javított jelölt `cr15a-after-v2` kapuja fut. G04 memo-jelölt (29) és G03 haszon/költség (30) kapu fut. 26–27 a CR15a után; a 26b letöltési hostszabálya szigorú: csak a tracker saját domainje és aldomainjei, HTTPS-en (felhasználói döntés, 2026-11-07). [v1 FAIL bizonyíték](stability-and-optimization/evidence/cr15a-after-v1-assessment.json). |
+| 25–27, 29 | Soron következő / feltételes | 25 (CR15a): a `cr15a-after-v1` kapu FAIL (a korlátos olvasás másolási többletköltsége nagy válaszoknál); a javított jelölt `cr15a-after-v2` kapuja fut. G04 memo-jelölt (29) kapuja fut. 26–27 a CR15a után; a 26b letöltési hostszabálya szigorú: csak a tracker saját domainje és aldomainjei, HTTPS-en (felhasználói döntés, 2026-11-07). [v1 FAIL bizonyíték](stability-and-optimization/evidence/cr15a-after-v1-assessment.json). |
 | 28 — G02 → CR02 | Lezárva méréssel: NO_CHANGE, PRAGMA/checkpoint változtatás nélkül | Két monitormentes 3600 s-os CR17 utáni C-kontroll (`aaa9ee5` forrás) az előre regisztrált szabályokkal: WAL-újrahasznosítás, commit/tranzakció p99 és szokásos WAL-csúcs mind a referencia keretén belül, egyszeri eltérés sincs; szokásos WAL-csúcs 4,4/4,4 MiB (keret 19,8 MiB), végső checkpoint teljes, pool 0. Részletek: [28 — G02](#doc-28-g02-cr17-utani-kontroll). |
+| 30 — G03 → CR03 | Lezárva: formálisan `INVALID` (19/20 adag), kódváltozás nélkül | A gzip a `streams/40` válasznál −64% bájtot ad, a c1 teljes p95 mob2-n 224 → 135 ms. LAN-on viszont a szerver-CPU és a késleltetés ismételhetően romlik. Az utolsó adag (mob2) a fixture-szerver kapcsolatbontása miatt elmaradt. A teljes LAN-adat mind a 12 szint–küszöb kombinációt kizárja, így a hiányzó adag a döntést nem változtathatja meg; újrafuttatás nincs. Részletek: [30 — G03](#doc-30-g03). |
 | 31 — G13-convert → CR13/c | Megvalósított; a G13-convert kapu OFFLOAD_CANDIDATE, a jelölt `g13conv-v2` kapuja PASS | A feliratvégpont az ASS→VTT dekódolást és konverziót eddig egyben, az event loopon futtatta (3 MB: ~46 ms, 8 MiB: ~126 ms blokkolás). Most 256 KiB-os dekódoló és ~32 K karakteres, sorvégen vágott konverziós szeletek között visszaadja a vezérlést; szál/processz nincs, a kimenet bájtazonos. Stall p95 (sorozatmediánok) 3 MB: 2,64/2,75 ms, 8 MiB: 3,92/3,90 ms; a konverzió falideje nem romlott. 27 új teszt, Ruff/basedpyright 0, 638 pytest/64 snapshot. Részletek: [31 — G13-convert](#doc-31-g13-convert). |
 
 CR07 lezárt kiegészítés: a stream-prefetch/fallback, epizód-/aliasfeloldás, tech-enrichment és ütemezett hálózati wrapper eddig nyers kivételszöveget vagy tracebacket is naplózhatott. Ezek a már használt kind/status mezőkre tértek át, az önellenőrzés hibaüzenete nem ír HOST_IP értéket. Tizenhat új jelölőtitkos regresszió készült: tényleges wrapper-hívások, katalógus/Torznab, valamint a valódi Rich-handler direkt/wrapped kivétel és argumentum útja, mély lánc és nagy exception-group/argumentumlista. A handler64 elemre korlátozott vizsgálata olvasatlan faroknál elhagyja a teljes üzenetet és tracebacket. Hét célzott reprodukció a megőrzött korábbi forráson elbukott; a kiegészített34 logteszt, Ruff/basedpyright és teljes570 pytest /64 snapshot sikeres,20 ismert figyelmeztetéssel. A külön két ötszörös C normál HTTP előtte/utána és15 rotált A/B/C nulla hibát, azonos C-payloadot és legfeljebb1,247 ms p95-mediántöbbletet adott; CPU/memória/cold kapu zöld. A kiegészítés lezárt, a korábbi CR07 bizonyíték megmarad. A PowerShell segédfájl indítását a helyi script-házirend blokkolta; a pontos parancsok közvetlen futtatása sikeres, házirend-módosítás nem történt.
@@ -692,3 +693,40 @@ Az explicit snapshot stresszkontroll alatt (szándékosan nyitva tartott olvasó
 - **Alternatíva:** egyedi szerverazonossághoz a meglévő MANUAL mód (saját tanúsítvány vagy reverse proxy) vagy az AUTO mód (ACME) használható. Mindkét mód a forrásban létezik (`network/schemas/internal.py`: `NetworkManualSetup`, `NetworkAutoSetup`).
 
 **Következmény:** kódváltozás és G06-mérés nincs; a terv CR06 tétele ezzel lezárul. Ez termékdöntés, nem mérési eredmény.
+
+<!-- doc-anchor:doc-30-g03 -->
+<a id="doc-30-g03"></a>
+### 30 — G03: gzip haszon/költség (CR03)
+
+**Kérdés:** a Stremio JSON-válaszok gzip-tömörítése ismételhető nettó hasznot ad-e úgy, hogy a LAN-késleltetés és a CPU nem romlik a közös kapun túl.
+
+**Kapu:** [protokoll](stability-and-optimization/evidence/g03-v1-protocol.json); scriptek a `packet30-g03` archívumcsoportban.
+- **Fixture:** valódi Stremio Pydantic-modellek FastAPI `response_model` úton, Hypercornnal, a befagyasztott `aaa9ee5` forráson. Payloadok: streams 0/1/10/40/200, sorozat-meta 50 epizóddal, katalógus 200 elemmel.
+- **Változatok:** identity-a és identity-b (zajbaseline ugyanabban a processzben, váltakozva), valamint Starlette `GZipMiddleware` 1/4/6-os szinttel.
+- **Hálózat:** lan (közvetlen) és saját, közös szűk keresztmetszetű relé: wan50 (50 Mbit/s, 20 ms RTT), wan10 (10 Mbit/s, 40 ms), mob2 (2 Mbit/s, 80 ms).
+- **Mintavétel:** c1/c4/c8 keep-alive és friss kapcsolat, cellánként 100 mért kérés, 5 ismétlés, rotált sorrendben.
+- **Upstream:** az `8c99c7d` a fixture Stremio-modelljeit nem tartalmazza (`StremioSubtitle` hiányzik), ezért N/A; a B referencia mérete a C-vel azonos.
+
+**Eredmény: formálisan `INVALID`.** 19/20 adag teljes. Az 5. ismétlés mob2-adagja a `streams/200 identity-b c8` cellánál elbukott: a fixture-szerver válasz nélkül bontott egy keep-alive kapcsolatot (`RemoteProtocolError`). Befejezési jelölő nem készült, az előre rögzített értékelő ezért nem futott.
+
+**Lezáró elemzés:** [elemzés](stability-and-optimization/evidence/g03-v1-incomplete-assessment.json). Utólag írt, külön jelölt elemzés, nem az előre rögzített döntés.
+- Ugyanazokkal a szabályokkal azt vizsgálja, számíthat-e a hiányzó adag.
+- A LAN-profil 5/5 adagja teljes, és cellái csak LAN-adatból számolódnak.
+- Mind a 12 (szint, küszöb) kombinációnál van olyan tömörítendő payload, amelynél LAN-on ismételhető romlás látszik. A szabály szerint ez önmagában kizár, így a hiányzó mob2-adag semmilyen kimenettel nem tehetné alkalmassá a gzip-et.
+
+Kiemelt cellák a 19 teljes adagból (ismétlésmediánok, gzip 6-os szint; *mob2: 4 ismétlés):
+
+| Payload | Bájt, identity → gzip6 | Total p95 c1, LAN (ms) | wan50 | wan10 | mob2* | Szerver-CPU/kérés, LAN (ms) |
+|---|---|---|---|---|---|---|
+| `streams/10` | 9,0 KiB → 3,8 KiB (−58%) | 2,04 → 2,18 | 24,8 → 23,8 | 50,7 → 46,2 | 120,8 → 99,3 | 0,45 → 0,54 |
+| `streams/40` | 34,2 KiB → 12,4 KiB (−64%) | 2,07 → 2,40 | 28,5 → 25,3 | 71,3 → 53,5 | 223,9 → 135,2 | 0,47 → 0,82 |
+| `meta` | 23,2 KiB → 4,1 KiB (−82%) | 2,10 → 2,34 | 27,1 → 24,4 | 62,3 → 47,3 | 178,8 → 101,4 | 0,48 → 0,76 |
+| `catalog/200` | 64,2 KiB → 5,1 KiB (−92%) | 2,21 → 2,50 | 33,8 → 24,2 | 96,0 → 47,7 | 347,3 → 105,6 | 0,59 → 0,91 |
+| `streams/200` | 172,8 KiB → 57,5 KiB (−67%) | 2,37 → 4,39 | 52,0 → 35,0 | 185,4 → 93,0 | 792,2 → 322,0 | 0,71 → 2,59 |
+
+- A `streams/40` teljes p95-je ezeken a profilokon javult minden módban: mob2, wan10, wan50.
+- Ismételhető romlás, legalább 1 KiB-os payloadoknál (metrika: profilok): szerver-CPU/kérés: lan, mob2, wan10, wan50; teljes p95: lan; TTFB p95: lan, mob2, wan10, wan50.
+
+**Döntés:** a CR03 nem kerül be, kódváltozás nincs. A gzip lassú linken mérhetően gyorsít, de a LAN-késleltetés és a szerver-CPU a közös kapun túl romlik, és írásban kijelölt CPU/UX-keret nem volt. Újrafuttatást nem indítottunk, mert az a döntést nem változtathatná meg. Útvonalra szűkített gzip csak új, előre rögzített CPU/latency-keretről szóló felhasználói termékdöntéssel és új kapuval kerülhet vissza. A Starlette `GZipMiddleware` a `q=0`-t figyelmen kívül hagyja, ezért ahhoz saját kódolásválasztás is kellene.
+
+**Korlátok:** a relé az adatot késlelteti, a TCP-kézfogást nem; TLS nem része a mérésnek. A szervermemória változatonként nem választható szét.

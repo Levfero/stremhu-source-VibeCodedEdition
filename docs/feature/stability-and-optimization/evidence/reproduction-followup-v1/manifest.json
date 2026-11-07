@@ -516,6 +516,46 @@
       "sha256": "a36ec50c403247d283adf8e496a07bf650a1b60e9cb929527e94e3b9868e9ee7",
       "group": "packet31-cr13c",
       "measurement_raw_sha256": "a36ec50c403247d283adf8e496a07bf650a1b60e9cb929527e94e3b9868e9ee7"
+    },
+    "g03_v1.py": {
+      "sha256": "5b557897f6d95c1247d60e9c0fa9f59e9e5fa326221b40289fc7f6aa3e7edeb4",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "6c73c2b5c3dd2699c70fd4760cd5561421d3c8d32fba1b8eecec4166c54a0901"
+    },
+    "assess_g03_v1.py": {
+      "sha256": "e7ed8c2a2b8701c63ed0428150d899d2979cfb2d2a7539d72dde18ec62a49ce4",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "e7ed8c2a2b8701c63ed0428150d899d2979cfb2d2a7539d72dde18ec62a49ce4"
+    },
+    "register_g03_v1.py": {
+      "sha256": "be4943d1e597570a0243a421b88403a931f5cd48d9f3305b363045a4c2bc86bd",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "be4943d1e597570a0243a421b88403a931f5cd48d9f3305b363045a4c2bc86bd"
+    },
+    "assess_g03_v1_incomplete.py": {
+      "sha256": "2a375fa4ce954d289b8ca6e531b65b68b63b8808adea65840ff58c854cddb39b",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "2a375fa4ce954d289b8ca6e531b65b68b63b8808adea65840ff58c854cddb39b"
+    },
+    "g03-v1-client.py": {
+      "sha256": "9e2b5f8920071d02a281fbb652eafea56db244c6601803120427c4ce1f2797b4",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "9e2b5f8920071d02a281fbb652eafea56db244c6601803120427c4ce1f2797b4"
+    },
+    "g03-v1-params.json": {
+      "sha256": "8055d841860af70cb1e6330810a0210a7800dca23e1c4edc81102bbc220e8d37",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "8055d841860af70cb1e6330810a0210a7800dca23e1c4edc81102bbc220e8d37"
+    },
+    "g03-v1-server.py": {
+      "sha256": "a3793c7078e8bdc6c1cb8d178c6d72a27555b4133ed3eec2d64a8df5248b87c9",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "a3793c7078e8bdc6c1cb8d178c6d72a27555b4133ed3eec2d64a8df5248b87c9"
+    },
+    "g03-v1-shaper.py": {
+      "sha256": "c960bf03f1ae8f387b267bf80ab4ca331c9370a7e0c83bd30974394010a5c2cf",
+      "group": "packet30-g03",
+      "measurement_raw_sha256": "c960bf03f1ae8f387b267bf80ab4ca331c9370a7e0c83bd30974394010a5c2cf"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

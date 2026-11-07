@@ -3692,6 +3692,14 @@
     "cr15a-after-v1-source-manifest.json": {
       "measurement_raw_sha256": "9843d70d0bb1e1dfabe430837105b8d4fad198f1368eb973fbde049a8b6964f8",
       "publication_lf_sha256": "b45e5bc3bc6d416a8ae51f821a5b9d3ee862928a38061432eeca95b6b0cfc7bb"
+    },
+    "g03-v1-protocol.json": {
+      "measurement_raw_sha256": "b2a9fdf10a717f6f102506b7f7c0b2e5caca253cf55628222561ded3ec2a4d2b",
+      "publication_lf_sha256": "e60cba4b7f1150e3faacf5a08f1113ad2439cfc208735cf7c673c13454b1047d"
+    },
+    "g03-v1-incomplete-assessment.json": {
+      "measurement_raw_sha256": "218c036cf43257c2ebaec5f44b6de64277570b18d934cc4c764188f8cb80e095",
+      "publication_lf_sha256": "8c9c1e639d7c4e27f60db6542da8fc6ce992002a85c39eea04387974d20520a9"
     }
   }
 }

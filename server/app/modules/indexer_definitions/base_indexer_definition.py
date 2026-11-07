@@ -46,6 +46,10 @@ _DEFAULT_HEADERS = {
 }
 
 
+# CR15/b: korlátos letöltésnél követett átirányítások felső határa (terv: legfeljebb 10).
+_MAX_BOUNDED_REDIRECTS = 10
+
+
 class _CappedStream(httpx.AsyncByteStream):
     """Nyers válaszfolyam burka: a korlát átlépésekor azonnal megáll, a zárást továbbadja."""
 
@@ -86,14 +90,35 @@ class IndexerClient(httpx.AsyncClient):
 
         A szemafort és a hitelesítési újrapróbát ugyanúgy kezeli, mint a
         ``request()``; a szemafor a teljes törzsolvasás alatt foglalt.
-        Átirányítás közbeni válaszok törzsét a HTTPX továbbra is maga olvassa.
+        Átirányításnál legfeljebb ``_MAX_BOUNDED_REDIRECTS`` lépést követ, a
+        közbülső válaszok törzsét nem olvassa be, csak lezárja.
         """
         return await self._guarded(lambda: self._read_bounded(url, max_bytes))
+
+    async def _send_following_unread(self, url: httpx.URL | str) -> httpx.Response:
+        """Kézi átirányítás-követés: a HTTPX a követett redirect törzsét korlát nélkül olvasná.
+
+        A következő kérést a HTTPX publikus ``next_request`` mezője adja (relatív Location,
+        metódus, cookie- és fejlécszabályok változatlanul); a history megmarad.
+        """
+        request = self.build_request("GET", url)
+        history: list[httpx.Response] = []
+        while True:
+            response = await self.send(request, stream=True, follow_redirects=False)
+            next_request = response.next_request if self.follow_redirects else None
+            if next_request is None:
+                response.history = history
+                return response
+            await response.aclose()
+            history.append(response)
+            if len(history) > _MAX_BOUNDED_REDIRECTS:
+                raise httpx.TooManyRedirects("Exceeded maximum allowed redirects.", request=next_request)
+            request = next_request
 
     async def _read_bounded(
         self, url: httpx.URL | str, max_bytes: int
     ) -> httpx.Response:
-        response = await self.send(self.build_request("GET", url), stream=True)
+        response = await self._send_following_unread(url)
         try:
             if "content-encoding" not in response.headers:
                 declared = response.headers.get("content-length", "")

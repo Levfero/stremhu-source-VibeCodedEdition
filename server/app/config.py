@@ -55,11 +55,12 @@ class Config(BaseSettings):
     # 12 egyidejű egyedi keresés, 15 s teljes határidő, 1 GiB-os konténer.
     source_search_max_parallel: int = Field(default=12, ge=1)
     source_search_deadline_seconds: float = Field(default=15.0, gt=0)
-    # Az 1 GiB-os keretből levezetve (burst27-v3, burst27-diag-phase-cost): egy mentési köteg
-    # legfeljebb 32 MiB nyers .torrent (a feldolgozás ~4x átmeneti memóriát visz), a letöltött,
-    # még nem mentett bájtok folyamatszinten legfeljebb 64 MiB-ig indítanak új letöltést.
-    source_search_batch_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
-    source_search_pending_max_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
+    # Az 1 GiB-os keretből levezetve (burst27-v3 és a kapu előtti diagnosztika): egy mentési köteg
+    # legfeljebb 16 MiB nyers .torrent (a feldolgozás ~4x átmeneti memóriát visz), a letöltött,
+    # még nem mentett bájtok folyamatszinten legfeljebb 32 MiB-ig indítanak új letöltést.
+    # Diagnosztika (nem kapuadat): nehéz N=4 anon csúcs 64/32 MiB-tal +745, 32/16 MiB-tal +497 MiB.
+    source_search_batch_max_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
+    source_search_pending_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     # Indexerenként egyszerre beengedett letöltés: az adapterek alapértelmezett 5-ös szemaforja.
     source_search_downloads_per_indexer: int = Field(default=5, ge=1)
     # Feldolgozott TorrentInfo-gyorsítótár fájlbejegyzés-kerete (~1,3 KiB/fájl, ~65 MiB).

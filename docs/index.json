@@ -1263,7 +1263,7 @@
       "doc_id": "feature-stability-and-optimization-cr17cd-plan",
       "title": "CR17/c–d — provider/file ownership terv (21–22. csomag)",
       "kind": "implementation-plan",
-      "status": "blocked-on-user-decision",
+      "status": "implemented",
       "audience": [
         "developer",
         "ai-agent"
@@ -1278,7 +1278,7 @@
       ],
       "source_commit": "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d",
       "baseline": "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)",
-      "verification": "21a reproduction failed deterministically on 050cb33; 21b: Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; cr17c-after-v1 FAIL (1/316), superseding cr17c-after-v2 PASS 316/316, committed d1da34c; 22: 609 pytest local, runtime gate cr17d-after-v1 FAIL (35/316, memory only; resumed once after a power outage by a preregistered amendment); pool diagnostic v1: QueuePool saturation 15 vs 10-11",
+      "verification": "21a reproduction failed deterministically on 050cb33; 21b: Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; cr17c-after-v1 FAIL (1/316), superseding cr17c-after-v2 PASS 316/316, committed d1da34c; 22: runtime gate cr17d-after-v1 FAIL (35/316, memory only; resumed once after a power outage by a preregistered amendment); pool diagnostic v1: QueuePool saturation 15 vs 10-11; 22b (shared_read_session gate): cr17e-after-v1 PASS 316/316; 22+22b committed f7cdb1a: Ruff 0, basedpyright 0, 611 pytest / 64 snapshot, ownership trace 4/4",
       "structure_reviewed": "2026-11-07",
       "related_docs": [
         "docs/feature/stability-and-optimization/implementation-plan.md",

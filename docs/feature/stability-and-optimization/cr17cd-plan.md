@@ -2,12 +2,12 @@
 doc_id: "feature-stability-and-optimization-cr17cd-plan"
 title: "CR17/c–d — provider/file ownership terv (21–22. csomag)"
 kind: "implementation-plan"
-status: "blocked-on-user-decision"
+status: "implemented"
 audience: ["developer", "ai-agent"]
 tags: ["CR17", "CR17/c", "CR17/d", "ownership", "DetachedInstanceError", "DTO"]
 source_commit: "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d"
 baseline: "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)"
-verification: "21a reproduction failed deterministically on 050cb33; 21b: Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; cr17c-after-v1 FAIL (1/316), superseding cr17c-after-v2 PASS 316/316, committed d1da34c; 22: 609 pytest local, runtime gate cr17d-after-v1 FAIL (35/316, memory only; resumed once after a power outage by a preregistered amendment); pool diagnostic v1: QueuePool saturation 15 vs 10-11"
+verification: "21a reproduction failed deterministically on 050cb33; 21b: Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; cr17c-after-v1 FAIL (1/316), superseding cr17c-after-v2 PASS 316/316, committed d1da34c; 22: runtime gate cr17d-after-v1 FAIL (35/316, memory only; resumed once after a power outage by a preregistered amendment); pool diagnostic v1: QueuePool saturation 15 vs 10-11; 22b (shared_read_session gate): cr17e-after-v1 PASS 316/316; 22+22b committed f7cdb1a: Ruff 0, basedpyright 0, 611 pytest / 64 snapshot, ownership trace 4/4"
 structure_reviewed: "2026-11-07"
 related_docs: ["docs/feature/stability-and-optimization/implementation-plan.md", "docs/feature/stability-and-optimization.md"]
 source_paths: ["server/app/modules/torrent_source_provider/", "server/app/modules/torrent_files/", "server/app/modules/indexers/", "server/app/modules/torrent_streams/", "server/app/modules/stremio/", "server/app/modules/kodi/", "server/app/modules/torznab/", "server/app/common/database.py"]
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/torrent_source_provider/", "server/app/module
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Felhasználói döntésre vár (22). A 21a kész. A 21b `cr17c-after-v1` kapuja egy soron FAIL maradt (érvényes, felmentés nélkül); a felhasználó döntése szerint az azt felváltó, előre regisztrált `cr17c-after-v2` kapu (GC-kontrollált hidegkérések) 316/316 PASS, a 21b ezután commitolva. A 22 runtime-kapuja (`cr17d-after-v1`) 35/316 memóriasoron FAIL; a 22 nincs commitolva, felhasználói döntésre vár. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
+> **Státusz:** Megvalósítva (21–22). A 21a kész. A 21b `cr17c-after-v1` kapuja egy soron FAIL maradt (érvényes, felmentés nélkül); a felhasználó döntése szerint az azt felváltó, előre regisztrált `cr17c-after-v2` kapu (GC-kontrollált hidegkérések) 316/316 PASS, a 21b ezután commitolva. A 22 runtime-kapuja (`cr17d-after-v1`) 35/316 memóriasoron FAIL maradt (felmentés nélkül); a felhasználó döntése szerint a kapcsolatszámot korlátozó 22b jelölt előre regisztrált `cr17e-after-v1` kapuja 316/316 PASS, a 22+22b commitolva (`f7cdb1a`). Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
 
 **Kapcsolódó:** [implementation-plan.md — CR17](implementation-plan.md#cr17) · [stability-and-optimization.md](../stability-and-optimization.md)
 <!-- doc-nav:end -->
@@ -195,7 +195,7 @@ A pinned upstream A direct referenciája 4/5 futásban `DetachedInstanceError`-r
 
 <!-- doc-anchor:doc-22-elokeszites -->
 <a id="doc-22-elokeszites"></a>
-### 22 előkészítés: állapotmentes megosztott keresés (helyi WIP, kapu FAIL)
+### 22 előkészítés: állapotmentes megosztott keresés (kapu FAIL, a 22b váltotta fel)
 
 A helyi `wip/cr17d-owned-shared-task` ág (`22731a4`, a 21b WIP-commitra épül, nincs pusholva):
 - `indexers/search.py`: folyamatszintű `IndexerSearchService`; az accountokat saját izolált Sessionben olvassa és refként adja vissza. Az `IndexersService` ide delegál.
@@ -221,10 +221,28 @@ Az upstream A direct referenciája 5/5 `DetachedInstanceError`-ral bukott (megfi
 
 **Diagnosztika (nem kapu, nem felmentés):** [cr17d-pool-diagnostic-v1](evidence/cr17d-pool-diagnostic-v1.json). Ugyanaz a fixture SQLAlchemy `connect`/`checkout` számlálóval, rövid módban, before/after/after/before sorrendben. A 22 minden engine-en eléri az alapértelmezett QueuePool plafont (`pool_size` 5 + `max_overflow` 10 = 15 egyidejű checkout; before 10–11), és 102–135 fizikai SQLite-kapcsolatot nyit (before 26–56): az overflow-kapcsolatok ismételten nyílnak és záródnak. Minden élő SQLite-kapcsolat saját page cache-t tart, ami illeszkedik a párhuzamos cellák memóriatöbbletéhez. Következtetés (statikus, nem mért): a megosztott taskonkénti izolált Sessionök (account-ref és fájlsnapshot) a request-Sessionök mellé további egyidejű kapcsolatokat nyitnak; telített pool mellett nagyobb párhuzamosságnál a kérések a pool timeoutjáig várhatnak.
 
-**Döntési lehetőségek (felhasználói döntés):**
+**Döntési lehetőségek** — a felhasználó 2026-11-07-én az 1. lehetőséget választotta, lásd [22b](#doc-22b-megosztott-olvasasi-kapu):
 1. Új 22b jelölt, amely az egyidejű kapcsolatszámot a before szintjén tartja (pl. taskonként egyetlen izolált Session az account- és fájlolvasásra, vagy az izolált olvasások korlátozása), ezután új, előre regisztrált kapu (~4 óra).
 2. A 22 félretétele: a 21b egymagában megszünteti a mért `DetachedInstanceError`-t; a megosztott task továbbra is a tulajdonos request Sessionjén olvas (a 22 explicit Session-szerződése elmarad).
 3. A 22 elfogadása a memória-FAIL tudatában, felhasználói kivételként.
+
+<!-- doc-anchor:doc-22b-megosztott-olvasasi-kapu -->
+<a id="doc-22b-megosztott-olvasasi-kapu"></a>
+### 22b: korlátozott megosztott olvasás és `cr17e-after-v1` kapu — PASS (316/316)
+
+**Változás a 22-höz képest:** `common/database.py:shared_read_session()` — folyamatszintű, egyhelyes (`BoundedSemaphore(1)`), nem újrabelépő kapu a megosztott keresések izolált olvasásai (account-refek, fájlsnapshotok) körül. Így egy megosztott keresés legfeljebb egy további kapcsolatot tart a request-Sessionök mellett. Beágyazott hívás holtpont helyett azonnal `RuntimeError`; kivételnél a hely felszabadul. Workerszálban (`owned_to_thread`) fut, az event loopot nem blokkolja. Az írások (touch, `create_many`) változatlanok.
+
+**Ellenőrzés:** két új viselkedési teszt (egyszerre egy extra kapcsolat; beágyazás gyors hibája és felszabadítás hibaágon) — a kapu kikapcsolásával a párhuzamossági teszt elbukik. Ruff 0, basedpyright 0, 611 passed / 64 snapshot; ownership-trace Dockerben 4/4 tiszta, átfedő Session-használat nincs, pool 0. A trace alias-esete a sorosított olvasás miatt a barrier-találkozást rögzíti, nem követeli meg (az átfedés-ellenőrzés változatlan). Feltáró előszűrés (nem kapuadat): egyidejű checkout 10–11 (22: 15), fizikai kapcsolat 13–37 (22: 102–135).
+
+**Kapu:** [protokoll](evidence/cr17e-after-v1-protocol.json), [értékelés](evidence/cr17e-after-v1-assessment.json), [befejezési jelölő](evidence/cr17e-after-v1-complete.json), forrásmanifest: [cr17e-checked-v1](evidence/cr17e-checked-v1-manifest.json); scriptek a [reprodukciós archívumban](evidence/reproduction-followup-v1/manifest.json) (`packet22b-gate`; a feltáró scriptek `packet22b-exploration`). Before = befagyasztott 21b (`d1da34c`), after = befagyasztott 22b (`5be09f2` server/app, fával azonos a `f7cdb1a` commit server/app fájával). Fixture-ök, mintavétel és V6 keretek a `cr17d-after-v1`-gyel azonosak; regisztráció előtt az értékelő a 22 adatain a korábbi 35 soros FAIL-t pontosan reprodukálta. A `cr17d-after-v1` FAIL eredménye érvényes marad.
+
+| Kapu | Eredmény |
+|---|---|
+| Ownership | Teljesült: Kodi before és after 12 280×200, 0 hiba |
+| HTTP p95, CPU, SQL, payload, hidegkérések, quiescence | Mind a kereten belül |
+| Memória | Teljesült: heap-futások anon after 285–291 MB, before 292–295 MB (same-key c1 keret 295,3 MB); GC utáni heap +0,1 MB (keret +2 MiB); rövid unique-key c8 (100 sor) anon after 134,2/132,8 MB, before 138,6/140,4 MB |
+
+Megfigyelés (nem gyorsulási állítás): a heap-futások unique-key c4/c8 cellájában a loop-lag p99 before 91–168 ms, after 62–65 ms. Az upstream A direct referenciája 5/5 `DetachedInstanceError`-ral bukott (megfigyelés).
 
 <!-- doc-anchor:doc-fuggoseg-a-20-csomagtol -->
 <a id="doc-fuggoseg-a-20-csomagtol"></a>

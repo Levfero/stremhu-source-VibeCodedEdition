@@ -411,6 +411,51 @@
       "sha256": "6e5e0ba39f73e56bf10c0f8801f7937b7de2c2f7daca3ad219ea2bbfbdc84b2f",
       "group": "packet22-pool-diagnostic",
       "measurement_raw_sha256": "6e5e0ba39f73e56bf10c0f8801f7937b7de2c2f7daca3ad219ea2bbfbdc84b2f"
+    },
+    "cr17e_after_v1.py": {
+      "sha256": "bae21cd500f449ba6204d8fa99f50d2faa322dee9d73539bef9fe05be59831cf",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "bae21cd500f449ba6204d8fa99f50d2faa322dee9d73539bef9fe05be59831cf"
+    },
+    "assess_cr17e_after_v1.py": {
+      "sha256": "c1bc4490fba3214808cb7ec19130755f58b1a35bf3703fc9c04736c256643c47",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "c1bc4490fba3214808cb7ec19130755f58b1a35bf3703fc9c04736c256643c47"
+    },
+    "make_cr17e_gate.py": {
+      "sha256": "ce326c584251c0666f64503999575a095582ce776690ec5747576afca727b20c",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "ce326c584251c0666f64503999575a095582ce776690ec5747576afca727b20c"
+    },
+    "smoke_cr17e_wiring.py": {
+      "sha256": "1f669387873a0d2ff6ca961a1233966155789adce12508261e85b74eb6e5e2d0",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "1f669387873a0d2ff6ca961a1233966155789adce12508261e85b74eb6e5e2d0"
+    },
+    "register_cr17e_after_v1.py": {
+      "sha256": "53ed72c2be57888f12fb44e0ebb3b7a47e4a3cd0c5bd766f5f67618dc4aded6f",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "53ed72c2be57888f12fb44e0ebb3b7a47e4a3cd0c5bd766f5f67618dc4aded6f"
+    },
+    "freeze_cr17e_checked_v1.py": {
+      "sha256": "35f9d6ef0a96ef62dab0af239d4a70d14794245d076cff252f9457d4dd1b9cbe",
+      "group": "packet22b-gate",
+      "measurement_raw_sha256": "35f9d6ef0a96ef62dab0af239d4a70d14794245d076cff252f9457d4dd1b9cbe"
+    },
+    "cr17e-exploration-run_exp.py": {
+      "sha256": "e5ed6607ee2e43062f9b5f4afea2cc366d42efd8667b196a7f313e1f9585cdd9",
+      "group": "packet22b-exploration",
+      "measurement_raw_sha256": "e5ed6607ee2e43062f9b5f4afea2cc366d42efd8667b196a7f313e1f9585cdd9"
+    },
+    "cr17e-exploration-run_trace.py": {
+      "sha256": "a76cae70819f4d39be22c2b889dd92e966ec2a5e55519e7f06e56e141a311d63",
+      "group": "packet22b-exploration",
+      "measurement_raw_sha256": "a76cae70819f4d39be22c2b889dd92e966ec2a5e55519e7f06e56e141a311d63"
+    },
+    "cr17e-exploration-fixture-pool20.py": {
+      "sha256": "da64340ac58d7e86cf6c5969d7bdc24b1217098a28d2be79baab639485d6d193",
+      "group": "packet22b-exploration",
+      "measurement_raw_sha256": "224a63acbaff711264eb81e03d78a3fde2be84995acaba8f0858bf2502a4a257"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

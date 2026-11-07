@@ -3616,6 +3616,22 @@
     "cr17d-pool-diagnostic-v1.json": {
       "measurement_raw_sha256": "4241ce1967bd6cd1c4dbff29180396e613f33d60064bb409f9bd24882d83213b",
       "publication_lf_sha256": "bd4409b5c1192cc0fa66d7a548ad4104d220f1f7dd198ec7f21652a8b30ca79b"
+    },
+    "cr17e-after-v1-protocol.json": {
+      "measurement_raw_sha256": "37d7ad83d85b23114a77a0e2bf2c32fc2102438ace3e2655d7b3c2a57b45d54b",
+      "publication_lf_sha256": "f2dd2758b04700976d67bd45d5bb29f5b11db34c8b20e0b4766fd4f3256d6424"
+    },
+    "cr17e-after-v1-assessment.json": {
+      "measurement_raw_sha256": "b1d499469a8aa42f1c2328040a58bb655fb1c50a1c5aa8eb58f7695357593346",
+      "publication_lf_sha256": "68c45a8347585b8aba956c7fd48d1b3b4b78b506184bece2f7f9a3d6d96cd71e"
+    },
+    "cr17e-after-v1-complete.json": {
+      "measurement_raw_sha256": "3c734491286b59e0a29fe6765220eb5769468390e60928e2d18dd27cd71f8c88",
+      "publication_lf_sha256": "3c734491286b59e0a29fe6765220eb5769468390e60928e2d18dd27cd71f8c88"
+    },
+    "cr17e-checked-v1-manifest.json": {
+      "measurement_raw_sha256": "8ce1f87533449054d9aac09d437dbd5abd8a29e177b84645082657c3cdee907a",
+      "publication_lf_sha256": "82d5cac3612e1939a0858b0fd7de0c468b231384016d07d5cf00a1769ff29f1c"
     }
   }
 }

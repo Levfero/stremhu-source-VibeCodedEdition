@@ -496,6 +496,26 @@
       "sha256": "ff2084ed7c683e4b88a31bd503f0d1cdc89405b595a568d67f28eafe8e1d1e53",
       "group": "packet28-g02",
       "measurement_raw_sha256": "ff2084ed7c683e4b88a31bd503f0d1cdc89405b595a568d67f28eafe8e1d1e53"
+    },
+    "g13conv-v2-bench.py": {
+      "sha256": "b49a1e4a600ecb5ae09f996858a84776ae126938ee2ed23762f5b1ccee563fbe",
+      "group": "packet31-cr13c",
+      "measurement_raw_sha256": "b49a1e4a600ecb5ae09f996858a84776ae126938ee2ed23762f5b1ccee563fbe"
+    },
+    "g13conv_v2.py": {
+      "sha256": "0394fad9112604e2cfd6cbc9a87a74e61d0758cb797e784e428fa44c68f7d931",
+      "group": "packet31-cr13c",
+      "measurement_raw_sha256": "0394fad9112604e2cfd6cbc9a87a74e61d0758cb797e784e428fa44c68f7d931"
+    },
+    "assess_g13conv_v2.py": {
+      "sha256": "e6368f79a78986b89839b9d088da71044e8a0c0e9eacf2215782f2ee5633cf0f",
+      "group": "packet31-cr13c",
+      "measurement_raw_sha256": "e6368f79a78986b89839b9d088da71044e8a0c0e9eacf2215782f2ee5633cf0f"
+    },
+    "register_g13conv_v2.py": {
+      "sha256": "a36ec50c403247d283adf8e496a07bf650a1b60e9cb929527e94e3b9868e9ee7",
+      "group": "packet31-cr13c",
+      "measurement_raw_sha256": "a36ec50c403247d283adf8e496a07bf650a1b60e9cb929527e94e3b9868e9ee7"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

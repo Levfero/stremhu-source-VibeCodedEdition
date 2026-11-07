@@ -41,7 +41,11 @@ from app.modules.stream.dependencies import (
 )
 from app.modules.stream.schemas import StreamToken
 from app.modules.stream.service import parse_range_header
-from app.modules.stream.utils.subtitles import ass_to_vtt
+from app.modules.stream.utils.subtitles import (
+    ass_to_vtt_cooperative,
+    decode_subtitle_text,
+    decode_subtitle_text_cooperative,
+)
 
 router = APIRouter(
     prefix="/{api_key}/stream",
@@ -263,12 +267,8 @@ def _content_disposition(filename: str) -> str:
 
 
 def _decode_subtitle_text(raw_bytes: bytes) -> str:
-    """Explicit dekódolási szabály: UTF-8 (BOM-mal vagy anélkül), ha érvényes;
-    különben Windows-1250 (közép-európai, a magyar feliratok tipikus régi kódolása)."""
-    try:
-        return raw_bytes.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        return raw_bytes.decode("cp1250", errors="replace")
+    """Explicit dekódolási szabály, lásd ``decode_subtitle_text``."""
+    return decode_subtitle_text(raw_bytes)
 
 
 async def _collect_subtitle_bytes(
@@ -476,7 +476,9 @@ async def stream_subtitle(
                 return _subtitle_unavailable()
 
             try:
-                vtt_output = ass_to_vtt(_decode_subtitle_text(raw_bytes))
+                vtt_output = await ass_to_vtt_cooperative(
+                    await decode_subtitle_text_cooperative(raw_bytes)
+                )
             except Exception as e:
                 logger.warning("operation=subtitle-convert %s", network_error_fields(e))
                 return Response(

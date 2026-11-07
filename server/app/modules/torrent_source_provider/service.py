@@ -1,12 +1,13 @@
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from typing import overload
 
 from app.common.async_utils import owned_to_thread
 from app.common.keyed_lock import KeyedLock
 from app.common.log_safety import network_error_fields
 from app.common.logger import logger
-from app.common.singleflight import Singleflight
+from app.common.singleflight import AdmissionGate, Singleflight
+from app.config import config
 from app.modules.indexers.schemas.internal import IndexerTorrent
 from app.modules.indexers.search import IndexerSearchService
 from app.modules.stremio.cache import stream_cache_state
@@ -20,6 +21,9 @@ _torrent_provider_locks = KeyedLock()
 _sources_singleflight: Singleflight[tuple[list[TorrentSource], list[str]]] = Singleflight()
 _single_source_singleflight: Singleflight[TorrentSource | None] = Singleflight()
 _torrent_download_singleflight: Singleflight[tuple[str, str, bytes] | None] = Singleflight()
+# CR15/c: egyedi forráskeresés csak szabad slottal indul; a csatlakozó várakozó nem foglal.
+_source_search_admission = AdmissionGate(config.source_search_max_parallel)
+DEADLINE_ERROR = "A keresés elérte az időkorlátot; a találatok részlegesek."
 
 
 def open_source_searches() -> None:
@@ -57,6 +61,7 @@ class TorrentSourceProviderService:
         return await _sources_singleflight.run(
             f"{stream_cache_state.revision('')[0]}:imdb:{imdb_id}",
             lambda: search.find_by_imdb_id(imdb_id),
+            _source_search_admission,
         )
 
     async def find_by_query(
@@ -68,6 +73,7 @@ class TorrentSourceProviderService:
         return await _sources_singleflight.run(
             f"{stream_cache_state.revision('')[0]}:query:{query}:{media_type or 'all'}",
             lambda: search.find_by_query(query, media_type=media_type),
+            _source_search_admission,
         )
 
     async def find_by_torrent_id(
@@ -78,6 +84,7 @@ class TorrentSourceProviderService:
         return await _sources_singleflight.run(
             f"{stream_cache_state.revision('')[0]}:torrent:{torrent_id}",
             lambda: search.find_by_torrent_id(torrent_id),
+            _source_search_admission,
         )
 
     async def find_one_by_indexer(
@@ -89,6 +96,7 @@ class TorrentSourceProviderService:
         return await _single_source_singleflight.run(
             f"{stream_cache_state.revision('')[0]}:indexer:{indexer_id}:{torrent_id}",
             lambda: search.find_one_by_indexer(indexer_id, torrent_id),
+            _source_search_admission,
         )
 
     async def _download_and_save_torrent(
@@ -135,30 +143,57 @@ class _SourceSearch:
     ):
         self._indexers = indexers
         self._files = files
+        self._deadline: float | None = None
+        self._deadline_hit = False
+
+    def _start_deadline(self) -> None:
+        # A határ a tulajdonolt task indulásakor kezdődik, nem a várakozónál.
+        self._deadline = asyncio.get_running_loop().time() + config.source_search_deadline_seconds
+
+    def _remaining(self) -> float:
+        if self._deadline is None:
+            return config.source_search_deadline_seconds
+        return self._deadline - asyncio.get_running_loop().time()
+
+    def _errors(self, errors: list[str]) -> list[str]:
+        return [*errors, DEADLINE_ERROR] if self._deadline_hit else errors
+
+    async def _search_stage(
+        self, search: Callable[[], Awaitable[tuple[list[IndexerTorrent], list[str]]]]
+    ) -> tuple[list[IndexerTorrent], list[str]]:
+        """Indexerkeresés a maradék kereten belül; lejáratkor üres, jelölt részleges eredmény."""
+        try:
+            async with asyncio.timeout(max(0.0, self._remaining())):
+                return await search()
+        except TimeoutError:
+            self._deadline_hit = True
+            return [], []
 
     async def find_by_imdb_id(
         self,
         imdb_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
+        self._start_deadline()
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers.get_torrents_by_imdb_id(imdb_id)
+        ) = await self._search_stage(lambda: self._indexers.get_torrents_by_imdb_id(imdb_id))
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
-        return torrent_files, indexer_errors
+        return torrent_files, self._errors(indexer_errors)
 
     async def find_by_query(
         self,
         query: str,
         media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
+        self._start_deadline()
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers.get_torrents_by_query(
-            query, media_type=media_type
+        ) = await self._search_stage(
+            lambda: self._indexers.get_torrents_by_query(query, media_type=media_type)
         )
 
         # M09: Méltányos jelöltfeldolgozás (fair interleaving) a merev top 30 helyett.
@@ -187,29 +222,32 @@ class _SourceSearch:
 
         torrent_files = await self._sync_torrent_files(fair_selected)
 
-        return torrent_files, indexer_errors
+        return torrent_files, self._errors(indexer_errors)
 
     async def find_by_torrent_id(
         self,
         torrent_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
+        self._start_deadline()
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers.get_torrents_by_torrent_id(torrent_id)
+        ) = await self._search_stage(lambda: self._indexers.get_torrents_by_torrent_id(torrent_id))
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
-        return torrent_files, indexer_errors
+        return torrent_files, self._errors(indexer_errors)
 
     async def find_one_by_indexer(
         self,
         indexer_id: str,
         torrent_id: str,
     ) -> TorrentSource | None:
-        indexer_torrent = await self._indexers.get_torrent_by_torrent_id(
-            indexer_id, torrent_id
-        )
+        self._start_deadline()
+        async with asyncio.timeout(max(0.0, self._remaining())):
+            indexer_torrent = await self._indexers.get_torrent_by_torrent_id(
+                indexer_id, torrent_id
+            )
 
         torrent_file = await self._sync_torrent_files(indexer_torrent)
 
@@ -256,31 +294,25 @@ class _SourceSearch:
             for current_torrent_file in current_torrent_files
         }
 
-        download_tasks: list[Awaitable[tuple[str, str, bytes] | None]] = []
-        for indexer_torrent in indexer_torrents:
+        missing = [
+            indexer_torrent
+            for indexer_torrent in indexer_torrents
             if (
                 indexer_torrent.indexer_account.indexer_id,
                 indexer_torrent.torrent_id,
-            ) in current_torrent_files_map:
-                continue
-
-            download_tasks.append(self._download_torrent_bytes(indexer_torrent))
-
-        results = await asyncio.gather(*download_tasks, return_exceptions=True)
-
-        downloaded_items: list[tuple[str, str, bytes]] = []
-        for result in results:
-            if isinstance(result, BaseException):
-                logger.error("operation=torrent-processing %s", network_error_fields(result))
-                continue
-            if result is not None:
-                downloaded_items.append(result)
-
-        created_torrent_files: list[TorrentFileSnapshot] = []
-        if downloaded_items:
-            created_torrent_files = await owned_to_thread(
-                self._store_snapshots, downloaded_items
             )
+            not in current_torrent_files_map
+        ]
+        created = await self._download_and_store(missing)
+        # Determinisztikus sorrend: a jelöltek sorrendje, nem a letöltések befejezési sorrendje.
+        created_torrent_files = [
+            created[key]
+            for key in dict.fromkeys(
+                (indexer_torrent.indexer_account.indexer_id, indexer_torrent.torrent_id)
+                for indexer_torrent in missing
+            )
+            if key in created
+        ]
 
         torrent_files = current_torrent_files + created_torrent_files
 
@@ -314,6 +346,60 @@ class _SourceSearch:
             return torrent_sources[0] if torrent_sources else None
 
         return torrent_sources
+
+    async def _download_and_store(
+        self, missing: list[IndexerTorrent]
+    ) -> dict[tuple[str, str], TorrentFileSnapshot]:
+        """Rögzített számú worker tölt le; a kész bájtok bájtkorlátos kötegekben kerülnek a DB-be.
+
+        Egyszerre legfeljebb egy köteg mentése fut, a többi worker közben letölthet. A határidő
+        után új letöltés nem indul, a folyamatban lévők várakozója megszakad; a közös
+        letöltési task és a szálmunka a saját befejezéséig fut.
+        """
+        created: dict[tuple[str, str], TorrentFileSnapshot] = {}
+        if not missing:
+            return created
+        pending: list[tuple[str, str, bytes]] = []
+        pending_bytes = 0
+        store_lock = asyncio.Lock()
+        candidates = iter(missing)
+
+        async def flush() -> None:
+            nonlocal pending, pending_bytes
+            async with store_lock:
+                items, pending, pending_bytes = pending, [], 0
+                if items:
+                    for snapshot in await owned_to_thread(self._store_snapshots, items):
+                        created[(snapshot.indexer_id, snapshot.torrent_id)] = snapshot
+
+        async def worker() -> None:
+            nonlocal pending_bytes
+            for indexer_torrent in candidates:
+                remaining = self._remaining()
+                if remaining <= 0:
+                    self._deadline_hit = True
+                    return
+                try:
+                    async with asyncio.timeout(remaining):
+                        result = await self._download_torrent_bytes(indexer_torrent)
+                except TimeoutError:
+                    self._deadline_hit = True
+                    return
+                except Exception as error:
+                    logger.error("operation=torrent-processing %s", network_error_fields(error))
+                    continue
+                if result is None:
+                    continue
+                pending.append(result)
+                pending_bytes += len(result[2])
+                if pending_bytes >= config.source_search_batch_max_bytes:
+                    await flush()
+
+        async with asyncio.TaskGroup() as group:
+            for _ in range(min(config.source_search_download_workers, len(missing))):
+                group.create_task(worker())
+        await flush()
+        return created
 
     def _find_snapshots(
         self, identifiers: list[TorrentFileIdentifier]

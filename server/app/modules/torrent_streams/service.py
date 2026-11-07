@@ -12,6 +12,7 @@ from app.common.async_utils import owned_to_thread
 from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
+from app.common.singleflight import SearchOverloadedError
 from app.common.torrent_info import TorrentInfo
 from app.modules.indexer_accounts.schemas import IndexerDefinitionRef
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
@@ -126,6 +127,12 @@ class TorrentStreamsService:
                 tasks.append(self._torrent_source_provider_service.find_by_imdb_id(i))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            # CR15/c: túlterhelés nem tűnhet el némán a több-azonosítós ágon.
+            overloaded = [res for res in results if isinstance(res, SearchOverloadedError)]
+            if overloaded and len(overloaded) == len(results):
+                raise overloaded[0]
+            if overloaded:
+                indexer_errors.append(str(overloaded[0]))
             seen_source_ids: set[tuple[str, str]] = set()
             for res in results:
                 if isinstance(res, tuple):

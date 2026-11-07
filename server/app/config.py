@@ -51,6 +51,12 @@ class Config(BaseSettings):
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).
     indexer_torrent_max_bytes: int = Field(default=48 * 1024 * 1024, gt=0)
+    # CR15/c (27) forráskeresési keret. IDEIGLENES értékek: a burst27 alapmérés és a
+    # felhasználói SLO-döntés előtt nem kiadhatók, a kapu előtt rögzítendők.
+    source_search_max_parallel: int = Field(default=4, ge=1)
+    source_search_download_workers: int = Field(default=5, ge=1)
+    source_search_batch_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+    source_search_deadline_seconds: float = Field(default=30.0, gt=0)
 
     @field_validator("session_secret")
     @classmethod

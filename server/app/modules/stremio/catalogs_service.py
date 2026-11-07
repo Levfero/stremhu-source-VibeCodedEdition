@@ -2,6 +2,7 @@
 from app.common.async_utils import owned_to_thread
 from app.common.log_safety import network_error_fields
 from app.common.logger import logger
+from app.common.singleflight import SearchOverloadedError
 from app.modules.stremio.constants import (
     SEARCH_ID,
 )
@@ -59,6 +60,8 @@ class StremioCatalogsService:
             torrent_id = parts[1]
             try:
                 meta_previews = await self.get_metas(torrent_id, media_type=media_type)
+            except SearchOverloadedError:
+                raise
             except Exception as e:
                 logger.error("operation=catalog-id-search %s", network_error_fields(e))
                 meta_previews = []
@@ -137,6 +140,8 @@ class StremioCatalogsService:
                 )
                 for torrent_source in torrent_sources
             ]
+        except SearchOverloadedError:
+            raise
         except Exception as e:
             logger.error(
                 "operation=catalog-name-search %s", network_error_fields(e)

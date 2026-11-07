@@ -80,11 +80,15 @@ class IndexerClient(httpx.AsyncClient):
                 and "content-encoding" not in response.headers
             ):
                 raise IndexerResponseTooLargeException
-            body = bytearray()
+            # Darablista és egyetlen join: a bytearray-növelés és a bytes()-másolat
+            # 21,5 MB-nál ~3,5x CPU-t vitt (cr15a-after-v1 FAIL).
+            chunks: list[bytes] = []
+            size = 0
             async for chunk in response.aiter_bytes():
-                body += chunk
-                if len(body) > max_bytes:
+                size += len(chunk)
+                if size > max_bytes:
                     raise IndexerResponseTooLargeException
+                chunks.append(chunk)
         finally:
             await response.aclose()
         # A törzs már dekódolt: a kódolási/hossz fejléc a pufferelt válaszon nem érvényes.
@@ -96,7 +100,7 @@ class IndexerClient(httpx.AsyncClient):
         return httpx.Response(
             response.status_code,
             headers=headers,
-            content=bytes(body),
+            content=b"".join(chunks),
             request=response.request,
             history=response.history,
         )

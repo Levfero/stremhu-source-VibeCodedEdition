@@ -3632,6 +3632,18 @@
     "cr17e-checked-v1-manifest.json": {
       "measurement_raw_sha256": "8ce1f87533449054d9aac09d437dbd5abd8a29e177b84645082657c3cdee907a",
       "publication_lf_sha256": "82d5cac3612e1939a0858b0fd7de0c468b231384016d07d5cf00a1769ff29f1c"
+    },
+    "g13conv-v1-protocol.json": {
+      "measurement_raw_sha256": "640839f924589022e5284ca6c4d66262ab16c615c0c169d2c6a45da0c0421a05",
+      "publication_lf_sha256": "326cd600f8e2722f41149db17966fe1d03c53e8acdf772b9e462d690abbb065f"
+    },
+    "g13conv-v1-assessment.json": {
+      "measurement_raw_sha256": "dc19952e9f1b5a253ed553bfced6696378694f71ed69c17e486a2712d6a2618d",
+      "publication_lf_sha256": "61f7ebb26a7b325e62de4d615eab2146b1430d3d10aa4ad9a019bb5f2cb36686"
+    },
+    "g13conv-v1-complete.json": {
+      "measurement_raw_sha256": "be0ba73ee2428cfb189f8d1d1c87345e0b69c9628fd647d3f051a2514d38e8ae",
+      "publication_lf_sha256": "be0ba73ee2428cfb189f8d1d1c87345e0b69c9628fd647d3f051a2514d38e8ae"
     }
   }
 }

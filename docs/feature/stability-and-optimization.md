@@ -116,7 +116,8 @@ A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [
 | 21 — CR17/c (21a+21b) | Megvalósított; ownership-kapu és a v1-et felváltó `cr17c-after-v2` runtime-kapu teljesült (316/316) | A 21a reprodukció 050cb33-on determinisztikusan `DetachedInstanceError`-t adott (2 xfail). A 21b-ben a megosztott keresési eredmény Session nélküli, frozen ref/snapshot értékeket hordoz: 3 célzott teszt, Ruff 0 → basedpyright 0 → 607 pytest/64 snapshot. A `cr17c-after-v1` kapu egy soron (heap/cold1 falidő) FAIL maradt; a diagnosztika egy ~28 ms-os gen2-gyűjtés cold0→cold1 eltolódását mutatta. A felhasználó döntése szerint az előre regisztrált `cr17c-after-v2` kapu minden hidegkérés előtt azonos GC-fázist állít be, minden más változatlan: Kodi C before 276 HTTP 500, after 12 280×200 és 0 hiba; minden cella a kereten belül (heap/cold1 after 75,8–82,3 ms, keret 87,5 ms). Részletek: [CR17/c–d terv](stability-and-optimization/cr17cd-plan.md#doc-21b-runtime-kapu-v2). |
 | 22 — CR17/d (22+22b) | Megvalósított; a `cr17d-after-v1` kapu FAIL maradt (35/316, memória), az azt felváltó 22b `cr17e-after-v1` kapu teljesült (316/316) | Folyamatszintű `IndexerSearchService` és állapotmentes Singleflight-factory: a megosztott keresés nem használja a request Sessiont. A 22 izolált olvasásai QueuePool-telítést okoztak (15 egyidejű checkout, before 10–11); a 22b egyhelyes `shared_read_session()` kapuval a before szintjén tartja a kapcsolatszámot. Ellenőrzés: 611 pytest/64 snapshot, Ruff/basedpyright 0, ownership-trace 4/4; memória, p95, CPU, SQL a kereten belül. Commit: `f7cdb1a`. Részletek: [CR17/c–d terv](stability-and-optimization/cr17cd-plan.md#doc-22b-megosztott-olvasasi-kapu). |
 | 23 — G01 → CR01/b | Lezárva felhasználói termékdöntéssel (2026-11-07), policyváltozás nélkül | A CR01/a egységes alkalmazója szerint a torrentenkénti limit tétlen torrentnél a beállított érték, aktív lejátszás alatt `max(beállítás, 50)` (`relay/service.py:apply_torrent_connection_policy`; az upstream `8c99c7d` lejátszás alatt fix 50-et állított, a fork `d16365d` tette alsó korláttá). A felület ezt „maximális számnak” nevezte. Döntés: a viselkedés marad, a felület mezője „Torrentenkénti kapcsolatok alapértéke” címet és a lejátszás alatti legalább 50-es értéket, valamint a globális felső határt megnevező leírást kapott (`relay/settings/-features/connection.tsx`). Az 50 tapasztalati érték, mérés nem igazolja; a G01 teljes mátrix és a hard-cap policy nem futott, mert a döntés nem igényli. Ellenőrzés: `npm run lint`, `npm run format`, `npm run build` (+`tsc`) a zárolt Node 24 konténerben. |
-| 24–31 | Soron következő / feltételes | G02 teljes előkontrolljai mentettek, a CR17 utáni kontroll hiányzik. G04/G15 további kontrollok futnak, G03 API-eltérés rögzítve. A témakapuk és feltételes implementációk nyitottak. |
+| 24–30 | Soron következő / feltételes | G02 teljes előkontrolljai mentettek, a CR17 utáni kontroll fut. G04 memo-jelölt és G03 haszon/költség kapu fut; G15/CR15a mechanizmus helyi ágon, a limit-alapérték döntésre vár. A témakapuk és feltételes implementációk nyitottak. |
+| 31 — G13-convert | Mérve; előre regisztrált kapu: OFFLOAD_CANDIDATE, kódváltozás nélkül | A feliratvégpont az ASS→VTT konverziót szinkron, az event loopon futtatja. Szintetikus ASS-fixture-ökön a loop-stall p95 mediánja: tipikus ~120 KB 3,54 ms, nehéz ~3 MB 47,20 ms, 8 MiB-os határ 135,78 ms; a nehéz és a határ fixture ötből öt futásban a 29,016 ms-os dominanciaküszöb felett. Külön offload-jelölt csomag kell saját kapuval. Részletek: [31 — G13-convert](#doc-31-g13-convert). |
 
 CR07 lezárt kiegészítés: a stream-prefetch/fallback, epizód-/aliasfeloldás, tech-enrichment és ütemezett hálózati wrapper eddig nyers kivételszöveget vagy tracebacket is naplózhatott. Ezek a már használt kind/status mezőkre tértek át, az önellenőrzés hibaüzenete nem ír HOST_IP értéket. Tizenhat új jelölőtitkos regresszió készült: tényleges wrapper-hívások, katalógus/Torznab, valamint a valódi Rich-handler direkt/wrapped kivétel és argumentum útja, mély lánc és nagy exception-group/argumentumlista. A handler64 elemre korlátozott vizsgálata olvasatlan faroknál elhagyja a teljes üzenetet és tracebacket. Hét célzott reprodukció a megőrzött korábbi forráson elbukott; a kiegészített34 logteszt, Ruff/basedpyright és teljes570 pytest /64 snapshot sikeres,20 ismert figyelmeztetéssel. A külön két ötszörös C normál HTTP előtte/utána és15 rotált A/B/C nulla hibát, azonos C-payloadot és legfeljebb1,247 ms p95-mediántöbbletet adott; CPU/memória/cold kapu zöld. A kiegészítés lezárt, a korábbi CR07 bizonyíték megmarad. A PowerShell segédfájl indítását a helyi script-házirend blokkolta; a pontos parancsok közvetlen futtatása sikeres, házirend-módosítás nem történt.
 
@@ -593,3 +594,30 @@ V7 zaj- és GC-diagnosztika (felhasználói döntés alapján): az [előre regis
 | CPU, memória, GC utáni heap (mind a 4 kulcs) | SourceV4 minden párban kisebb (pl. unique c8 CPU −0,13…−0,66s, heap −0,2MiB) | Nincs negatív eltérés |
 
 Értelmezés: a cold user1 többlet a gen2 GC áthelyeződésével magyarázható, a két hideg kérés összideje SourceV4-en kisebb. A same-result-key c8 eltérés a Source2 saját futások közti szórásán belül van. A unique-warm-metadata c8 p95 viszont mindhárom egyidejű párban 54–94ms-mal (~5–8%) rosszabb, kisebb CPU-idő mellett. Ez inkább várakozásra/sorbanállásra utal, mint többletmunkára, de az ok nem bizonyított. A V6 FAIL érvényes, a csomag nyitott, policycommit nincs; a folytatáshoz felhasználói döntés kell.
+
+<!-- doc-anchor:doc-31-g13-convert -->
+<a id="doc-31-g13-convert"></a>
+### 31 — G13-convert: ASS→VTT event-loop kapu
+
+**Kérdés:** a CR13/a,b után is domináns loop-költség-e a szinkron ASS→VTT konverzió? A `stream/router.py` feliratvégpontja a `_decode_subtitle_text` + `ass_to_vtt` hívást az async handlerben, az event loopon futtatja. Az eredmény kulcsonként cache-be kerül, a forrás felső határa `subtitle_max_source_bytes` = 8 MiB.
+
+**Kapu:** [előre regisztrált protokoll](stability-and-optimization/evidence/g13conv-v1-protocol.json), [értékelés](stability-and-optimization/evidence/g13conv-v1-assessment.json), [befejezési jelölő](stability-and-optimization/evidence/g13conv-v1-complete.json); scriptek a [reprodukciós archívumban](stability-and-optimization/evidence/reproduction-followup-v1/manifest.json) (`packet31-g13conv`).
+- **Mérés:** 5 ismétlés × rotált A/B/C, mindegyik friss 1 CPU-s processz, hálózat nélkül. A C a befagyasztott `aaa9ee5` server/app forrással fut.
+- **Fixture:** determinisztikus szintetikus ASS: tipikus ~120 KB (UTF-8 és cp1250), nehéz ~3 MB karaoke/sign, illetve 8 MiB alatti határ.
+- **Metrika:** egy konverzió alatt egy 1 ms-os heartbeat legnagyobb kiesése, 20 konverzió p95-e.
+- **Döntési szabály:** 10 ms-os keret (piece/normál HTTP); dominancia, ha a stall meghaladja a CR13/b után megmaradt legnagyobb looplag p99-mediánt (29,016 ms).
+
+| Fixture (C) | Inline stall p95 medián | `to_thread` stall p95 medián (tájékoztató) |
+|---|---|---|
+| tipikus ~120 KB | 3,54 ms | 2,48 ms |
+| tipikus, cp1250 | 3,47 ms | 2,53 ms |
+| nehéz ~3 MB | 47,20 ms | 6,95 ms |
+| határ, 8 MiB alatt | 135,78 ms | 15,64 ms |
+
+**Döntés:** `OFFLOAD_CANDIDATE`. A nehéz és a határ fixture mind az öt C-futásban a dominanciaküszöb felett volt; a tipikus fájl a 10 ms-os kereten belül marad. A kimenet minden futásban bájtazonos, mindig `WEBVTT`-vel kezdődik. Az A és a B image-ben a konverter (`_decode_subtitle_text`) nem létezik, ezért ott N/A. Ez a kapu kódot nem változtat. Az offload külön jelölt csomag saját, előre rögzített kapuval.
+
+**Korlátok:**
+- A `to_thread` sor csak tervezési bemenet: szálon a stall a GIL-váltási intervallumra csökken, de a falidő nem változik.
+- Ez a pontos production függvények mikromérése heartbeat loop alatt, nem teljes alkalmazásszintű looplag-profil.
+- A fixture-ök szintetikusak, nem minden valós fájl méretét állítják.
+- A mérés a G03 és a G04 mellett, diszjunkt CPU-kon futott.

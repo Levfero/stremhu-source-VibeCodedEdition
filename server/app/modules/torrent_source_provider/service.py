@@ -1,4 +1,6 @@
 import asyncio
+import weakref
+from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import overload
 
@@ -24,6 +26,63 @@ _torrent_download_singleflight: Singleflight[tuple[str, str, bytes] | None] = Si
 # CR15/c: egyedi forráskeresés csak szabad slottal indul; a csatlakozó várakozó nem foglal.
 _source_search_admission = AdmissionGate(config.source_search_max_parallel)
 DEADLINE_ERROR = "A keresés elérte az időkorlátot; a találatok részlegesek."
+
+
+class _PendingBudget:
+    """CR15/c: a letöltött, még nem mentett .torrent-bájtok folyamatszintű kerete.
+
+    Csak az event loopból használható. Teli keretnél új letöltés nem indul; a felszabadítás
+    szinkron, így megszakítás és határidő után is mindig visszaadható.
+    """
+
+    def __init__(self) -> None:
+        self.used = 0
+        self.store_lock = asyncio.Lock()
+        self._gates: dict[str, asyncio.Semaphore] = {}
+        self._waiters: deque[asyncio.Future[None]] = deque()
+
+    def gate(self, indexer_id: str) -> asyncio.Semaphore:
+        """Indexerenként legfeljebb ennyi beengedett letöltés; FIFO, mint az adapter szemafora."""
+        gate = self._gates.get(indexer_id)
+        if gate is None:
+            gate = self._gates[indexer_id] = asyncio.Semaphore(config.source_search_downloads_per_indexer)
+        return gate
+
+    def full(self) -> bool:
+        return self.used >= config.source_search_pending_max_bytes
+
+    def add(self, size: int) -> None:
+        self.used += size
+
+    def release(self, size: int) -> None:
+        self.used -= size
+        self.wake()
+
+    def wake(self) -> None:
+        while self._waiters:
+            waiter = self._waiters.popleft()
+            if not waiter.done():
+                waiter.set_result(None)
+
+    async def changed(self) -> None:
+        waiter = asyncio.get_running_loop().create_future()
+        self._waiters.append(waiter)
+        try:
+            await waiter
+        finally:
+            if not waiter.done():
+                waiter.cancel()
+
+
+_budgets: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, _PendingBudget] = weakref.WeakKeyDictionary()
+
+
+def _pending_budget() -> _PendingBudget:
+    loop = asyncio.get_running_loop()
+    budget = _budgets.get(loop)
+    if budget is None:
+        budget = _budgets[loop] = _PendingBudget()
+    return budget
 
 
 def open_source_searches() -> None:
@@ -350,55 +409,106 @@ class _SourceSearch:
     async def _download_and_store(
         self, missing: list[IndexerTorrent]
     ) -> dict[tuple[str, str], TorrentFileSnapshot]:
-        """Rögzített számú worker tölt le; a kész bájtok bájtkorlátos kötegekben kerülnek a DB-be.
+        """Jelöltenként egy letöltési coroutine (a meglévő FIFO-sorrend marad), folyamatszintű keretekkel.
 
-        Egyszerre legfeljebb egy köteg mentése fut, a többi worker közben letölthet. A határidő
-        után új letöltés nem indul, a folyamatban lévők várakozója megszakad; a közös
-        letöltési task és a szálmunka a saját befejezéséig fut.
+        - Beengedés: indexerenként legfeljebb ``source_search_downloads_per_indexer`` letöltés, és csak
+          ha a letöltött, még nem mentett bájtok kerete (``source_search_pending_max_bytes``) nem telt meg.
+          Teli keretnél a várakozó elengedi a helyét, és előbb a saját függő bájtjait menti; így a keret
+          mindig felszabadul, holtpont nincs.
+        - Mentés: egyszerre egy fut (közös zár), egy köteg legfeljebb ``source_search_batch_max_bytes``.
+
+        A határidő után új letöltés nem indul, a várakozók megszakadnak; a már letöltött függő bájtok
+        mentése még lefut (a függőbájt-kerettel korlátos). A közös letöltési task és a szálmunka a saját
+        befejezéséig fut. Ki nem mentett függő bájt (megszakításkor) a keretbe mindig visszakerül.
         """
         created: dict[tuple[str, str], TorrentFileSnapshot] = {}
         if not missing:
             return created
+        budget = _pending_budget()
         pending: list[tuple[str, str, bytes]] = []
         pending_bytes = 0
-        store_lock = asyncio.Lock()
-        candidates = iter(missing)
 
         async def flush() -> None:
-            nonlocal pending, pending_bytes
-            async with store_lock:
-                items, pending, pending_bytes = pending, [], 0
-                if items:
-                    for snapshot in await owned_to_thread(self._store_snapshots, items):
-                        created[(snapshot.indexer_id, snapshot.torrent_id)] = snapshot
-
-        async def worker() -> None:
             nonlocal pending_bytes
-            for indexer_torrent in candidates:
-                remaining = self._remaining()
-                if remaining <= 0:
-                    self._deadline_hit = True
-                    return
-                try:
-                    async with asyncio.timeout(remaining):
-                        result = await self._download_torrent_bytes(indexer_torrent)
-                except TimeoutError:
-                    self._deadline_hit = True
-                    return
-                except Exception as error:
-                    logger.error("operation=torrent-processing %s", network_error_fields(error))
-                    continue
-                if result is None:
-                    continue
-                pending.append(result)
-                pending_bytes += len(result[2])
-                if pending_bytes >= config.source_search_batch_max_bytes:
-                    await flush()
+            while pending:
+                async with budget.store_lock:
+                    batch: list[tuple[str, str, bytes]] = []
+                    size = 0
+                    while pending and (not batch or size + len(pending[0][2]) <= config.source_search_batch_max_bytes):
+                        item = pending.pop(0)
+                        batch.append(item)
+                        size += len(item[2])
+                    pending_bytes -= size
+                    if not batch:
+                        return
+                    try:
+                        for snapshot in await owned_to_thread(self._store_snapshots, batch):
+                            created[(snapshot.indexer_id, snapshot.torrent_id)] = snapshot
+                    finally:
+                        budget.release(size)
 
-        async with asyncio.TaskGroup() as group:
-            for _ in range(min(config.source_search_download_workers, len(missing))):
-                group.create_task(worker())
-        await flush()
+        async def admitted(gate: asyncio.Semaphore) -> None:
+            """Visszatéréskor a hívó egy beengedési helyet tart; teli keretnél nem tart semmit."""
+            announced = False
+            while True:
+                await gate.acquire()
+                if not budget.full():
+                    return
+                gate.release()
+                if pending:
+                    await flush()
+                    continue
+                if not announced:
+                    # A többi várakozó keresés is ellenőrizze, van-e mentendő függő bájtja.
+                    budget.wake()
+                    announced = True
+                await budget.changed()
+
+        async def one(indexer_torrent: IndexerTorrent) -> None:
+            nonlocal pending_bytes
+            remaining = self._remaining()
+            if remaining <= 0:
+                self._deadline_hit = True
+                return
+            gate = budget.gate(indexer_torrent.indexer_account.indexer_id)
+            try:
+                async with asyncio.timeout(remaining):
+                    await admitted(gate)
+                    try:
+                        result = await self._download_torrent_bytes(indexer_torrent)
+                    except Exception as error:
+                        # Egy letöltés hibája részleges eredmény (mint eddig); mentési hiba továbbmegy.
+                        logger.error("operation=torrent-processing %s", network_error_fields(error))
+                        return
+                    finally:
+                        gate.release()
+                    if result is None:
+                        return
+                    budget.add(len(result[2]))
+                    pending.append(result)
+                    pending_bytes += len(result[2])
+                    if pending_bytes >= config.source_search_batch_max_bytes or budget.full():
+                        await flush()
+            except TimeoutError:
+                self._deadline_hit = True
+
+        try:
+            tasks = [asyncio.create_task(one(indexer_torrent)) for indexer_torrent in missing]
+            try:
+                await asyncio.gather(*tasks)
+            finally:
+                # Hiba vagy megszakítás esetén a testvérek is leállnak, és bevárjuk őket.
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+            # A már letöltött függő bájtok a határidő után is mentésre kerülnek: ez a
+            # függőbájt-kerettel korlátos, és a részleges eredmény része.
+            await flush()
+        finally:
+            if pending_bytes:
+                budget.release(pending_bytes)
+                pending.clear()
+                pending_bytes = 0
         return created
 
     def _find_snapshots(

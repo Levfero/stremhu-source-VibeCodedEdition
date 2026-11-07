@@ -222,11 +222,11 @@ async def test_provider_admits_unique_searches_through_the_shared_gate(file_db, 
 
 
 @pytest.mark.anyio
-async def test_downloads_use_fixed_workers_and_byte_bounded_batches_in_candidate_order(file_db, monkeypatch, clean_singleflights):
+async def test_downloads_pass_the_per_indexer_gate_and_store_in_byte_bounded_batches_in_order(file_db, monkeypatch, clean_singleflights):
     items = candidates(7)
     bodies = {item.torrent_id: torrent_bytes(index, padding=4000) for index, item in enumerate(items)}
     size = max(len(body) for body in bodies.values())
-    monkeypatch.setattr(config, "source_search_download_workers", 2)
+    monkeypatch.setattr(config, "source_search_downloads_per_indexer", 2)
     monkeypatch.setattr(config, "source_search_batch_max_bytes", 2 * size)
     batches: list[int] = []
     original = providers._SourceSearch._store_snapshots
@@ -243,15 +243,68 @@ async def test_downloads_use_fixed_workers_and_byte_bounded_batches_in_candidate
     assert [source.torrent_file.torrent_id for source in sources] == [item.torrent_id for item in items]
     assert indexers.peak == 2
     assert len(batches) >= 3 and sum(batches) == sum(len(body) for body in bodies.values())
-    # Flush at the byte limit: one batch never exceeds the limit by more than the parallel completions.
-    assert max(batches) <= 2 * size + 2 * size
+    assert max(batches) <= 2 * size
+    assert providers._pending_budget().used == 0
+
+
+@pytest.mark.anyio
+async def test_pending_budget_bounds_bytes_and_concurrent_searches_never_deadlock(file_db, monkeypatch, clean_singleflights):
+    ref = account_ref()
+    first = [IndexerTorrent(indexer_account=ref, torrent_id=f"a{index:03d}", download_url=f"https://admission.invalid/a{index}") for index in range(8)]
+    second = [IndexerTorrent(indexer_account=ref, torrent_id=f"b{index:03d}", download_url=f"https://admission.invalid/b{index}") for index in range(8)]
+    bodies = {item.torrent_id: torrent_bytes(index, padding=4000) for index, item in enumerate(first + second)}
+    size = max(len(body) for body in bodies.values())
+    monkeypatch.setattr(config, "source_search_downloads_per_indexer", 2)
+    monkeypatch.setattr(config, "source_search_batch_max_bytes", 100 * size)
+    monkeypatch.setattr(config, "source_search_pending_max_bytes", 2 * size)
+    peak = 0
+    original_add = providers._PendingBudget.add
+
+    def add(self, amount):
+        nonlocal peak
+        original_add(self, amount)
+        peak = max(peak, self.used)
+
+    monkeypatch.setattr(providers._PendingBudget, "add", add)
+
+    class TwoSets(Indexers):
+        async def get_torrents_by_imdb_id(self, imdb_id):
+            return (list(first) if imdb_id.endswith("1") else list(second)), []
+
+    service = provider(TwoSets(first + second, bodies))
+    (a, a_errors), (b, b_errors) = await asyncio.wait_for(
+        asyncio.gather(service.find_by_imdb_id("tt0000011"), service.find_by_imdb_id("tt0000012")), 10)
+
+    assert a_errors == [] and b_errors == []
+    assert [s.torrent_file.torrent_id for s in a] == [i.torrent_id for i in first]
+    assert [s.torrent_file.torrent_id for s in b] == [i.torrent_id for i in second]
+    # Budget plus at most one admitted download per gate slot in flight.
+    assert peak <= 2 * size + 2 * size
+    assert providers._pending_budget().used == 0
+
+
+@pytest.mark.anyio
+async def test_cancelled_search_returns_its_pending_bytes_to_the_budget(file_db, monkeypatch, clean_singleflights):
+    items = candidates(4)
+    bodies = {item.torrent_id: torrent_bytes(index) for index, item in enumerate(items)}
+    monkeypatch.setattr(config, "source_search_batch_max_bytes", 1 << 30)
+    indexers = Indexers(items, bodies, hang=frozenset({"t002", "t003"}))
+    search = providers._SourceSearch(cast(Any, indexers), NoTouchFiles())
+    task = asyncio.create_task(search.find_by_imdb_id("tt0000013"))
+    deadline = time.monotonic() + 3
+    while providers._pending_budget().used == 0 and time.monotonic() < deadline:
+        await asyncio.sleep(0.01)
+    assert providers._pending_budget().used > 0
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert providers._pending_budget().used == 0
 
 
 @pytest.mark.anyio
 async def test_deadline_returns_stored_results_and_a_partial_error(file_db, monkeypatch, clean_singleflights):
     items = candidates(4)
     bodies = {item.torrent_id: torrent_bytes(index) for index, item in enumerate(items)}
-    monkeypatch.setattr(config, "source_search_download_workers", 2)
+    monkeypatch.setattr(config, "source_search_downloads_per_indexer", 2)
     monkeypatch.setattr(config, "source_search_deadline_seconds", 0.3)
     indexers = Indexers(items, bodies, hang=frozenset({"t002", "t003"}))
     began = time.monotonic()

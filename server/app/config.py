@@ -51,12 +51,19 @@ class Config(BaseSettings):
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).
     indexer_torrent_max_bytes: int = Field(default=48 * 1024 * 1024, gt=0)
-    # CR15/c (27) forráskeresési keret. IDEIGLENES értékek: a burst27 alapmérés és a
-    # felhasználói SLO-döntés előtt nem kiadhatók, a kapu előtt rögzítendők.
-    source_search_max_parallel: int = Field(default=4, ge=1)
-    source_search_download_workers: int = Field(default=5, ge=1)
+    # CR15/c (27) forráskeresési keret. Felhasználói UX/SLO-döntés 2026-11-07 (burst27-v3 után):
+    # 12 egyidejű egyedi keresés, 15 s teljes határidő, 1 GiB-os konténer.
+    source_search_max_parallel: int = Field(default=12, ge=1)
+    source_search_deadline_seconds: float = Field(default=15.0, gt=0)
+    # Az 1 GiB-os keretből levezetve (burst27-v3, burst27-diag-phase-cost): egy mentési köteg
+    # legfeljebb 32 MiB nyers .torrent (a feldolgozás ~4x átmeneti memóriát visz), a letöltött,
+    # még nem mentett bájtok folyamatszinten legfeljebb 64 MiB-ig indítanak új letöltést.
     source_search_batch_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
-    source_search_deadline_seconds: float = Field(default=30.0, gt=0)
+    source_search_pending_max_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
+    # Indexerenként egyszerre beengedett letöltés: az adapterek alapértelmezett 5-ös szemaforja.
+    source_search_downloads_per_indexer: int = Field(default=5, ge=1)
+    # Feldolgozott TorrentInfo-gyorsítótár fájlbejegyzés-kerete (~1,3 KiB/fájl, ~65 MiB).
+    torrent_info_cache_max_files: int = Field(default=50_000, gt=0)
 
     @field_validator("session_secret")
     @classmethod

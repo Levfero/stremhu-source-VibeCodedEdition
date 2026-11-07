@@ -1,4 +1,5 @@
 import importlib
+import threading
 import zoneinfo
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -104,6 +105,32 @@ def isolated_db_session() -> Generator[Session, None, None]:
     finally:
         discard_commit_actions(db)
         db.close()
+
+
+# A megosztott (Singleflight) keresések rövid izolált olvasásai a még nyitott request
+# Sessionök mellé nyitnak kapcsolatot. Korlát nélkül ez párhuzamos keresésnél telíti a
+# QueuePoolt, és folyamatos overflow-kapcsolatnyitást/-zárást okoz (memória);
+# lásd cr17d-pool-diagnostic-v1. Egy hely elég: az olvasások milliszekundumosak.
+_SHARED_READ_SLOTS = threading.BoundedSemaphore(1)
+_shared_read_holder = threading.local()
+
+
+@contextmanager
+def shared_read_session() -> Generator[Session, None, None]:
+    """Rövid, izolált olvasó Session megosztott keresésekhez, folyamatszintű korláttal.
+
+    Workerszálban hívandó (owned_to_thread). Nem ágyazható egymásba: a beágyazott
+    hívás holtpont helyett azonnal hibát ad.
+    """
+    if getattr(_shared_read_holder, "held", False):
+        raise RuntimeError("shared_read_session is not reentrant")
+    with _SHARED_READ_SLOTS:
+        _shared_read_holder.held = True
+        try:
+            with isolated_db_session() as db:
+                yield db
+        finally:
+            _shared_read_holder.held = False
 
 
 def get_db() -> Generator[Session, None, None]:

@@ -19,8 +19,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.common import database
-from app.modules.torrent_files.repository import TorrentFilesRepository
-from app.modules.torrent_files.service import TorrentFilesService
+from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_source_provider import service as providers
 
 
@@ -38,6 +37,7 @@ async def main():
         marker_lock = threading.Lock()
         dbapi_lock = threading.Lock()
         alias_barrier = None
+        alias_reads_met: list[bool] = []
 
         class TrackedSession(Session):
             def __init__(self, *args, **kwargs):
@@ -65,7 +65,12 @@ async def main():
                 self.mark("use-begin")
                 try:
                     if alias_barrier is not None:
-                        alias_barrier.wait(timeout=3)
+                        try:
+                            alias_barrier.wait(timeout=3)
+                        except threading.BrokenBarrierError:
+                            # Packet22b: the shared-read gate serializes the two reads,
+                            # so they never meet; overlap detection below is unchanged.
+                            alias_reads_met.append(False)
                     with dbapi_lock:
                         return super().execute(*args, **kwargs)
                 finally:
@@ -90,13 +95,18 @@ async def main():
             bind=engine, class_=TrackedSession, autoflush=False,
         )
 
+        class NoTouchFiles(IsolatedTorrentFilesService):
+            # Touch ownership is inventoried separately. No background writes
+            # are needed to trace the shared read in this fixture.
+            def touch(self, identifiers):
+                return None
+
         def new_provider(db, indexers):
+            # Since CR17/d the provider takes no request Session; db stays the
+            # request's own Session so the trace still sees its lifecycle.
             return providers.TorrentSourceProviderService(
                 indexers_service=indexers,
-                torrent_files_service=TorrentFilesService(TorrentFilesRepository(db)),
-                # Touch ownership is inventoried separately. No background writes
-                # are needed to reproduce the request-owned read in this trace.
-                isolated_torrent_files_service=SimpleNamespace(touch=lambda ids: None),
+                isolated_torrent_files_service=NoTouchFiles(),
             )
 
         async def drain_registry():
@@ -180,7 +190,7 @@ async def main():
             ), 5)
         alias_barrier = None
         capture("two-alias-reads", start, results_correct=results == [([], []), ([], [])],
-                dbapi_serialized_by_fixture=True)
+                dbapi_serialized_by_fixture=True, alias_reads_met=not alias_reads_met)
         await drain_registry()
 
         # (d) Cancelling a singleflight during a blocked worker does not finish
@@ -189,19 +199,21 @@ async def main():
         thread_entered, thread_release = threading.Event(), threading.Event()
         finished = threading.Event()
 
-        class BlockingFiles(TorrentFilesService):
-            def find_list(self, filter=None):
+        class BlockingFiles(NoTouchFiles):
+            def find_snapshots(self, identifiers):
                 thread_entered.set()
                 if not thread_release.wait(3):
                     raise TimeoutError("Synthetic worker gate timed out")
                 try:
-                    return super().find_list(filter)
+                    return super().find_snapshots(identifiers)
                 finally:
                     finished.set()
 
         db = database.SessionLocal()
-        provider = new_provider(db, SimpleNamespace(get_torrents_by_imdb_id=immediate_indexer))
-        provider._torrent_files_service = BlockingFiles(TorrentFilesRepository(db))
+        provider = providers.TorrentSourceProviderService(
+            indexers_service=SimpleNamespace(get_torrents_by_imdb_id=immediate_indexer),
+            isolated_torrent_files_service=BlockingFiles(),
+        )
         waiting = asyncio.create_task(provider.find_by_imdb_id("tt0000004"))
         assert await asyncio.to_thread(thread_entered.wait, 3)
         closing = asyncio.create_task(providers._sources_singleflight.cancel_all())
@@ -231,7 +243,7 @@ async def main():
         final_checkout = engine.pool.checkedout()
         engine.dispose()
     print(json.dumps(dict(
-        fixture="g17-real-provider-file-db-ownership-v2", traces=traces,
+        fixture="g17-real-provider-file-db-ownership-v3", traces=traces,
         fixture_cleanup_final_checkouts=final_checkout,
         scope="Production provider, Singleflight, repository and db_session; gated synthetic indexer. Alias DBAPI calls serialized after detecting overlap. No heap or leak claim.",
     )))

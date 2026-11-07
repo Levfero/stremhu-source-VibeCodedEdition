@@ -900,9 +900,8 @@ async def test_batch_torrent_download_and_save_single_transaction():
     from app.modules.torrent_source_provider.service import TorrentSourceProviderService
 
     mock_indexers = AsyncMock()
-    mock_torrent_files = MagicMock()
-    mock_torrent_files.find_list.return_value = []
     mock_isolated_files = MagicMock()
+    mock_isolated_files.find_snapshots.return_value = []
 
     async def fake_download(indexer_id: str, torrent_id: str, url: str):
         return DownloadedTorrentFile(
@@ -930,13 +929,12 @@ async def test_batch_torrent_download_and_save_single_transaction():
 
     provider = TorrentSourceProviderService(
         indexers_service=mock_indexers,
-        torrent_files_service=mock_torrent_files,
         isolated_torrent_files_service=mock_isolated_files,
     )
 
     torrents = [s.indexer_torrent for s in sources_by_id.values()]
 
-    sources = await provider._sync_torrent_files(torrents)
+    sources = await provider._shared_search()._sync_torrent_files(torrents)
     assert len(sources) == 3
     # Egyetlen kötegelt create_many tranzakció futott le 3 külön create helyett
     mock_isolated_files.create_many.assert_called_once()

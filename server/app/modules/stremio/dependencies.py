@@ -29,7 +29,7 @@ def create_stremio_catalogs_service(
     db: Session,
 ) -> StremioCatalogsService:
     torrent_files_service = create_torrent_files_service(db)
-    torrent_source_provider_service = create_torrent_source_provider_service(db)
+    torrent_source_provider_service = create_torrent_source_provider_service()
     isolated_torrent_files_service = create_isolated_torrent_files_service()
 
     return StremioCatalogsService(

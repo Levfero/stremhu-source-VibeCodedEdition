@@ -8,17 +8,12 @@ from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.singleflight import Singleflight
 from app.modules.indexers.schemas.internal import IndexerTorrent
-from app.modules.indexers.service import IndexersService
+from app.modules.indexers.search import IndexerSearchService
 from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_files.models import TorrentFileModel
-from app.modules.torrent_files.schemas import (
-    TorrentFileIdentifier,
-    TorrentFilesFilter,
-    TorrentFileSnapshot,
-)
-from app.modules.torrent_files.service import TorrentFilesService
+from app.modules.torrent_files.schemas import TorrentFileIdentifier, TorrentFileSnapshot
 from app.modules.torrent_source_provider.schemas import TorrentSource
 
 _torrent_provider_locks = KeyedLock()
@@ -44,31 +39,111 @@ async def close_source_searches() -> None:
 class TorrentSourceProviderService:
     def __init__(
         self,
-        indexers_service: IndexersService,
-        torrent_files_service: TorrentFilesService,
+        indexers_service: IndexerSearchService,
         isolated_torrent_files_service: IsolatedTorrentFilesService,
     ):
         self._indexers_service = indexers_service
-        self._torrent_files_service = torrent_files_service
         self._isolated_torrent_files_service = isolated_torrent_files_service
+
+    def _shared_search(self) -> "_SourceSearch":
+        # A megosztott task csak request-független függőséget kap, a providert nem.
+        return _SourceSearch(self._indexers_service, self._isolated_torrent_files_service)
 
     async def find_by_imdb_id(
         self,
         imdb_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
+        search = self._shared_search()
         return await _sources_singleflight.run(
             f"{stream_cache_state.revision('')[0]}:imdb:{imdb_id}",
-            lambda: self._find_by_imdb_id(imdb_id),
+            lambda: search.find_by_imdb_id(imdb_id),
         )
 
-    async def _find_by_imdb_id(
+    async def find_by_query(
+        self,
+        query: str,
+        media_type: str | None = None,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        search = self._shared_search()
+        return await _sources_singleflight.run(
+            f"{stream_cache_state.revision('')[0]}:query:{query}:{media_type or 'all'}",
+            lambda: search.find_by_query(query, media_type=media_type),
+        )
+
+    async def find_by_torrent_id(
+        self,
+        torrent_id: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        search = self._shared_search()
+        return await _sources_singleflight.run(
+            f"{stream_cache_state.revision('')[0]}:torrent:{torrent_id}",
+            lambda: search.find_by_torrent_id(torrent_id),
+        )
+
+    async def find_one_by_indexer(
+        self,
+        indexer_id: str,
+        torrent_id: str,
+    ) -> TorrentSource | None:
+        search = self._shared_search()
+        return await _single_source_singleflight.run(
+            f"{stream_cache_state.revision('')[0]}:indexer:{indexer_id}:{torrent_id}",
+            lambda: search.find_one_by_indexer(indexer_id, torrent_id),
+        )
+
+    async def _download_and_save_torrent(
+        self, indexer_torrent: IndexerTorrent
+    ) -> TorrentFileModel | None:
+        async with _torrent_provider_locks(
+            f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
+        ):
+            existing_torrent = await owned_to_thread(
+                self._isolated_torrent_files_service.find_by_id,
+                indexer_id=indexer_torrent.indexer_account.indexer_id,
+                torrent_id=indexer_torrent.torrent_id,
+            )
+            if existing_torrent:
+                return existing_torrent
+
+            try:
+                downloaded_torrent_file = await self._indexers_service.download_torrent(
+                    indexer_torrent.indexer_account.indexer_id,
+                    indexer_torrent.torrent_id,
+                    indexer_torrent.download_url,
+                )
+
+                return await owned_to_thread(
+                    self._isolated_torrent_files_service.create,
+                    indexer_id=downloaded_torrent_file.indexer_id,
+                    torrent_id=downloaded_torrent_file.torrent_id,
+                    torrent_bytes=downloaded_torrent_file.torrent_bytes,
+                )
+            except InvalidTorrentFileException:
+                logger.warning(
+                    f"⚠️ Érvénytelen torrent fájl átugorva: indexer: {indexer_torrent.indexer_account.indexer_id}, torrent_id: {indexer_torrent.torrent_id}"
+                )
+                return None
+
+
+class _SourceSearch:
+    """Egy megosztott keresés teljes munkája; csak request-független függőséget tart."""
+
+    def __init__(
+        self,
+        indexers: IndexerSearchService,
+        files: IsolatedTorrentFilesService,
+    ):
+        self._indexers = indexers
+        self._files = files
+
+    async def find_by_imdb_id(
         self,
         imdb_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers_service.get_torrents_by_imdb_id(imdb_id)
+        ) = await self._indexers.get_torrents_by_imdb_id(imdb_id)
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
@@ -79,20 +154,10 @@ class TorrentSourceProviderService:
         query: str,
         media_type: str | None = None,
     ) -> tuple[list[TorrentSource], list[str]]:
-        return await _sources_singleflight.run(
-            f"{stream_cache_state.revision('')[0]}:query:{query}:{media_type or 'all'}",
-            lambda: self._find_by_query(query, media_type=media_type),
-        )
-
-    async def _find_by_query(
-        self,
-        query: str,
-        media_type: str | None = None,
-    ) -> tuple[list[TorrentSource], list[str]]:
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers_service.get_torrents_by_query(
+        ) = await self._indexers.get_torrents_by_query(
             query, media_type=media_type
         )
 
@@ -128,19 +193,10 @@ class TorrentSourceProviderService:
         self,
         torrent_id: str,
     ) -> tuple[list[TorrentSource], list[str]]:
-        return await _sources_singleflight.run(
-            f"{stream_cache_state.revision('')[0]}:torrent:{torrent_id}",
-            lambda: self._find_by_torrent_id(torrent_id),
-        )
-
-    async def _find_by_torrent_id(
-        self,
-        torrent_id: str,
-    ) -> tuple[list[TorrentSource], list[str]]:
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers_service.get_torrents_by_torrent_id(torrent_id)
+        ) = await self._indexers.get_torrents_by_torrent_id(torrent_id)
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
@@ -151,17 +207,7 @@ class TorrentSourceProviderService:
         indexer_id: str,
         torrent_id: str,
     ) -> TorrentSource | None:
-        return await _single_source_singleflight.run(
-            f"{stream_cache_state.revision('')[0]}:indexer:{indexer_id}:{torrent_id}",
-            lambda: self._find_one_by_indexer(indexer_id, torrent_id),
-        )
-
-    async def _find_one_by_indexer(
-        self,
-        indexer_id: str,
-        torrent_id: str,
-    ) -> TorrentSource | None:
-        indexer_torrent = await self._indexers_service.get_torrent_by_torrent_id(
+        indexer_torrent = await self._indexers.get_torrent_by_torrent_id(
             indexer_id, torrent_id
         )
 
@@ -200,7 +246,7 @@ class TorrentSourceProviderService:
             self._find_snapshots, torrent_file_ids
         )
 
-        self._isolated_torrent_files_service.touch(torrent_file_ids)
+        self._files.touch(torrent_file_ids)
 
         current_torrent_files_map: dict[tuple[str, str], TorrentFileSnapshot] = {
             (
@@ -272,21 +318,15 @@ class TorrentSourceProviderService:
     def _find_snapshots(
         self, identifiers: list[TorrentFileIdentifier]
     ) -> list[TorrentFileSnapshot]:
-        # A snapshot még a worker Sessionjében épül; a megosztott eredmény
-        # így a tulajdonos request commitja/zárása után is olvasható.
-        return [
-            TorrentFileSnapshot.from_model(torrent_file)
-            for torrent_file in self._torrent_files_service.find_list(
-                filter=TorrentFilesFilter(identifiers=identifiers)
-            )
-        ]
+        # Saját rövid Session: a tulajdonos request lezárása a megosztott taskot nem érinti.
+        return self._files.find_snapshots(identifiers)
 
     def _store_snapshots(
         self, items: list[tuple[str, str, bytes]]
     ) -> list[TorrentFileSnapshot]:
         return [
             TorrentFileSnapshot.from_model(torrent_file)
-            for torrent_file in self._isolated_torrent_files_service.create_many(items)
+            for torrent_file in self._files.create_many(items)
         ]
 
     async def _download_torrent_bytes(
@@ -296,7 +336,7 @@ class TorrentSourceProviderService:
 
         async def _do_download() -> tuple[str, str, bytes] | None:
             try:
-                downloaded_torrent_file = await self._indexers_service.download_torrent(
+                downloaded_torrent_file = await self._indexers.download_torrent(
                     indexer_torrent.indexer_account.indexer_id,
                     indexer_torrent.torrent_id,
                     indexer_torrent.download_url,
@@ -313,36 +353,3 @@ class TorrentSourceProviderService:
                 return None
 
         return await _torrent_download_singleflight.run(key, _do_download)
-
-    async def _download_and_save_torrent(
-        self, indexer_torrent: IndexerTorrent
-    ) -> TorrentFileModel | None:
-        async with _torrent_provider_locks(
-            f"{indexer_torrent.indexer_account.indexer_id}:{indexer_torrent.torrent_id}"
-        ):
-            existing_torrent = await owned_to_thread(
-                self._isolated_torrent_files_service.find_by_id,
-                indexer_id=indexer_torrent.indexer_account.indexer_id,
-                torrent_id=indexer_torrent.torrent_id,
-            )
-            if existing_torrent:
-                return existing_torrent
-
-            try:
-                downloaded_torrent_file = await self._indexers_service.download_torrent(
-                    indexer_torrent.indexer_account.indexer_id,
-                    indexer_torrent.torrent_id,
-                    indexer_torrent.download_url,
-                )
-
-                return await owned_to_thread(
-                    self._isolated_torrent_files_service.create,
-                    indexer_id=downloaded_torrent_file.indexer_id,
-                    torrent_id=downloaded_torrent_file.torrent_id,
-                    torrent_bytes=downloaded_torrent_file.torrent_bytes,
-                )
-            except InvalidTorrentFileException:
-                logger.warning(
-                    f"⚠️ Érvénytelen torrent fájl átugorva: indexer: {indexer_torrent.indexer_account.indexer_id}, torrent_id: {indexer_torrent.torrent_id}"
-                )
-                return None

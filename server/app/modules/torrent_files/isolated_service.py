@@ -1,11 +1,15 @@
 from fastapi import HTTPException
 
 from app.common.async_utils import fire_and_forget, owned_to_thread
-from app.common.database import isolated_db_session
+from app.common.database import isolated_db_session, shared_read_session
 from app.common.logger import logger
 from app.modules.torrent_files.models import TorrentFileModel
 from app.modules.torrent_files.repository import TorrentFilesRepository
-from app.modules.torrent_files.schemas import TorrentFileIdentifier, TorrentFilesFilter
+from app.modules.torrent_files.schemas import (
+    TorrentFileIdentifier,
+    TorrentFilesFilter,
+    TorrentFileSnapshot,
+)
 
 
 class IsolatedTorrentFilesService:
@@ -25,6 +29,18 @@ class IsolatedTorrentFilesService:
             if torrent_file:
                 local_db.expunge(torrent_file)
             return torrent_file
+
+    def find_snapshots(
+        self, identifiers: list[TorrentFileIdentifier]
+    ) -> list[TorrentFileSnapshot]:
+        """Session nélküli leírók rövid életű, korlátozott olvasó session-ben; a snapshot még a Session zárása előtt épül."""
+        with shared_read_session() as local_db:
+            return [
+                TorrentFileSnapshot.from_model(torrent_file)
+                for torrent_file in TorrentFilesRepository(local_db).find_list(
+                    filter=TorrentFilesFilter(identifiers=identifiers)
+                )
+            ]
 
     def create(
         self, indexer_id: str, torrent_id: str, torrent_bytes: bytes

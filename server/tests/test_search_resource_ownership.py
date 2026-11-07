@@ -1,12 +1,14 @@
-"""CR17/c regression: a shared provider result must outlive the request that started it.
+"""CR17/c–d regressions: a shared provider search owns its own resources.
 
 A joiner receives the same Singleflight result as the owner request. The owner's
 request Session commits (expire_on_commit) and closes when its response finishes,
-while the joiner may still convert the shared sources. Real file SQLite, real
-provider and repository; only the tracker metadata is a gated synthetic double.
+or the owner is cancelled, while the shared task and the joiner continue. Real file
+SQLite, real provider, repository and isolated file service; only the tracker
+metadata is a gated synthetic double.
 """
 
 import asyncio
+import threading
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -23,10 +25,11 @@ from app.modules.indexer_accounts.schemas import IndexerAccountRef
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.indexer_definitions.schemas.api import IndexerDefinitionResponse
 from app.modules.indexers.schemas.internal import IndexerTorrent
+from app.modules.indexers.search import IndexerSearchService
 from app.modules.kodi.schemas.api import KodiImdbStreamsResponse
+from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
 from app.modules.torrent_files.models import TorrentFileModel
-from app.modules.torrent_files.repository import TorrentFilesRepository
-from app.modules.torrent_files.service import TorrentFilesService
+from app.modules.torrent_files.schemas import TorrentFileIdentifier
 from app.modules.torrent_source_provider import service as providers
 from app.modules.torrent_streams.schemas import TorrentStream
 
@@ -58,6 +61,26 @@ def file_db(tmp_path, monkeypatch):
         engine.dispose()
 
 
+class _NoTouchFiles(IsolatedTorrentFilesService):
+    # The row already exists, so no download/create path runs; the fire-and-forget
+    # touch is covered by the lifespan drain tests.
+    def touch(self, identifiers):
+        return None
+
+
+def _account_ref() -> IndexerAccountRef:
+    # Like IndexerSearchService: its own short Session, never the request Session.
+    with database.isolated_db_session() as db:
+        return IndexerAccountRef.from_model(db.get_one(IndexerAccountModel, INDEXER_ID))
+
+
+def _provider(indexer_method, metadata):
+    return providers.TorrentSourceProviderService(
+        indexers_service=cast(Any, SimpleNamespace(**{indexer_method: metadata})),
+        isolated_torrent_files_service=_NoTouchFiles(),
+    )
+
+
 def _orm_instances(value, seen=None):
     """Every SQLAlchemy-mapped object reachable through pydantic fields, lists and tuples."""
     seen = set() if seen is None else seen
@@ -73,6 +96,61 @@ def _orm_instances(value, seen=None):
     return []
 
 
+def test_search_service_reads_account_refs_in_its_own_session(file_db):
+    search = IndexerSearchService(cast(Any, SimpleNamespace()))
+
+    refs = search._find_account_refs()
+
+    assert [ref.indexer_id for ref in refs] == [INDEXER_ID]
+    assert search._get_account_ref(INDEXER_ID) == refs[0]
+    assert not _orm_instances(refs)
+    assert database.SessionLocal.kw["bind"].pool.checkedout() == 0
+
+
+
+def test_shared_reads_open_one_extra_connection_at_a_time(file_db):
+    # Without the limit, parallel shared searches saturated the QueuePool next to the
+    # still-open request Sessions (cr17d-pool-diagnostic-v1).
+    holding, release = threading.Event(), threading.Event()
+    results = []
+
+    def hold_slot():
+        with database.shared_read_session():
+            holding.set()
+            release.wait(5)
+
+    holder = threading.Thread(target=hold_slot)
+    holder.start()
+    assert holding.wait(5)
+    reader = threading.Thread(
+        target=lambda: results.append(
+            IsolatedTorrentFilesService().find_snapshots([TorrentFileIdentifier(indexer_id=INDEXER_ID, torrent_id=TORRENT_ID)])
+        )
+    )
+    reader.start()
+    reader.join(0.3)
+    assert reader.is_alive() and not results
+    release.set()
+    holder.join(5)
+    reader.join(5)
+
+    assert [snapshot.info_hash for snapshot in results[0]] == [file_db]
+    assert database.SessionLocal.kw["bind"].pool.checkedout() == 0
+
+
+def test_shared_read_fails_fast_when_nested_and_releases_on_error(file_db):
+    with database.shared_read_session():
+        with pytest.raises(RuntimeError, match="not reentrant"):
+            with database.shared_read_session():
+                pass
+    with pytest.raises(ValueError):
+        with database.shared_read_session():
+            raise ValueError("read failed")
+
+    # Both the nested refusal and the error path left the slot free.
+    assert IndexerSearchService(cast(Any, SimpleNamespace()))._get_account_ref(INDEXER_ID).indexer_id == INDEXER_ID
+    assert database.SessionLocal.kw["bind"].pool.checkedout() == 0
+
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     ("indexer_method", "provider_method", "key"),
@@ -85,35 +163,23 @@ async def test_joiner_reads_shared_sources_after_owner_request_closed(file_db, i
     entered, release, owner_closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
     metadata_calls = 0
 
-    def new_provider(db):
-        async def gated_metadata(_):
-            nonlocal metadata_calls
-            metadata_calls += 1
-            entered.set()
-            await release.wait()
-            # IndexersService loads accounts through the same request Session
-            # and hands out only a Session-free reference.
-            account = IndexerAccountRef.from_model(db.get_one(IndexerAccountModel, INDEXER_ID))
-            return [IndexerTorrent(indexer_account=account, torrent_id=TORRENT_ID, download_url="https://ownership.invalid/dl")], []
-
-        return providers.TorrentSourceProviderService(
-            indexers_service=cast(Any, SimpleNamespace(**{indexer_method: gated_metadata})),
-            torrent_files_service=TorrentFilesService(TorrentFilesRepository(db)),
-            # The row already exists, so no download/create path runs; touch
-            # ownership is covered by packet 22, not by this reproduction.
-            isolated_torrent_files_service=cast(Any, SimpleNamespace(touch=lambda ids: None)),
-        )
+    async def gated_metadata(_):
+        nonlocal metadata_calls
+        metadata_calls += 1
+        entered.set()
+        await release.wait()
+        return [IndexerTorrent(indexer_account=_account_ref(), torrent_id=TORRENT_ID, download_url="https://ownership.invalid/dl")], []
 
     async def owner_request():
         try:
-            with database.db_session() as db:
-                return await getattr(new_provider(db), provider_method)(key)
+            with database.db_session():
+                return await getattr(_provider(indexer_method, gated_metadata), provider_method)(key)
         finally:
             owner_closed.set()
 
     async def joiner_request():
-        with database.db_session() as db:
-            sources, errors = await getattr(new_provider(db), provider_method)(key)
+        with database.db_session():
+            sources, errors = await getattr(_provider(indexer_method, gated_metadata), provider_method)(key)
             # Response conversion may still run after the owner's response is done.
             await owner_closed.wait()
             source = sources[0]
@@ -138,6 +204,41 @@ async def test_joiner_reads_shared_sources_after_owner_request_closed(file_db, i
     assert metadata_calls == 1
     assert len(owner_result[0]) == 1
     assert joined == ([], TORRENT_ID, file_db, "Ownership Indexer")
+
+
+@pytest.mark.anyio
+async def test_cancelled_owner_leaves_no_request_session_work_or_checkout(file_db):
+    entered, release = asyncio.Event(), asyncio.Event()
+    metadata_calls = 0
+
+    async def gated_metadata(_):
+        nonlocal metadata_calls
+        metadata_calls += 1
+        entered.set()
+        await release.wait()
+        return [IndexerTorrent(indexer_account=_account_ref(), torrent_id=TORRENT_ID, download_url="https://ownership.invalid/dl")], []
+
+    async def request():
+        with database.db_session():
+            return await _provider("get_torrents_by_imdb_id", gated_metadata).find_by_imdb_id("tt0000022")
+
+    try:
+        owner = asyncio.create_task(request())
+        await asyncio.wait_for(entered.wait(), 3)
+        # The owner's request Session rolls back and closes before the shared read.
+        owner.cancel()
+        await asyncio.gather(owner, return_exceptions=True)
+        joiner = asyncio.create_task(request())
+        await asyncio.sleep(0)
+        release.set()
+        sources, errors = await asyncio.wait_for(joiner, 5)
+    finally:
+        await providers._sources_singleflight.cancel_all()
+
+    assert metadata_calls == 1
+    assert errors == [] and [source.torrent_file.info_hash for source in sources] == [file_db]
+    # A shared read on the closed request Session would reopen and keep a connection.
+    assert database.SessionLocal.kw["bind"].pool.checkedout() == 0
 
 
 def test_kodi_indexer_payload_from_ref_matches_orm():

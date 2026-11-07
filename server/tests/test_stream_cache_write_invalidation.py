@@ -4,6 +4,8 @@ import traceback
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock
 
 import httpx
@@ -297,8 +299,8 @@ def test_commit_and_invalidation_finish_before_success_body_is_visible(fixture_e
 @pytest.mark.anyio
 @pytest.mark.parametrize("global_change", [False, True])
 async def test_committed_global_change_fences_underlying_provider_join(global_change, fixture_engine):
-    old_service = TorrentSourceProviderService(Mock(), Mock(), Mock())
-    new_service = TorrentSourceProviderService(Mock(), Mock(), Mock())
+    old_service = TorrentSourceProviderService(Mock(), Mock())
+    new_service = TorrentSourceProviderService(Mock(), Mock())
     started, release = asyncio.Event(), asyncio.Event()
     calls = Counter()
 
@@ -312,8 +314,8 @@ async def test_committed_global_change_fences_underlying_provider_join(global_ch
         calls["new"] += 1
         return [], ["new-fixture"]
 
-    old_service._find_by_imdb_id = old_find
-    new_service._find_by_imdb_id = new_find
+    old_service._shared_search = lambda: cast(Any, SimpleNamespace(find_by_imdb_id=old_find))
+    new_service._shared_search = lambda: cast(Any, SimpleNamespace(find_by_imdb_id=new_find))
     old = asyncio.create_task(old_service.find_by_imdb_id("tt1234567"))
     await started.wait()
 

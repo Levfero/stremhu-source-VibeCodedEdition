@@ -18,7 +18,7 @@ from app.modules.users.models import UserModel
 
 def create_torznab_service(db: Session) -> TorznabService:
     settings_service = create_settings_service(db)
-    torrent_source_provider_service = create_torrent_source_provider_service(db)
+    torrent_source_provider_service = create_torrent_source_provider_service()
 
     return TorznabService(
         settings_service=settings_service,

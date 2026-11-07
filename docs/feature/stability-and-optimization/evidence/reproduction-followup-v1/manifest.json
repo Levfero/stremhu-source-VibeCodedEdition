@@ -346,6 +346,71 @@
       "sha256": "40149d1c42a3bd92cbc73a4db94317e43096d08fb68e4f2e42e8db4bd907ef08",
       "group": "packet21b-gate-v2",
       "measurement_raw_sha256": "40149d1c42a3bd92cbc73a4db94317e43096d08fb68e4f2e42e8db4bd907ef08"
+    },
+    "cr17d_after_v1.py": {
+      "sha256": "dbaaa40a352616bca5f8d73b794df2cfd66346f23f7b770609287db68f27f521",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "dbaaa40a352616bca5f8d73b794df2cfd66346f23f7b770609287db68f27f521"
+    },
+    "assess_cr17d_after_v1.py": {
+      "sha256": "b4ba700f0ba0e0270dd1123c88480eb147afbc8e1a95ce5ccb47a7e4eeca7888",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "b4ba700f0ba0e0270dd1123c88480eb147afbc8e1a95ce5ccb47a7e4eeca7888"
+    },
+    "cr17d-policy-fixture-v2.py": {
+      "sha256": "2b9e187e6267398bedfc0d6f419f97b8ec24d0016ebc39007ad58c962722dc72",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "fea4592cade30714c9048dc8411becc5c012154570bb6adf93ab3f397ae94558"
+    },
+    "cr17d-policy-reference-fixture-v2.py": {
+      "sha256": "f1491fbfdd33580678eeec50a189afb880f3cd21718d839ce474ace517c26527",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "50b53ecb2625705ebee3aab39f6e29236b4e9aadccd487cea6cb1812152d2d69"
+    },
+    "cr17d-policy-direct-fixture-v2.py": {
+      "sha256": "27b0e7d6f2d2b9cd636e5b4e50887d7da092552ee0fc76506608e3fdc1c19fbf",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "49b2289c2e1f813dc6e12b4100f464ad37fb5aaa53b19f7a07855fb11444f4ce"
+    },
+    "cr17d-kodi-ownership-observation-v2.py": {
+      "sha256": "2a1b6adff3c9300dcbb55b36de7e4c998d1ed0d4bc3410159b06a0e46183b9de",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "f012cb3543ec5c55a5a4a097a2f5311124dcab523ad6f778abac8b14d1af8c80"
+    },
+    "make_cr17d_fixtures.py": {
+      "sha256": "a1c05f1d3b63720f45d1a0a23551adaaef30e39e87b5c4222222e136180e84b2",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "a1c05f1d3b63720f45d1a0a23551adaaef30e39e87b5c4222222e136180e84b2"
+    },
+    "smoke_cr17d_wiring.py": {
+      "sha256": "c4a2ea5b1c4edffc0229d69981a8f896a7cde2a500cbe389a16a137db3f60cee",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "c4a2ea5b1c4edffc0229d69981a8f896a7cde2a500cbe389a16a137db3f60cee"
+    },
+    "register_cr17d_after_v1.py": {
+      "sha256": "c3397aee608481dc53e7b158faebc642991753424cd0ee82622160033aae99ae",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "c3397aee608481dc53e7b158faebc642991753424cd0ee82622160033aae99ae"
+    },
+    "make_cr17d_resume.py": {
+      "sha256": "8185dff48a8ca563c1bbbffea03d447a50477e3c0604547e3775df61a3126137",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "8185dff48a8ca563c1bbbffea03d447a50477e3c0604547e3775df61a3126137"
+    },
+    "cr17d_after_v1_resume.py": {
+      "sha256": "4d96f9697e40248e19a725859ac3a8a37186830378446473a1d258df26bd5d8b",
+      "group": "packet22-gate",
+      "measurement_raw_sha256": "4d96f9697e40248e19a725859ac3a8a37186830378446473a1d258df26bd5d8b"
+    },
+    "cr17d-pool-diagnostic-v1.py": {
+      "sha256": "aad86e00d65a6da1521d809e2be8cfd7118ea4a77fcac021c30baec4e45bef1a",
+      "group": "packet22-pool-diagnostic",
+      "measurement_raw_sha256": "cea75c78dfa308c6ffc904dbcda838a300ac4f9defce864acb0a2c8fe0340cf4"
+    },
+    "run_cr17d_pool_diag.py": {
+      "sha256": "6e5e0ba39f73e56bf10c0f8801f7937b7de2c2f7daca3ad219ea2bbfbdc84b2f",
+      "group": "packet22-pool-diagnostic",
+      "measurement_raw_sha256": "6e5e0ba39f73e56bf10c0f8801f7937b7de2c2f7daca3ad219ea2bbfbdc84b2f"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

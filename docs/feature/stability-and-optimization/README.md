@@ -40,7 +40,7 @@ source_paths: []
 1. [Branch-összefoglaló](../stability-and-optimization.md): cél és hatókör.
 2. [Audit](audit.md): 19 azonosított kérdés/megállapítás, bizonyítottság és kockázat a vizsgált commitra.
 3. [Implementációs terv](implementation-plan.md): az audit kritikus újraértékelése, megtartott/elvetett/mérésfüggő részek, fájl- és szimbólumszintű terv.
-   - [CR17/c–d terv](cr17cd-plan.md): a 21–22. csomag provider/file ownership bontása, a 21b runtime-kapuk (v1 FAIL, v2 PASS) és a 22 előkészítése.
+   - [CR17/c–d terv](cr17cd-plan.md): a 21–22. csomag provider/file ownership bontása, a 21b runtime-kapuk (v1 FAIL, v2 PASS) és a 22 runtime-kapuja (FAIL, memória; döntésre vár).
 4. [AI-index](../../AI-INDEX.md): CR-azonosítóhoz közvetlen audit- és tervlink, valamint forrásmodul.
 
 **Státusz:** audit és terv rendelkezésre áll; a dokumentáció rendezése nem CR-implementáció és nem új tesztfutás. Az audit/terv forráscommitja `2615596f7cd181454dc5ae3e1ec9e4d215e3b154`. A szerkezeti rendezéskor vizsgált HEAD `d9554c4324b432dd023307c9bf29e0aab4da3747`; a két commit között a vizsgált alkalmazás-, teszt- és buildútvonalakon nem találtam kódeltérést. Ez statikus diff-ellenőrzés, nem teljes új biztonsági audit.

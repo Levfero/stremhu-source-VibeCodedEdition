@@ -3592,6 +3592,30 @@
     "cr17c-after-v2-complete.json": {
       "measurement_raw_sha256": "968694d1361a37d7ebc0c44bf957febced06a81e4548dbffcd7ab1074ff3993d",
       "publication_lf_sha256": "968694d1361a37d7ebc0c44bf957febced06a81e4548dbffcd7ab1074ff3993d"
+    },
+    "cr17d-after-v1-protocol.json": {
+      "measurement_raw_sha256": "ee8e6a93dff9f7a2d95305846ac62dbb3d11b561f76b9065738e1405bd91c6d0",
+      "publication_lf_sha256": "cfcc626614a2297df6d738d8628d3d399570472f25b712b4301e5e4cc15ab3ca"
+    },
+    "cr17d-after-v1-resume-amendment.json": {
+      "measurement_raw_sha256": "dfd4943561344483969465308d1a07f31643b2a0991a621658939bcacd06ca91",
+      "publication_lf_sha256": "8d2fb1849168c35aeffb62c947873f8979799d69cbc649405a313d7f4774045d"
+    },
+    "cr17d-after-v1-assessment.json": {
+      "measurement_raw_sha256": "4e205db1ca64b5a6a0e6425c3da58ec311893ccd80f64b5a77e8f4056b77b05f",
+      "publication_lf_sha256": "bed44ce83645ac9e8a0a38c9219f3fb3fbe877b4c4dbeacaa8377823e8aa9a63"
+    },
+    "cr17d-after-v1-complete.json": {
+      "measurement_raw_sha256": "285758e0c071a0fa2a09bbdcd161823205e8060f70f78594a5e2ef1bedbda13a",
+      "publication_lf_sha256": "285758e0c071a0fa2a09bbdcd161823205e8060f70f78594a5e2ef1bedbda13a"
+    },
+    "cr17d-checked-v1-manifest.json": {
+      "measurement_raw_sha256": "ca168a479ded6157c34237c333bdadbb5e29b851b0ae4e148b9425ed9fb2708f",
+      "publication_lf_sha256": "86372eb622335b519a4135fadf1056995e2221263a586b4d6a0bf6927db78615"
+    },
+    "cr17d-pool-diagnostic-v1.json": {
+      "measurement_raw_sha256": "4241ce1967bd6cd1c4dbff29180396e613f33d60064bb409f9bd24882d83213b",
+      "publication_lf_sha256": "bd4409b5c1192cc0fa66d7a548ad4104d220f1f7dd198ec7f21652a8b30ca79b"
     }
   }
 }

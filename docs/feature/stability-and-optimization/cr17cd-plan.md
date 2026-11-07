@@ -2,12 +2,12 @@
 doc_id: "feature-stability-and-optimization-cr17cd-plan"
 title: "CR17/c–d — provider/file ownership terv (21–22. csomag)"
 kind: "implementation-plan"
-status: "implementation-in-progress"
+status: "blocked-on-user-decision"
 audience: ["developer", "ai-agent"]
 tags: ["CR17", "CR17/c", "CR17/d", "ownership", "DetachedInstanceError", "DTO"]
 source_commit: "050cb33718353d16cbeeaca6ca41a0d9d7d45d6d"
 baseline: "050cb337; packet 20 SourceV4 set aside on archive/cr17b-policy-snapshot-v4 (a099da5)"
-verification: "21a reproduction failed deterministically on 050cb33; 21b: 3 targeted tests, Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; runtime gate cr17c-after-v1 FAIL (1/316: heap/cold1 wall), cold GC diagnostic v1; superseding preregistered gate cr17c-after-v2 (GC-controlled colds) PASS 316/316; 22 prepared locally (609 pytest), not measured"
+verification: "21a reproduction failed deterministically on 050cb33; 21b: Ruff 0, basedpyright 0, 607 pytest / 64 snapshot; cr17c-after-v1 FAIL (1/316), superseding cr17c-after-v2 PASS 316/316, committed d1da34c; 22: 609 pytest local, runtime gate cr17d-after-v1 FAIL (35/316, memory only; resumed once after a power outage by a preregistered amendment); pool diagnostic v1: QueuePool saturation 15 vs 10-11"
 structure_reviewed: "2026-11-07"
 related_docs: ["docs/feature/stability-and-optimization/implementation-plan.md", "docs/feature/stability-and-optimization.md"]
 source_paths: ["server/app/modules/torrent_source_provider/", "server/app/modules/torrent_files/", "server/app/modules/indexers/", "server/app/modules/torrent_streams/", "server/app/modules/stremio/", "server/app/modules/kodi/", "server/app/modules/torznab/", "server/app/common/database.py"]
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/torrent_source_provider/", "server/app/module
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Végrehajtás alatt. A 21a kész. A 21b `cr17c-after-v1` kapuja egy soron FAIL maradt (érvényes, felmentés nélkül); a felhasználó döntése szerint az azt felváltó, előre regisztrált `cr17c-after-v2` kapu (GC-kontrollált hidegkérések) 316/316 PASS, a 21b ezután commitolva. A 22 helyi WIP-ágon előkészítve és funkcionálisan ellenőrizve, mérése következik. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
+> **Státusz:** Felhasználói döntésre vár (22). A 21a kész. A 21b `cr17c-after-v1` kapuja egy soron FAIL maradt (érvényes, felmentés nélkül); a felhasználó döntése szerint az azt felváltó, előre regisztrált `cr17c-after-v2` kapu (GC-kontrollált hidegkérések) 316/316 PASS, a 21b ezután commitolva. A 22 runtime-kapuja (`cr17d-after-v1`) 35/316 memóriasoron FAIL; a 22 nincs commitolva, felhasználói döntésre vár. Az aktuális végrehajtási állapot a [kanonikus dokumentumban](../stability-and-optimization.md#execution-status) található.
 
 **Kapcsolódó:** [implementation-plan.md — CR17](implementation-plan.md#cr17) · [stability-and-optimization.md](../stability-and-optimization.md)
 <!-- doc-nav:end -->
@@ -195,13 +195,36 @@ A pinned upstream A direct referenciája 4/5 futásban `DetachedInstanceError`-r
 
 <!-- doc-anchor:doc-22-elokeszites -->
 <a id="doc-22-elokeszites"></a>
-### 22 előkészítés: állapotmentes megosztott keresés (helyi WIP, nem mért)
+### 22 előkészítés: állapotmentes megosztott keresés (helyi WIP, kapu FAIL)
 
 A helyi `wip/cr17d-owned-shared-task` ág (`22731a4`, a 21b WIP-commitra épül, nincs pusholva):
 - `indexers/search.py`: folyamatszintű `IndexerSearchService`; az accountokat saját izolált Sessionben olvassa és refként adja vissza. Az `IndexersService` ide delegál.
 - A provider Singleflight-factoryja csak állapotmentes függőséget zár be (`_SourceSearch`), a request `self`-et és Sessiont nem; a fájlsnapshot-olvasás is izolált Sessionben fut. A provider konstruktora két argumentumos, db nélkül.
 - Ellenőrzés (helyi, nem Docker): célzott tesztek, Ruff 0 → basedpyright 0 → 609 passed / 64 snapshot. Új tesztek: tulajdonos cancel után nincs request-Session-munka és pool-checkout; az izolált account-olvasás refet ad, ORM nélkül. Az utóbbi a basedpyright által jelzett hibás `IndexerAccountsService`-konstrukciót fogja meg, amely futásidőben `TypeError` lett volna. Ownership-trace: 4/4 eset, átfedő Session-hívás nincs, pool 0.
-- Mérés még nem futott; a 22 kapuja (`cr17d-after-v1`, a v2-vel azonos GC-kontrollált hidegkérésekkel, before = befagyasztott 21b) a 21b commit után következik.
+- A kód a 21b commitra (`d1da34c`) konfliktus nélkül ráül (helyi `wip/cr17d-on-21b`, `41623ce`, a mért forrással byte-azonos); nincs pusholva.
+
+<!-- doc-anchor:doc-22-runtime-kapu -->
+<a id="doc-22-runtime-kapu"></a>
+### 22 runtime-kapu: `cr17d-after-v1` — FAIL (35/316, csak memória)
+
+Előre regisztrált protokoll: [protokoll](evidence/cr17d-after-v1-protocol.json), [értékelés](evidence/cr17d-after-v1-assessment.json), [befejezési jelölő](evidence/cr17d-after-v1-complete.json), forrásmanifest: [cr17d-checked-v1](evidence/cr17d-checked-v1-manifest.json); scriptek a [reprodukciós archívumban](evidence/reproduction-followup-v1/manifest.json) (`packet22-gate`). Before = befagyasztott 21b (`d1da34c` server/app), after = befagyasztott 22 (`22731a4`). Mintavétel, GC-kontrollált hidegkérések és V6 keretek a `cr17c-after-v2`-vel azonosak.
+
+**Áramszünet:** a 3. hosszú pár after futása közben megszakadt, kimenet nélkül. A folytatás módját [előre regisztrált kiegészítés](evidence/cr17d-after-v1-resume-amendment.json) rögzíti, amely bármely eredményérték olvasása előtt készült: a megszakított kísérlet `interrupted` jelöléssel megmaradt, a 3. pár (after, before) egyszer újrafutott, befejezett kísérletet nem futtattam újra és nem cseréltem. A memóriatöbblet mindhárom párban azonos irányú, tehát nem a megszakítás okozza.
+
+| Kapu | Eredmény |
+|---|---|
+| Ownership | Teljesült: Kodi C before és after is 12 280×200, 0 hiba (a before már a 21b); direct after 10/10 teljes |
+| HTTP p95, CPU, SQL, payload, hidegkérések, quiescence | Mind a kereten belül |
+| **Memória (35 sor)** | **FAIL**: a heap-futások anon/RSS értéke minden cellában ~+6–10 MiB (pl. same-key c1 anon after 302,2/304,5/303,9 MB, before 296,3/294,1/293,4 MB, keret 298,4 MB); a rövid kohorszok párhuzamos cellái +3–10 MiB (100 sor, unique-key c8 anon after 150,1/149,8 MB, keret 143,3 MB). A keret +2 MiB |
+
+Az upstream A direct referenciája 5/5 `DetachedInstanceError`-ral bukott (megfigyelés).
+
+**Diagnosztika (nem kapu, nem felmentés):** [cr17d-pool-diagnostic-v1](evidence/cr17d-pool-diagnostic-v1.json). Ugyanaz a fixture SQLAlchemy `connect`/`checkout` számlálóval, rövid módban, before/after/after/before sorrendben. A 22 minden engine-en eléri az alapértelmezett QueuePool plafont (`pool_size` 5 + `max_overflow` 10 = 15 egyidejű checkout; before 10–11), és 102–135 fizikai SQLite-kapcsolatot nyit (before 26–56): az overflow-kapcsolatok ismételten nyílnak és záródnak. Minden élő SQLite-kapcsolat saját page cache-t tart, ami illeszkedik a párhuzamos cellák memóriatöbbletéhez. Következtetés (statikus, nem mért): a megosztott taskonkénti izolált Sessionök (account-ref és fájlsnapshot) a request-Sessionök mellé további egyidejű kapcsolatokat nyitnak; telített pool mellett nagyobb párhuzamosságnál a kérések a pool timeoutjáig várhatnak.
+
+**Döntési lehetőségek (felhasználói döntés):**
+1. Új 22b jelölt, amely az egyidejű kapcsolatszámot a before szintjén tartja (pl. taskonként egyetlen izolált Session az account- és fájlolvasásra, vagy az izolált olvasások korlátozása), ezután új, előre regisztrált kapu (~4 óra).
+2. A 22 félretétele: a 21b egymagában megszünteti a mért `DetachedInstanceError`-t; a megosztott task továbbra is a tulajdonos request Sessionjén olvas (a 22 explicit Session-szerződése elmarad).
+3. A 22 elfogadása a memória-FAIL tudatában, felhasználói kivételként.
 
 <!-- doc-anchor:doc-fuggoseg-a-20-csomagtol -->
 <a id="doc-fuggoseg-a-20-csomagtol"></a>

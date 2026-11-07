@@ -2,6 +2,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable
+from http.cookiejar import Cookie
 
 import httpx
 import pydash
@@ -188,11 +189,42 @@ class BaseIndexerDefinition(ABC):
             try:
                 account = indexer_account_storage.get_credentials(self.id)
                 if account and account.cookies:
-                    self._client.cookies.update(account.cookies)
+                    self._restore_cookies(account.cookies)
             except Exception as e:
                 self.logger.error(
                     "Failed to load persisted cookies for %s: %s", self.id, network_error_fields(e)
                 )
+
+    def _restore_cookies(self, cookies: dict[str, str]) -> None:
+        """Mentett (csak név-érték) cookie-k visszatöltése az indexer saját hosztjára kötve.
+
+        Domain nélkül a cookie-jar minden célhoz elküldené őket (idegen hosztra és
+        HTTP-re lefokozott átirányításnál is). Itt a hoszt és aldomainjei kapják,
+        https-indexernél csak titkosított kapcsolaton — mint egy friss, domain-széles
+        bejelentkezési cookie-t.
+        """
+        base = httpx.URL(self.url)
+        for name, value in cookies.items():
+            self._client.cookies.jar.set_cookie(
+                Cookie(
+                    version=0,
+                    name=name,
+                    value=value,
+                    port=None,
+                    port_specified=False,
+                    domain="." + base.host,
+                    domain_specified=True,
+                    domain_initial_dot=True,
+                    path="/",
+                    path_specified=True,
+                    secure=base.scheme == "https",
+                    expires=None,
+                    discard=True,
+                    comment=None,
+                    comment_url=None,
+                    rest={},
+                )
+            )
 
     @property
     def cookies(self) -> dict[str, str]:

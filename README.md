@@ -84,7 +84,7 @@ A CR-azonosítók a [stabilitási terv](./docs/feature/stability-and-optimizatio
 | CR12 | Stream-cache | Generációs `StreamCacheState`, compare-put, invalidálás commit után (stale 100/100 → 0/100) |
 | CR13 | Event loop | Aszinkron DNS monoton határidővel (a); korlátos `ResumeWriter` (b); kooperatív ASS→VTT (c) |
 | CR14 | Torrentlista | Skalár projekció BLOB-ok és lazy SQL nélkül |
-| CR15 | Indexerletöltés és keresés | Fejlesztés alatt, ebben a kiadásban még nincs benne: korlátos `.torrent` letöltés (48 MiB), süti-hatókör, redirect- és hostszabály, keresési terhelési korlátok. Az előre regisztrált kapuk állapota a [végrehajtási naplóban](./docs/feature/stability-and-optimization.md) követhető. |
+| CR15 | Indexerletöltés és keresés | Korlátos `.torrent` letöltés (48 MiB dekódolt törzs); hosthoz kötött, HTTPS-en `Secure` sütik; redirect törzsolvasás nélkül, csak a tracker domainjére; keresési terheléskorlát (12 egyidejű egyedi keresés, 15 s határidő, bájtkeret) |
 | CR16 | Session | `session_epoch` (jelszócsere után a régi sütik érvénytelenek), explicit Secure/Origin-szabály |
 | CR17 | Lifecycle és Session-élettartam | Rendezett leállítás; Session-mentes megosztott keresési eredmények; `shared_read_session()`; a policy-snapshot (CR17/b) félretéve |
 | CR18 | Bootstrap | Atomikus első admin létrehozás |
@@ -166,10 +166,13 @@ flowchart TD
 - **Torrentlista (CR14):** explicit oszlopprojekció; a lista se BLOB-ot, se kérésenkénti lazy SQL-t nem tölt.
 - **Rendezett lifespan (CR17/a)** és **korlátos `ResumeWriter` (CR13/b):** a resume-adatok mentése bájt- és hash-korlátos, a függő és a folyamatban lévő írásokat együtt számolja, és leálláskor kiüríti.
 
-### Keresési és hálózati védelem (CR11, CR13/a; CR15 folyamatban)
+### Keresési és hálózati védelem (CR11, CR13/a, CR15)
 - **Singleflight (CR11):** a várakozó megszakítása nem szakítja meg a közös munkát; az adapter relogin megosztott taskban fut.
 - **Aszinkron DNS (CR13/a):** a TXT-ellenőrzés nem blokkolja az event loopot, a teljes várakozást monoton határidő korlátozza.
-- **CR15 (folyamatban):** a korlátos `.torrent` letöltés, a süti-hatókör, a redirect- és hostszabály, valamint a keresési terhelési korlátok helyi fejlesztői ágon készülnek, előre regisztrált kapukkal. Ebben a kiadásban még nincsenek benne.
+- **Korlátos `.torrent` letöltés (CR15/a):** legfeljebb 48 MiB dekódolt törzs; a deklarált túl nagy hosszt olvasás előtt elutasítja, tömörítési bomba ellen a dekódolt bájtokat számolja. A Docker-image a glibc mmap/trim küszöbét rögzíti (32/64 MiB), így a felszabadított törzs memóriája a következő letöltésnél újrahasznosul.
+- **Süti-hatókör (CR15/b, 26a):** a mentett indexersütik csak a tracker hostjára kerülnek, HTTPS-nél `Secure` jelzéssel.
+- **Redirect és host (CR15/b, 26b):** a redirect törzse nem olvasódik be, legfeljebb 10 lépés, és minden lépés csak a tracker saját domainjére vagy aldomainjére mehet.
+- **Keresési terhelés (CR15/c, 27):** legfeljebb 12 egyidejű egyedi keresés (a 13. azonnali `503`), 15 s-os teljes határidő részleges eredménnyel, folyamatszintű függőbájt-keret (32 MiB), egyszerre egy, legfeljebb 16 MiB-os mentési köteg, és fájlszámra korlátos `TorrentInfo`-gyorsítótár.
 
 ### Hitelesítés és HTTP-védelem (CR05, CR06, CR07, CR08, CR12, CR16, CR18, CR19)
 - **CR05:** a `SESSION_SECRET` kötelező (legalább 32 karakter, erős, egyedi), hiányában az alkalmazás nem indul.
@@ -198,6 +201,10 @@ Minden szám a [`docs/feature/stability-and-optimization/evidence/`](./docs/feat
 | ASS→VTT, 3 MB felirat (CR13/c) | event-loop stall p95 | N/A (nincs konverzió) | 45,6 / 45,7 ms | **2,6 / 2,8 ms** | [g13conv-v2](./docs/feature/stability-and-optimization/evidence/g13conv-v2-assessment.json) |
 | ASS→VTT, 8 MiB alatti felirat (CR13/c) | event-loop stall p95 | N/A | 125,7 / 127,2 ms | **3,9 / 3,9 ms** | ugyanott |
 | Torrentlista renderelés, 500 torrent, 1 változó sor (CR04) | 5 perces böngészős profil, production profiling build | — | 99 500 sorrender, 8 848–9 211 ms commit-idő | **199 sorrender, 121 ms** | [g04-candidate-v1](./docs/feature/stability-and-optimization/evidence/g04-candidate-v1-assessment.json) |
+| Óriás `.torrent` válasz: 64 MiB chunked és 128 MiB-ra dekódolódó gzip (CR15/a) | 1/4/8 párhuzamos, 1 GiB-os konténer | — | OOM (megerősítő futás) | **0 OOM; 1200 kérésből mind `too-large`, anon csúcs ≤ 294 MiB** | [cr15a-after-v6](./docs/feature/stability-and-optimization/evidence/cr15a-after-v6-assessment.json) |
+| Redirect-törzs letöltésenként (CR15/b, 26b) | 64 MiB-os redirect-válasz | — | 64,0 MiB beolvasva, idegen host követve | **≤ 3,6 MiB, idegen host 0 kérés** | [cr15b2-redirect-v6](./docs/feature/stability-and-optimization/evidence/cr15b2-redirect-v6-assessment.json) |
+| Nehéz forráskeresés, 4 / 12 egyidejű (CR15/c, 27) | nehéz stresszprofil, 1 GiB | — | OOM 5/10 és 10/10 | **OOM 0/10 és 0/10** | [cr15c-after-v4](./docs/feature/stability-and-optimization/evidence/cr15c-after-v4-assessment.json) |
+| Tipikus forráskeresés, 12 egyidejű (27) | p95 | — | 9 728 / 9 731 ms | **9 716 / 9 723 ms** (nincs romlás) | ugyanott |
 
 A „/” két független mérési sorozat mediánját választja el. A számok a megnevezett szintetikus profilra érvényesek; élő tracker- vagy hálózati gyorsulást nem állítanak.
 
@@ -219,7 +226,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **638 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **688 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 

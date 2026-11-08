@@ -3888,6 +3888,14 @@
     "cr15c-after-v3-source-manifest.json": {
       "measurement_raw_sha256": "95cc2bb962723f205823a768d41930dcf78f942cd07da3bb05431d4fbdcb1ac1",
       "publication_lf_sha256": "ba82479c35e9245c69990f2806fa397b4294e5646fa5062c716e5e9cca17c5a3"
+    },
+    "cr15c-after-v3-assessment.json": {
+      "measurement_raw_sha256": "b3d4076336bf0259d9ddbc7cc76da903bc0b1918a82422a6b135ee85193c6fd9",
+      "publication_lf_sha256": "106f5683e433f4ffb4644f90afdb1ca01508a09458515466be14aec4fac5c29b"
+    },
+    "cr15c-after-v3-complete.json": {
+      "measurement_raw_sha256": "e7f98c8d2639250b057a30cdc0229a8fc9220cccdd2be54aca65ae8a607cd749",
+      "publication_lf_sha256": "e7f98c8d2639250b057a30cdc0229a8fc9220cccdd2be54aca65ae8a607cd749"
     }
   }
 }

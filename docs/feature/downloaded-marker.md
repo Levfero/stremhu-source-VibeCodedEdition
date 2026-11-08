@@ -1,8 +1,8 @@
 # Fejlesztői Dokumentáció: `feature/downloaded-marker`
 
-> **Típus / státusz:** fejlesztői referencia, implementált, beolvasztásra vár (a `main` még nem tartalmazza).
+> **Típus / státusz:** fejlesztői referencia, implementált, beolvasztásra vár. 2026-11-08: a `main` (`84ee1f6`, benne a PR #9) összefésülve, ütközések feloldva, újratesztelve (lásd a 6. és 8. fejezetet).
 > **Hatókör:** a Stremio-találatlista „⚡ Letöltve” jelölőjének ellenőrzése, a katalógusútvonal pótlása és a jelölő felhasználói preferenciává tétele.
-> **Alap:** `main` `2615596`. **Viszonyítási alap (upstream):** [`s4pp1/stremhu-source`](https://github.com/s4pp1/stremhu-source) `8c99c7d`, helyben elérhető.
+> **Alap:** eredetileg `main` `2615596`; az összefésülés után `main` `84ee1f6` (a `feature/stability-and-optimization` squash merge-e). **Viszonyítási alap (upstream):** [`s4pp1/stremhu-source`](https://github.com/s4pp1/stremhu-source) `8c99c7d`, helyben elérhető.
 
 ---
 
@@ -93,7 +93,7 @@ A `source-client.ts` orval-generált fájl. A szerver dev módú OpenAPI-specifi
   - a migráció (meglévő sor értéke 1, visszaállítható);
   - egyetlen alembic-head.
 
-  Eredmény: Ruff `All checks passed!`, basedpyright `0 errors`, pytest **269 passed / 64 snapshot** (a `main` alapja 256).
+  Eredmény (az eredeti, `2615596`-alapú ágon): Ruff `All checks passed!`, basedpyright `0 errors`, pytest **269 passed / 64 snapshot** (a `main` alapja 256). A `main` `84ee1f6`-tel összefésülve: lásd a 8. fejezetet.
 - **Frontend:** új `other-preferences.test.tsx`, vitest 2/2: a mentett érték megjelenik, kikapcsoláskor a mentés csak ezt a mezőt változtatja. `npm run lint`, `npm run format` és `npm run build` (benne `tsc`) sikeres. A helyi `client/node_modules` másik platformra van telepítve, ezért ezek a Dockerfile `node:24-bookworm-slim` build-környezetében futottak, a forrás másolatán.
 - **Docker (offline, `--network none`, eldobható adat, `.env` és bootstrap nélkül):** 10/10.
   - A migrációk lefutnak, az új felhasználónál a beállítás alapból be van kapcsolva.
@@ -102,8 +102,27 @@ A `source-client.ts` orval-generált fájl. A szerver dev módú OpenAPI-specifi
 
 ## 7. Korlátok és kockázatok
 
-- **Cache-késés:** a 60 s-os stream-cache nem érvénytelenedik, amikor egy letöltés befejeződik vagy egy torrent törlődik. A jelölés ezért legfeljebb 60 s-ig elavult lehet. Lejátszáskor ez nem okoz hibát.
+- **Cache-késés:** a 60 s-os stream-cache (a PR #9 óta `StreamCacheState`) nem érvénytelenedik, amikor egy letöltés befejeződik vagy egy torrent törlődik. A jelölés ezért legfeljebb 60 s-ig elavult lehet. Lejátszáskor ez nem okoz hibát.
 - **Blokkoló hívások:** az állapotlekérés (`status()`, `file_progress()`) a libtorrent szinkron hívása az event loopon. Ez a `main` meglévő viselkedése: csak a relayben lévő torrentekre, info-hashenként egyszer fut.
-- **Alembic-ütközés a `feature/stability-and-optimization` ággal (PR #9):** az is az `e72a1c3d4f5b`-re épít (`54a9d30f7c82` → `6f0d92b1c843`). Amelyik ág másodikként kerül a `main`-be, annál a `a7c41e9b2d10` `down_revision`-jét az akkori headre kell állítani. Ezt a `test_alembic_history_has_a_single_head` teszt jelzi.
-- **Várható merge-ütközés ugyanazzal az ággal:** `torrent_streams/service.py` és `stremio/service.py` (más sorokat érintő változások).
+- **A PR #9-cel való ütközés megoldva (2026-11-08):** a migráció `down_revision`-je `6f0d92b1c843` lett, a szöveges és szemantikai ütközések feloldva (8. fejezet).
 - **Natív kliensek:** valódi Stremio/Nuvio klienssel és valódi letöltött torrenttel a jelölés nem lett végigpróbálva; az állapotot libtorrent-csonkok szolgáltatták.
+
+## 8. Összefésülés a `main`-nel (PR #9 után, 2026-11-08)
+
+A PR #9 squash merge-dzsel került a `main`-be (`84ee1f6`); a `main` tartalma azonos a `feature/stability-and-optimization` utolsó állapotával. Az ágba a `main` merge-commitként került be, force push nélkül.
+
+| Ütközés | Feloldás |
+|---|---|
+| `README.md` (a PR #9 a README-t újraírta) | A `main` README-je, benne a „Letöltöttség jelzése” sor a kikapcsolhatósággal kiegészítve. |
+| `server/app/modules/stremio/service.py` (stream-cache kulcs) | A `main` `StreamCacheState`-alapú kulcsa, kiegészítve a `enable_downloaded_marker` értékével. |
+| Alembic: két ág az `e72a1c3d4f5b`-ről | `a7c41e9b2d10` most a `6f0d92b1c843` (session epoch) után következik; egyetlen head. |
+| `test_session_epoch_migration.py` a legfelső migrációt rögzítette | A teszt szándéka megmaradt: egyetlen head, és a `6f0d92b1c843` a láncban van. |
+| A marker tesztjei ORM-accountot adtak a `TorrentStream`-nek | A CR17 óta `IndexerAccountRef` (befagyasztott hivatkozás), a `main` tesztjeinek mintájára. |
+| `session-revocation.test.tsx` `UserResponse`-mintája | Kiegészítve az új kötelező `enableDownloadedMarker` mezővel (a `tsc` jelezte). |
+
+**Ellenőrzés:**
+- **Backend:** Ruff `All checks passed!`, basedpyright `0 errors`, pytest **708 passed / 64 snapshot** (a `main` 695 tesztje + 13).
+- **Frontend:** vitest 13/13 (3 fájl), `npm run lint`, `npm run format`, `npm run build` sikeres.
+- **Docker, frissítési út:** a `main` image-dzsel létrehozott adatbázis (`6f0d92b1c843`, egy felhasználóval) ugyanazon a köteten a marker image indulásakor `a7c41e9b2d10`-re migrált. A meglévő felhasználó bejelentkezett, a beállítása alapból bekapcsolt, a kikapcsolás megmaradt; traceback 0.
+- **Docker, regresszió:** a 81 pontos offline funkcionális próba (hitelesítés, beállítások, preferenciák, felhasználók, párosítás, Stremio, felirat, Kodi, Torznab, webes felület) a marker image-en 81/81, traceback 0.
+

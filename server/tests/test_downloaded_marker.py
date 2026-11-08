@@ -13,10 +13,10 @@ from alembic.operations import Operations
 from alembic.script import ScriptDirectory
 
 from app.modules.indexer_accounts.models import IndexerAccountModel
+from app.modules.indexer_accounts.schemas import IndexerAccountRef
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.me.schemas.api import MeUpdateRequest
 from app.modules.relay.service import RelayService
-from app.modules.stremio import service as stremio_service_module
 from app.modules.stremio.schemas import (
     DOWNLOADED_BANNER,
     DOWNLOADED_MARKER,
@@ -36,13 +36,14 @@ NOT_IN_RELAY = "fedcba9876543210fedcba9876543210fedcba98"
 GIB = 1024**3
 
 
-def _account() -> IndexerAccountModel:
+def _account() -> IndexerAccountRef:
+    # TorrentStream carries a Session-free frozen reference (CR17), not the ORM account.
     definition = IndexerDefinitionModel(
         id="ncore", name="nCore", url="https://ncore.invalid", details_path="/d"
     )
     account = IndexerAccountModel(indexer_id="ncore", username="x", password="x")
     account.indexer_definition = definition
-    return account
+    return IndexerAccountRef.from_model(account)
 
 
 def _stream(info_hash: str, file_index: int, seeders: int) -> TorrentStream:
@@ -211,7 +212,10 @@ async def test_toggling_the_preference_is_not_served_from_the_stream_cache(monke
     invalidate_stream_cache()
     service = StremioService(torrent_streams_service=MagicMock(), settings_service=MagicMock())
 
+    fetched: list[bool] = []
+
     async def uncached(user, parsed_id):
+        fetched.append(user.enable_downloaded_marker)
         flag = "be" if user.enable_downloaded_marker else "ki"
         return [StremioStream(name=flag, description="", url="https://app.invalid/x")]
 
@@ -232,12 +236,15 @@ async def test_toggling_the_preference_is_not_served_from_the_stream_cache(monke
     try:
         first = await service.get_streams(user(True), parsed_id)  # type: ignore[arg-type]
         second = await service.get_streams(user(False), parsed_id)  # type: ignore[arg-type]
+        again = await service.get_streams(user(False), parsed_id)  # type: ignore[arg-type]
     finally:
         invalidate_stream_cache()
 
     assert [s.name for s in first] == ["be"]
     assert [s.name for s in second] == ["ki"]
-    assert stremio_service_module._stream_cache == {}
+    assert [s.name for s in again] == ["ki"]
+    # Both settings were fetched; only the repeated request with the same setting came from the cache.
+    assert fetched == [True, False]
 
 
 def test_preference_round_trips_through_the_user_api_schemas():

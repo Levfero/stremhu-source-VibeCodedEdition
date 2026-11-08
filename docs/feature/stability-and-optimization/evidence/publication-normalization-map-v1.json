@@ -3976,6 +3976,14 @@
     "cr15c-after-v4-complete.json": {
       "measurement_raw_sha256": "ccb3af6a2e46cb1f3c4c0dfd5fb64edf435d1a771fcf83b2d374361ff1df23cc",
       "publication_lf_sha256": "ccb3af6a2e46cb1f3c4c0dfd5fb64edf435d1a771fcf83b2d374361ff1df23cc"
+    },
+    "cr15b2-after-v6-assessment.json": {
+      "measurement_raw_sha256": "70605f92fa95f08895970cdadef7c948182cb769dfddbb0f38a6f528f816c3f1",
+      "publication_lf_sha256": "6ec275a8c1657d335e72271b21770999928fd02c97479a075a163869283375ec"
+    },
+    "cr15b2-after-v6-complete.json": {
+      "measurement_raw_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0",
+      "publication_lf_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0"
     }
   }
 }

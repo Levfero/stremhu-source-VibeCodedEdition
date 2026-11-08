@@ -631,6 +631,246 @@
       "sha256": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd",
       "group": "packet29-g04",
       "measurement_raw_sha256": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd"
+    },
+    "cr15a_after_v1.py": {
+      "sha256": "876b754765c57e6a6c4b8c992de8d7b3494aa9084d9c81317e9f2265d9139ebf",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "876b754765c57e6a6c4b8c992de8d7b3494aa9084d9c81317e9f2265d9139ebf"
+    },
+    "assess_cr15a_after_v1.py": {
+      "sha256": "821a661f79b190be55fc3ad3bb108368ef7faec203e3ed49fcbac066bef19028",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "821a661f79b190be55fc3ad3bb108368ef7faec203e3ed49fcbac066bef19028"
+    },
+    "register_cr15a_after_v1.py": {
+      "sha256": "ca72ca122d8840c4738ee38c8efa2faca83ff2a35962a13ff4d9586fbbcfccf2",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "ca72ca122d8840c4738ee38c8efa2faca83ff2a35962a13ff4d9586fbbcfccf2"
+    },
+    "cr15a_after_v2.py": {
+      "sha256": "b553f24187da223e4b56dcc5161750a9d4652ca3f75223c592589c366c04ba01",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "b553f24187da223e4b56dcc5161750a9d4652ca3f75223c592589c366c04ba01"
+    },
+    "assess_cr15a_after_v2.py": {
+      "sha256": "84dca0c7e3201ddcdd57de670355488588992b6009410e97251dbc1ccdaecd3f",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "84dca0c7e3201ddcdd57de670355488588992b6009410e97251dbc1ccdaecd3f"
+    },
+    "register_cr15a_after_v2.py": {
+      "sha256": "bdbd51bb4b6905aff7f693dc6eb053491f99497041f2a3912daf28b83525f0f3",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "bdbd51bb4b6905aff7f693dc6eb053491f99497041f2a3912daf28b83525f0f3"
+    },
+    "cr15a_after_v3.py": {
+      "sha256": "21b5428801709c296c6d591ba56af60e58421917cb914b7126f7e9ccf1b142d1",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "21b5428801709c296c6d591ba56af60e58421917cb914b7126f7e9ccf1b142d1"
+    },
+    "assess_cr15a_after_v3.py": {
+      "sha256": "5341ff220dd2c69d654fa3428fdf2f871faa24b1fbd6217d1a0e43771be78820",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "5341ff220dd2c69d654fa3428fdf2f871faa24b1fbd6217d1a0e43771be78820"
+    },
+    "register_cr15a_after_v3.py": {
+      "sha256": "a21809a2c75660490454bccb99792cc9972e85b17f3b2033eae2e150981343b4",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "a21809a2c75660490454bccb99792cc9972e85b17f3b2033eae2e150981343b4"
+    },
+    "cr15a_after_v4.py": {
+      "sha256": "fdeba31347aae52728ff06038fc3638f89db98ea40d7a91a3524fbf0af181041",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "fdeba31347aae52728ff06038fc3638f89db98ea40d7a91a3524fbf0af181041"
+    },
+    "assess_cr15a_after_v4.py": {
+      "sha256": "e2731d7771f1e5b3b088c8c2888f51716460c536b3553b4cfdbd18693f816ed1",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "e2731d7771f1e5b3b088c8c2888f51716460c536b3553b4cfdbd18693f816ed1"
+    },
+    "register_cr15a_after_v4.py": {
+      "sha256": "8f058105fbf6d4db8953c2145f15ee2aebce6c27db3d5a67ac43a048f0bccc8b",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "8f058105fbf6d4db8953c2145f15ee2aebce6c27db3d5a67ac43a048f0bccc8b"
+    },
+    "make_cr15a_v4.py": {
+      "sha256": "15083e1ce8846bd2114b1c1fdd658980f1bd740a49134c91f1787c021f17f809",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "4ef788e0dd207cc0ad306dca3cfb17a0e831c21e742c07989127975e9314254f"
+    },
+    "cr15a_after_v5.py": {
+      "sha256": "b069abdfde65fa9384d9aa1d7b0f87d05c550d4fc0c19ba83ee78f96acea852c",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "b069abdfde65fa9384d9aa1d7b0f87d05c550d4fc0c19ba83ee78f96acea852c"
+    },
+    "assess_cr15a_after_v5.py": {
+      "sha256": "6265624c75d7af11463039a84652a452f4c478fb05fa8ba4c0f5372b34667d9a",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "6265624c75d7af11463039a84652a452f4c478fb05fa8ba4c0f5372b34667d9a"
+    },
+    "register_cr15a_after_v5.py": {
+      "sha256": "9a6d4d9f28c9c2d6cc6403dfb070bc2f2d39e44f5cce651c4157cecec8741d44",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "9a6d4d9f28c9c2d6cc6403dfb070bc2f2d39e44f5cce651c4157cecec8741d44"
+    },
+    "make_cr15a_v5.py": {
+      "sha256": "cfcfc0b1cc407fab3cb8f4295c164b4ece4c4a40b37b3a581368ca5daf2012e3",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "cfcfc0b1cc407fab3cb8f4295c164b4ece4c4a40b37b3a581368ca5daf2012e3"
+    },
+    "cr15a_after_v6.py": {
+      "sha256": "cb734e5e2ef43ad41663337d44b8d2f9ed6ef8aeb75403db59924411249f62cb",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "cb734e5e2ef43ad41663337d44b8d2f9ed6ef8aeb75403db59924411249f62cb"
+    },
+    "assess_cr15a_after_v6.py": {
+      "sha256": "38a8d879ceeac8603335d13dcb1d1ebff64df1c92f7ba65b79893b03eb2784f6",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "38a8d879ceeac8603335d13dcb1d1ebff64df1c92f7ba65b79893b03eb2784f6"
+    },
+    "register_cr15a_after_v6.py": {
+      "sha256": "90f68de50399005bfa099ec0aebeddafbf1d9a42d89ea176f8dd4794dbd3be08",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "90f68de50399005bfa099ec0aebeddafbf1d9a42d89ea176f8dd4794dbd3be08"
+    },
+    "make_v6_gates.py": {
+      "sha256": "2681cf1a68459e7788248db9d3dface9d8ff36f2b5dd6d3976929b62d8332f83",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "2681cf1a68459e7788248db9d3dface9d8ff36f2b5dd6d3976929b62d8332f83"
+    },
+    "cr15a_diag7.py": {
+      "sha256": "f16859ac868cf3978da8dabddb698eed68e07dfecf1ad556a45844828346b9bc",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "f16859ac868cf3978da8dabddb698eed68e07dfecf1ad556a45844828346b9bc"
+    },
+    "cr15a_diag8.py": {
+      "sha256": "6c5a9d42f00e68346d8e2b0b014dde088454f1d8b2195d83eff6164bd21fd0c8",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "6c5a9d42f00e68346d8e2b0b014dde088454f1d8b2195d83eff6164bd21fd0c8"
+    },
+    "cr15a-diag7-fixture-probe_faults.py": {
+      "sha256": "74667e222e95c2826de46a7339acfda8daca86327a18e1fae7c5f5656c9708a7",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "74667e222e95c2826de46a7339acfda8daca86327a18e1fae7c5f5656c9708a7"
+    },
+    "cr15a-diag7-fixture-w_cfg.py": {
+      "sha256": "cbe93a7fccd876161e5b3f6ba6af1cbafbef506784274edcf9146bb764aabec3",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "cbe93a7fccd876161e5b3f6ba6af1cbafbef506784274edcf9146bb764aabec3"
+    },
+    "cr15a_diag5.py": {
+      "sha256": "ebeeb0fb1c2db060772ba68c5e67534deb53cf89aa5bdf8912cd5f231cbb37d1",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "ebeeb0fb1c2db060772ba68c5e67534deb53cf89aa5bdf8912cd5f231cbb37d1"
+    },
+    "cr15a_diag6.py": {
+      "sha256": "0bf00fe0000e054703ad759dc5864fcf1dccc1b07daf5c7470e807a2850b8a03",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "0bf00fe0000e054703ad759dc5864fcf1dccc1b07daf5c7470e807a2850b8a03"
+    },
+    "cr15a_cycle_probe.py": {
+      "sha256": "f8061065a50df56ee5192676920d06d987d3fe74bd9200920f7ee96adf9d08cb",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "f8061065a50df56ee5192676920d06d987d3fe74bd9200920f7ee96adf9d08cb"
+    },
+    "cr15a-diag5-fixture-probe_retention.py": {
+      "sha256": "7b0da8762c6344b56d47f481efe7a12d8928169edfd03d18b712b881d551a6e8",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "7b0da8762c6344b56d47f481efe7a12d8928169edfd03d18b712b881d551a6e8"
+    },
+    "cr15a-diag5-fixture-w_cfg.py": {
+      "sha256": "b4818fb5fb05d1d5eeee330c8ef3c276a6d5a9a8c1a7f5e825e79ec172d3e996",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "b4818fb5fb05d1d5eeee330c8ef3c276a6d5a9a8c1a7f5e825e79ec172d3e996"
+    },
+    "cr15a-diag6-fixture-probe_cycles.py": {
+      "sha256": "583f24978cb2c17b9a46d9774a16a3333306e80c02b95a6fe41d4e0bbebaaf62",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "583f24978cb2c17b9a46d9774a16a3333306e80c02b95a6fe41d4e0bbebaaf62"
+    },
+    "cr15a-diag6-fixture-w_cfg.py": {
+      "sha256": "ec5d232085418ad36023b05ee0e3bfca9fcd9002bafb8e216667dd3c2ab96b37",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "ec5d232085418ad36023b05ee0e3bfca9fcd9002bafb8e216667dd3c2ab96b37"
+    },
+    "cr15a-after-v4-fixture-preload_probe.py": {
+      "sha256": "013d799fb4649dd6bf7f7f8352397ea10e415ccf47a4440be661dbccb4198aeb",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "013d799fb4649dd6bf7f7f8352397ea10e415ccf47a4440be661dbccb4198aeb"
+    },
+    "cr15a-after-v4-fixture-preload_giant.py": {
+      "sha256": "acb717e5ed0bc0eb22b5035bff37bfaceab3f17322988945d2660401b035adac",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "acb717e5ed0bc0eb22b5035bff37bfaceab3f17322988945d2660401b035adac"
+    },
+    "cr15a_diag3_import.py": {
+      "sha256": "85db6192f8e6ab55f5ea38af442775ac5fe4395522a752376217cac8169e6121",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "85db6192f8e6ab55f5ea38af442775ac5fe4395522a752376217cac8169e6121"
+    },
+    "cr15a_diag3.py": {
+      "sha256": "fc8516485d4a291946f0e9bf68add6c0823b3579b1e60fbe5969660aa180f63d",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "fc8516485d4a291946f0e9bf68add6c0823b3579b1e60fbe5969660aa180f63d"
+    },
+    "cr15a_diag4.py": {
+      "sha256": "81101e3b48a332b3ac1cd429fbe696646e78c092927fe8d984a2bcbec39ef716",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "a8736470e4316c12abd71ff6ebbdb19238a01a14718a337ea1047de01c5a4e0d"
+    },
+    "cr15a-diag3-fixture-probe_small.py": {
+      "sha256": "6603590ff177ec669de89520f73ad6695fbe51a650dd09bb0f805865278272d6",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "6603590ff177ec669de89520f73ad6695fbe51a650dd09bb0f805865278272d6"
+    },
+    "cr15a-diag3-fixture-w_plain.py": {
+      "sha256": "91be0838bbb2ced7bc850d9c7fecc9c275de127368f795447f6be7f3c076fc83",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "91be0838bbb2ced7bc850d9c7fecc9c275de127368f795447f6be7f3c076fc83"
+    },
+    "cr15a-diag3-fixture-w_cfg.py": {
+      "sha256": "c699f22bb74f4055d1d47046e6c34e002963166896f93de056e20ab543526002",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "c699f22bb74f4055d1d47046e6c34e002963166896f93de056e20ab543526002"
+    },
+    "cr15a_diag.py": {
+      "sha256": "49e0a82996732bee9b06b675218f0952e64ab58de5455ee399f731919ac3421a",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "49e0a82996732bee9b06b675218f0952e64ab58de5455ee399f731919ac3421a"
+    },
+    "cr15a-diag-fixture-probe.py": {
+      "sha256": "21db59c5c9b8964cc110aedd02c715e2ac23994c08627e30d025b5d6bdb769d8",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "dc223cea2a73967c0236b8cfedad936d07af646e76e42fab66b975ef3661a32e"
+    },
+    "cr15a_diag2.py": {
+      "sha256": "b6bae435576f2c860a7d09f1c7e0d39e54d8b5d73eabc2cde83c5544b17fe37f",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "b6bae435576f2c860a7d09f1c7e0d39e54d8b5d73eabc2cde83c5544b17fe37f"
+    },
+    "cr15a-diag2-fixture-probe.py": {
+      "sha256": "322ddcbd21b6b9535fb747582f21071f9be135d98b8606e8947bdb416e5246c9",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "60f3ccaf685397a5cb67585175a557b9860ada57f44f4defe6478bef4fe77d51"
+    },
+    "cr15a-after-v1-fixture-expected.json": {
+      "sha256": "53a55d2bc4b2aec110bce050d54ecdbdbe743d18054e5cd1a6cd5f547121c3cc",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "53a55d2bc4b2aec110bce050d54ecdbdbe743d18054e5cd1a6cd5f547121c3cc"
+    },
+    "cr15a-after-v1-fixture-giant.py": {
+      "sha256": "4ed566cf3a84c6e58a50e48a1b26f3963225299c5202a94af0b1c854cca02df6",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "4ed566cf3a84c6e58a50e48a1b26f3963225299c5202a94af0b1c854cca02df6"
+    },
+    "cr15a-after-v1-fixture-probe.py": {
+      "sha256": "fb72dd986009db9371bb8e08baf4ec26786b87bfc4e09aa268f5cd0787390136",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "f5834ff71e2f720975b5a123e0e01e86a1e24912a1d8f2a56e7dcb7be7b9e023"
+    },
+    "cr15a-after-v1-fixture-server.py": {
+      "sha256": "6272a2a03bc2446d3413470712f0ef58371abbe46a8ae0550633bd1fc126d55f",
+      "group": "packet25-cr15a",
+      "measurement_raw_sha256": "6272a2a03bc2446d3413470712f0ef58371abbe46a8ae0550633bd1fc126d55f"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

@@ -397,36 +397,43 @@ async def test_catalog_disabled_for_user():
     mock_provider.find_by_query.assert_not_called()
 
 
-def test_manifest_catalog_gating():
+@pytest.mark.anyio
+async def test_catalog_toggle_takes_effect_without_reinstalling_the_addon():
+    # Stremio/Nuvio store the manifest at install time, so the manifest must not depend on the
+    # toggle: installed while disabled, the client must still know the search catalog exists and
+    # the server decides per request whether to answer it.
     from app.modules.settings.service import SettingsService
     from app.modules.stremio.enums import ShortManifestResource
     from app.modules.stremio.service import StremioService
     from app.modules.torrent_streams.service import TorrentStreamsService
 
-    mock_torrent_streams = MagicMock(spec=TorrentStreamsService)
-    mock_settings = MagicMock(spec=SettingsService)
     stremio_service = StremioService(
-        torrent_streams_service=mock_torrent_streams,
-        settings_service=mock_settings,
+        torrent_streams_service=MagicMock(spec=TorrentStreamsService),
+        settings_service=MagicMock(spec=SettingsService),
     )
+    user = UserModel(id="user_toggle", username="toggle_user", enable_catalog_search=False)
+    installed_manifest = stremio_service.manifest(user).model_dump(by_alias=True)
+    assert ShortManifestResource.CATALOG in installed_manifest["resources"]
+    assert [(c["type"], c["id"]) for c in installed_manifest["catalogs"]] == [
+        (ContentType.MOVIE, "search"),
+        (ContentType.SERIES, "search"),
+    ]
 
-    # 1. User with catalog search enabled
-    user_enabled = UserModel(
-        id="user_en",
-        username="enabled_user",
-        enable_catalog_search=True,
+    mock_provider = AsyncMock(spec=TorrentSourceProviderService)
+    mock_provider.find_by_query.return_value = ([], [])
+    catalogs_service = StremioCatalogsService(
+        torrent_files_service=MagicMock(spec=TorrentFilesService),
+        isolated_torrent_files_service=MagicMock(spec=IsolatedTorrentFilesService),
+        torrent_source_provider_service=mock_provider,
     )
-    manifest_en = stremio_service.manifest(user_enabled)
-    assert ShortManifestResource.CATALOG in manifest_en.resources
-    assert len(manifest_en.catalogs) == 2
+    search = ParsedExtra(search="Lupin")
 
-    # 2. User with catalog search disabled
-    user_disabled = UserModel(
-        id="user_dis",
-        username="disabled_user",
-        enable_catalog_search=False,
-    )
-    manifest_dis = stremio_service.manifest(user_disabled)
-    assert ShortManifestResource.CATALOG not in manifest_dis.resources
-    assert len(manifest_dis.catalogs) == 0
+    disabled = await catalogs_service.get_catalog(MediaType.SERIES, "search", search, user=user)
+    assert disabled.metas == []
+    mock_provider.find_by_query.assert_not_called()
+
+    user.enable_catalog_search = True  # toggled in the web UI, the addon is NOT reinstalled
+    assert stremio_service.manifest(user).model_dump(by_alias=True) == installed_manifest
+    await catalogs_service.get_catalog(MediaType.SERIES, "search", search, user=user)
+    mock_provider.find_by_query.assert_awaited_once()
 

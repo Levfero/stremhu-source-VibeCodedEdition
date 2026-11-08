@@ -72,8 +72,9 @@ Ez a gyakorlatban azt jelentette, hogy:
 - **Automatikus sorozat- és epizódfelbontás (`MetaDetail.videos`):** A sorozatkiadásokban és évadpakkokban lévő videofájlokat a `SeriesParser` segítségével automatikusan felbontja évadokra és epizódokra (`S04E01`, `S04E02`, stb.).
 - **Fájlszintű közvetlen streaming (`file_index`):** A generált stream azonosító (`stremhu-source:{indexer_id}:{torrent_id}:{file_index}`) révén a Stremio epizódonként tudja elindítani a lejátszást évadcsomagokból is.
 - **Felhasználónkénti beállítás és UI kapcsoló (`enable_catalog_search`):**
-  - Ha a felhasználó nem szeretné, hogy a Stremio felső keresője a trackereket közvetlenül terhelje vagy külön torrent-katalógus sorokat rendereljen, a webes felületen (**Beállítások -> Preferenciák -> További preferenciák**) egyetlen kapcsolóval kikapcsolhatja.
-  - Kikapcsolt állapotban a dinamikus Stremio manifest (`/manifest.json`) teljesen elhagyja a `catalog` erőforrást és a keresési katalógusokat (`catalogs: []`), így a Stremio egyetlen felesleges keresési kérést sem küld.
+  - Ha a felhasználó nem szeretné, hogy a Stremio felső keresője a trackereket közvetlenül terhelje, a webes felületen (**Beállítások -> Preferenciák -> További preferenciák**) egyetlen kapcsolóval kikapcsolhatja.
+  - A manifest (`/manifest.json`) a kapcsolótól függetlenül **mindig** hirdeti a `catalog` erőforrást és a két keresési katalógust. A Stremio és a Nuvio a manifestet a telepítéskor tárolja, így a kapcsolótól függő manifest csak az addon újratelepítése után érvényesült (hibajelentés, 2026-11-08: kikapcsolt állapotban telepítve a később bekapcsolt keresést a Nuvio nem látta). A kapcsoló így újratelepítés nélkül, azonnal érvényes.
+  - Kikapcsolva a kliens a keresési kérést elküldheti, és a StremHU keresési sora üresen megjelenhet; a szerver ilyenkor trackerlekérdezés nélkül üres listát ad.
   - A backend végpontok (`/catalog/...`) védettek: közvetlen hívás esetén is azonnal üres listát (`metas: []`) adnak vissza felesleges tracker lekérdezések futtatása nélkül.
 
 ---
@@ -188,6 +189,6 @@ $env:HOST_IP="<HOST_IP>"; $env:PYTHONIOENCODING="utf-8"; cd server; .venv\Script
     *Eredmény:* 14 db tiszta mozifilm találat (`Arsene.Lupin.2004...`, `Lupin.III.Cagliostro...`), mindegyikhez saját `imdbId` (`tt0373690`, `tt0079833`) és hivatalos borítókép.
 - **Kikapcsolt állapotban (`enable_catalog_search = False`):**
   - **Manifest lekérés:**
-    *Eredmény:* `resources: [stream, meta, subtitles]` (a `catalog` hiányzik), `catalogs: 0 db` (`[]`).
+    *Eredmény (2026-11-08 óta):* a manifest azonos a bekapcsolt állapotéval (`catalog` erőforrás, 2 keresési katalógus), hogy a kapcsoló újratelepítés nélkül működjön. *(Korábban a `catalog` hiányzott, ezért a később bekapcsolt keresést a kliensek nem látták.)*
   - **Katalógus végpont lekérés:**
     *Eredmény:* `metas: []` azonnali üres válasz tracker lekérdezések futtatása nélkül.

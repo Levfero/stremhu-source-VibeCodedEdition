@@ -93,42 +93,41 @@ class StremioService:
             addon_id = f"{addon_id}.dev"
             name = f"{name} (DEV)"
 
-        enable_catalog = getattr(user, "enable_catalog_search", True)
-
-        catalogs: list[ManifestCatalog] = []
-        if enable_catalog:
-            catalogs = [
-                ManifestCatalog(
-                    id=SEARCH_ID,
-                    name="🔍 Torrent - StremHU",
-                    type=ContentType.MOVIE,
-                    extra=[
-                        ManifestExtra(
-                            name=ExtraName.SEARCH,
-                            is_required=True,
-                        )
-                    ],
-                ),
-                ManifestCatalog(
-                    id=SEARCH_ID,
-                    name="🔍 Torrent - StremHU",
-                    type=ContentType.SERIES,
-                    extra=[
-                        ManifestExtra(
-                            name=ExtraName.SEARCH,
-                            is_required=True,
-                        )
-                    ],
-                ),
-            ]
+        # A keresési katalógust a manifest mindig hirdeti: a Stremio/Nuvio a manifestet a
+        # telepítéskor tárolja, így egy beállításfüggő manifest csak újratelepítés után követné a
+        # kapcsolót. A felhasználói kapcsolót a katalógus-végpont érvényesíti
+        # (StremioCatalogsService.get_catalog: kikapcsolva üres lista, trackerlekérdezés nélkül).
+        catalogs: list[ManifestCatalog] = [
+            ManifestCatalog(
+                id=SEARCH_ID,
+                name="🔍 Torrent - StremHU",
+                type=ContentType.MOVIE,
+                extra=[
+                    ManifestExtra(
+                        name=ExtraName.SEARCH,
+                        is_required=True,
+                    )
+                ],
+            ),
+            ManifestCatalog(
+                id=SEARCH_ID,
+                name="🔍 Torrent - StremHU",
+                type=ContentType.SERIES,
+                extra=[
+                    ManifestExtra(
+                        name=ExtraName.SEARCH,
+                        is_required=True,
+                    )
+                ],
+            ),
+        ]
 
         resources: list[ShortManifestResource | FullManifestResource] = [
             ShortManifestResource.STREAM,
+            ShortManifestResource.CATALOG,
             ShortManifestResource.META,
             ShortManifestResource.SUBTITLES,
         ]
-        if enable_catalog:
-            resources.insert(1, ShortManifestResource.CATALOG)
 
         return Manifest(
             id=addon_id,

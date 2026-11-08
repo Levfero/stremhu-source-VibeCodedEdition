@@ -72,7 +72,7 @@ A `feature/torrent-subtitles` ág az alábbi problémákat oldja meg:
 | `server/app/modules/stream/router.py` & `service.py` | Módosult | `/api/{api_key}/subtitles/{stream_token}/{filename}` végpont (`GET`/`HEAD`, `Range: bytes=...` / `206 Partial Content`), in-flight kérés-összevonás (`_subtitle_locks`), `_subtitle_content_cache` memória-gyorsítótár. |
 | `server/app/modules/relay/entities.py` | Módosult | `File.is_subtitle`, `File.get_matched_subtitle_pieces` (magyar feliratok prioritásával a 6-darabos kvótában) és `Torrent._set_matched_subtitle_priorities` (`500 ms` deadline a lejátszott epizód felirat-piece-eire). |
 | `server/app/modules/users/models.py` & Alembic migráció | Módosult | `enable_fallback_subtitles: Mapped[bool]` mező a `users` táblán (`d41f8e2a1b5c` migráció). |
-| `client/src/features/subtitle-settings/subtitle-settings.tsx` | **ÚJ** | `SubtitleSettingsCard` React komponens: *„Felirat kölcsönzése más találatból”* kapcsoló, Hit'n'Run figyelmeztető `Alert` és lenyitható `Accordion` tájékoztató fül. |
+| `client/src/features/subtitle-settings/subtitle-settings.tsx` | **ÚJ** | `SubtitleSettingsCard` React komponens: *„Felirat kölcsönzése más találatból”* kapcsoló, Hit'n'Run figyelmeztető `Alert` és lenyitható `Accordion` tájékoztató fül. Felhasználónkénti beállítás (`/api/me`), ezért egyetlen helyen jelenik meg: **Beállítások → Preferenciák → További preferenciák** (2026-11-08 óta az admin Rendszer oldalról eltávolítva, ahol csak az admin saját beállítását írta). |
 | `server/tests/test_subtitles.py` | **ÚJ** | 16 db átfogó unit és integrációs teszt a nyelvfelismeréshez, ASS->VTT konverzióhoz, határeset-prefixekhez, konkurens aktív lejátszás követéséhez, GUI fallback kapcsolóhoz és felirat-piece előtöltéshez. |
 
 ---

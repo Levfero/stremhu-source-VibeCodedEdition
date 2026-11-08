@@ -3,7 +3,7 @@
 | Dokumentum metaadat | Érték |
 |---|---|
 | **Projekt** | StremHU Source (`stremhu-source-VibeCodedEdition`) |
-| **Vizsgált Terv** | [`docs/feature/vpn-integration/implementation-plan.md`](implementation-plan.md) (Rev. 3) |
+| **Vizsgált Terv** | [`docs/feature/vpn-integration/implementation-plan.md`](archive/implementation-plan-rev3.md) (Rev. 3, archiválva) |
 | **Működési Mód** | **`POC ONLY`** *(Produkciós Python, React, Docker és adatbáziskód módosítása: **0 fájl**)* |
 | **Git Ág és Base Commit** | `feature/vpn-integration` @ `2615596f7cd181454dc5ae3e1ec9e4d215e3b154` |
 | **Végrehajtás Dátuma** | `2026-11-04` (`2026-11-04T19:48:00+01:00` – `2026-11-04T20:26:00+01:00`) |
@@ -11,7 +11,10 @@
 
 > [!CAUTION]
 > **Összefoglaló Kapu-Döntés (`BLOCKED ON PHASE 0 VALIDATION`):**
-> A hét kötelező Phase 0 kapu közül **`1` db `PASS` (`P0-6`)**, **`2` db `FAIL` (`P0-2`, `P0-5` — valós Linux kernel, Docker OCI `/proc/sys` és `libtorrent 2.1.1.0` uTP hibák feltárásával és empirikusan igazolt javításával!)**, valamint **`4` db `NOT RUN` (`P0-1`, `P0-3`, `P0-4`, `P0-7` — natív AppArmor-aktív Linux VM, élő Proton VPN WireGuard `.conf` / P2P végpont és cél-NAS hardver hiánya miatt)**. Emellett a **10. szabály** (FastAPI `root + CAP_SYS_ADMIN` kockázat) és a **11. szabály** (`StreamingResponse` `HTTP 206` vs. `503` hibakezelés és `16 MiB` 4K Remux IPC memória-deadlock) vizsgálata további kritikus, a Phase 1 megkezdése előtt a tervben javítandó tervezési hibákat tárt fel és igazolt empirikusan. Az [`implementation-plan.md`](implementation-plan.md) státusza kötelezően **`BLOCKED ON PHASE 0 VALIDATION`** marad.
+> A hét kötelező Phase 0 kapu közül **`1` db `PASS` (`P0-6`)**, **`2` db `FAIL` (`P0-2`, `P0-5` — valós Linux kernel, Docker OCI `/proc/sys` és `libtorrent 2.1.1.0` uTP hibák feltárásával és empirikusan igazolt javításával!)**, valamint **`4` db `NOT RUN` (`P0-1`, `P0-3`, `P0-4`, `P0-7` — natív AppArmor-aktív Linux VM, élő Proton VPN WireGuard `.conf` / P2P végpont és cél-NAS hardver hiánya miatt)**. Emellett a **10. szabály** (FastAPI `root + CAP_SYS_ADMIN` kockázat) és a **11. szabály** (`StreamingResponse` `HTTP 206` vs. `503` hibakezelés és `16 MiB` 4K Remux IPC memória-deadlock) vizsgálata további kritikus, a Phase 1 megkezdése előtt a tervben javítandó tervezési hibákat tárt fel és igazolt empirikusan. Az [`implementation-plan.md`](archive/implementation-plan-rev3.md) státusza kötelezően **`BLOCKED ON PHASE 0 VALIDATION`** marad.
+
+> [!NOTE]
+> **Utólagos státuszmegjegyzés (2026-11-08):** ez a jelentés a Rev. 3 tervet vizsgálta, amely azóta archiválva van ([`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md)). A plug & play követelmény miatt az aktuális terv a [`implementation-plan.md`](implementation-plan.md) Rev. 4 (userspace); indoklás: [`review-rev3-findings.md`](review-rev3-findings.md), [`userspace-poc-report.md`](userspace-poc-report.md). Az alábbi mérési tartalom változatlan.
 
 ---
 
@@ -917,7 +920,7 @@ flowchart TD
 - A Rev. 3 tervben a FastAPI folyamat `UID=0` + `CAP_SYS_ADMIN` + `CAP_NET_ADMIN` jogosultsággal fut teljes élettartama alatt, és a `stremhu-app` / `stremhu-worker` fájlrendszeri szeparáció (`app.db` védelme a Workertől) sincs kikényszerítve.
 
 ### Javasolt javítások
-1. Emeljük be az [`implementation-plan.md`](implementation-plan.md) Rev. 4 változatába a fenti 4-folyamatos jogosultsági szétválasztást kötelező biztonsági architektúraként (`PID 1` bootstrap -> `stremhu-netd` + `stremhu-netns-ctl` kizárólag `CAP_NET_ADMIN`-nel, `CAP_SYS_ADMIN` `CapBnd`-ből eldobva -> FastAPI `UID=10000, Cap*=0` -> Worker `UID=10001, Cap*=0`).
+1. Emeljük be az [`implementation-plan.md`](archive/implementation-plan-rev3.md) Rev. 4 változatába a fenti 4-folyamatos jogosultsági szétválasztást kötelező biztonsági architektúraként (`PID 1` bootstrap -> `stremhu-netd` + `stremhu-netns-ctl` kizárólag `CAP_NET_ADMIN`-nel, `CAP_SYS_ADMIN` `CapBnd`-ből eldobva -> FastAPI `UID=10000, Cap*=0` -> Worker `UID=10001, Cap*=0`).
 2. A `stremhu-netd` kizárólag szigorúan validált, paraméterezett JSON sémát fogadjon el (`/run/stremhu/netd.sock`, tetszőleges parancs/shell végrehajtás nélkül), és a WireGuard privát kulcsot memóriabeli pipe-on (`stdin`) adja át a `wg setconf /dev/stdin`-nek.
 
 ---
@@ -1020,7 +1023,7 @@ docker run --rm --network none --shm-size=64m `
 ## 6. Összegzés: Kötelező Terv-Módosítások Phase 1 Előtt és Záró Kapu-Státusz
 
 ### 6.1. Az `implementation-plan.md` (Rev. 4) Kötelező Műszaki Javítási Listája (Empirikus Phase 0 Találatok Alapján)
-A produkciós kódolás (Phase 1) megkezdése előtt az [`implementation-plan.md`](implementation-plan.md) tervet az alábbi **8 empirikusan igazolt javítással** kell frissíteni:
+A produkciós kódolás (Phase 1) megkezdése előtt az [`implementation-plan.md`](archive/implementation-plan-rev3.md) tervet az alábbi **8 empirikusan igazolt javítással** kell frissíteni:
 1. **[`P0-1` / `P0-3`] `/sys/class/net` tilalom `B-MountFree` módban + `PID 1` zombie-reaping:** Minden interfész-felismerés netlinket (`ip -j link/addr`, `socket.if_nameindex()`) használjon; a konténer belépési pontja végezzen `waitpid(-1, WNOHANG)` árva-folyamat takarítást (vagy fusson `tini` alatt).
 2. **[`P0-2`] 14.1. fejezet `nftables` és írásvédett `/proc/sys` javítása:**
    - `type nat hook output priority -100; policy accept;` (`dstnat` helyett `-100`);
@@ -1042,7 +1045,7 @@ A produkciós kódolás (Phase 1) megkezdése előtt az [`implementation-plan.md
 ### 6.3. Hivatalos Kapu Zárónyilatkozat
 
 > [!IMPORTANT]
-> Mivel a kötelező Phase 0 kapuk közül a `P0-2` és `P0-5` (valamint a 11. szabály vizsgálata) a Rev. 3 terv eredeti formájában **`FAIL`** eredménnyel zárult, a `P0-1`, `P0-3`, `P0-4` és `P0-7` kapuk pedig külső környezeti előfeltételek hiányában **`NOT RUN`** státuszúak, az [`implementation-plan.md`](implementation-plan.md) dokumentum státusza változatlanul:
+> Mivel a kötelező Phase 0 kapuk közül a `P0-2` és `P0-5` (valamint a 11. szabály vizsgálata) a Rev. 3 terv eredeti formájában **`FAIL`** eredménnyel zárult, a `P0-1`, `P0-3`, `P0-4` és `P0-7` kapuk pedig külső környezeti előfeltételek hiányában **`NOT RUN`** státuszúak, az [`implementation-plan.md`](archive/implementation-plan-rev3.md) dokumentum státusza változatlanul:
 >
 > **`BLOCKED ON PHASE 0 VALIDATION`**
 >

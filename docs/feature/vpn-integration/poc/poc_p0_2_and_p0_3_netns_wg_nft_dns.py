@@ -33,7 +33,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from poc_p0_1_netns_privdrop_and_helper import drop_all_privileges_and_verify  # noqa: E402
 
-# Exact verbatim Section 14.1 ruleset template from docs/feature/vpn-integration/implementation-plan.md (lines 835-951)
+# Exact verbatim Section 14.1 ruleset template from docs/feature/vpn-integration/implementation-plan.md Rev. 3 (now archive/implementation-plan-rev3.md, Section 14.1)
 SECTION_14_1_NFT_TEMPLATE = """# Renderelt, validált IPv4 konstansok (ipaddress.IPv4Address által ellenőrizve):
 define WG_IFACE = "{wg_iface}"
 define WG_CLIENT_IPV4 = {wg_client_ipv4}

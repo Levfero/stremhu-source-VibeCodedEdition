@@ -1,6 +1,6 @@
 # StremHU VPN Integration — Phase 0 Isolated Proof of Concept (`poc/`)
 
-Ez a könyvtár a [docs/feature/vpn-integration/implementation-plan.md](../implementation-plan.md) (Rev. 3) terv **Phase 0 (`POC ONLY`)** technikai megvalósíthatósági vizsgálatához tartozó, a produkciós moduloktól (`server/`, `client/`, `Dockerfile`, `docker-compose.yml`) 100%-ban elkülönített tesztszkripteket tartalmazza.
+Ez a könyvtár a [docs/feature/vpn-integration/implementation-plan.md](../archive/implementation-plan-rev3.md) (Rev. 3, archiválva; az aktuális Rev. 4 userspace PoC-ja: [`userspace/`](userspace/)) terv **Phase 0 (`POC ONLY`)** technikai megvalósíthatósági vizsgálatához tartozó, a produkciós moduloktól (`server/`, `client/`, `Dockerfile`, `docker-compose.yml`) 100%-ban elkülönített tesztszkripteket tartalmazza.
 
 ## Biztonsági és Izolációs Garanciák
 

@@ -3916,6 +3916,46 @@
     "cr15b2-after-v5-complete.json": {
       "measurement_raw_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0",
       "publication_lf_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0"
+    },
+    "cr15a-diag8-results.json": {
+      "measurement_raw_sha256": "5127856f0fe16f90fba8f1788a8bac500b6ffe6db9a83634c608690634e791bc",
+      "publication_lf_sha256": "6cbc7ff6a30e08d8c10ec14c679ec0b12056ac7e602ffc0f21bd43afe278cbd7"
+    },
+    "cr15a-after-v6-protocol.json": {
+      "measurement_raw_sha256": "5d241dfef283648ba2f053db362def9e64fd91e6f2abf4ac0d0d33b1aa2ea55b",
+      "publication_lf_sha256": "0520e8fa8fdf0171c2f865692bbe501f94471162b95e79ca351ecb3043e4f2fe"
+    },
+    "cr15a-after-v6-source-manifest.json": {
+      "measurement_raw_sha256": "14346a18f5234940de440e7bdb81153662d74501d0c518ac7450704affd72734",
+      "publication_lf_sha256": "5edfdb52fb64aa320ac7fb570e1852c97e4a1b41c04f99a98a1fef2f588fa450"
+    },
+    "cr15b-origin-v5-protocol.json": {
+      "measurement_raw_sha256": "143c7e4977f5edcffecdae021bedf8e43399f3ff86cf2b82ae7a6b3fcf1ef573",
+      "publication_lf_sha256": "f5714ace8702a25c1ad2a7e4e91a60e9ed02c68f7239c1b5bbb56a3755cc79cb"
+    },
+    "cr15b-after-v5-source-manifest.json": {
+      "measurement_raw_sha256": "0f1005c46d10165ea192677cbac18fab2af9a87fdefdd5b4a28adc4e2198ba04",
+      "publication_lf_sha256": "9f23b6e8058ea704a65b1042f64d4c1d13be2f16273ed4bb120d600d151fd0c1"
+    },
+    "cr15b2-redirect-v6-protocol.json": {
+      "measurement_raw_sha256": "81c9e0ebc5b07e028458bef03ad21bd8281dcb3cc398f257592ae7223677d180",
+      "publication_lf_sha256": "4f15116b1658e5a4a7d2def0cc747c3f1e059881e7aeea04b0c92170061cb12d"
+    },
+    "cr15b2-after-v6-protocol.json": {
+      "measurement_raw_sha256": "5ba80173be3e09f0d734c998627f4881700672c7a58a1b08094a697ed0f6ae58",
+      "publication_lf_sha256": "8b0017151ce5d8b1082dc4697943a1d96883ebfb60ac499371a52a271dfd5c2b"
+    },
+    "cr15b2-after-v6-source-manifest.json": {
+      "measurement_raw_sha256": "dfb76ec7810690f31ccd1e5e743b9e787bba7265ddeb9115b149055e164bccca",
+      "publication_lf_sha256": "8fa0b1bc12464ea2f71c2d8d6e8b361eb8d9227ef0ec61629be5b17e508b8c25"
+    },
+    "cr15c-after-v4-protocol.json": {
+      "measurement_raw_sha256": "142ee561bca44c894fb24300b3e929b391c9bc0649ea1a336f1f4d5eccbb2c40",
+      "publication_lf_sha256": "6cc8e2440d0d2c9f62b04250a3edaf92a8a5d318d344dbd04572fff02e4198fb"
+    },
+    "cr15c-after-v4-source-manifest.json": {
+      "measurement_raw_sha256": "c6e2dce515e19854f151bff2a72df21311bc2a8efcd4516354e2f8b785b23a9f",
+      "publication_lf_sha256": "efcc89fa935eb78cbe058b88db8ab9149046512ac4e9306555dc3c4006c5a710"
     }
   }
 }

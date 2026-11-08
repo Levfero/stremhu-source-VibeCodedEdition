@@ -30,6 +30,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - [Upstream-diffmátrix (tervezett)](#doc-upstream-diffmatrix-tervezett)
 - [Érintett modulok és kritikus invariánsok](#doc-erintett-modulok-es-kritikus-invariansok)
 - [Végrehajtási állapot](#execution-status)
+- [UX/SLO-keret (felhasználói döntés, 2026-11-09)](#doc-ux-slo-keret)
 - [Korlátok](#doc-korlatok)
 
 </details>
@@ -139,6 +140,22 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 | Csomag | Állapot | Bizonyíték |
 |---|---|---|
 | 0 — G0 + mérőeszközök + baseline | folyamatban: G0-próba kész, H1 smoke-tesztelve (A és B). A `pb0-v1` 3 futás után megszakítva (harnesshiba: hiányzó seed-statisztika), javítva; `pb0-v2` regisztrálva a futtatás előtt | [G0-próba](stream-performance/evidence/g0-libtorrent-probe-v2.json), [pb0-v1 megszakítás](stream-performance/evidence/pb0-v1-aborted.json), [pb0-v2 protokoll](stream-performance/evidence/pb0-v2-protocol.json) |
+
+<!-- doc-anchor:doc-ux-slo-keret -->
+<a id="doc-ux-slo-keret"></a>
+## UX/SLO-keret (felhasználói döntés, 2026-11-09)
+
+A felhasználó írásban rögzítette, a kapcsolódó kapuk (GSP01, GSP02, GSP05) mérése előtt. A `pb0-v2` protokoll szerint ez az alapmérés után esedékes; a döntés annak 45/135 futásánál született, a felhasználó kifejezett kérésére, hogy a munka beavatkozás nélkül haladhasson. Utólag, az eredményekhez nem igazítható.
+
+| Kérdés (terv 7. fejezet) | Döntés | Következmény a kapukra |
+|---|---|---|
+| 1. Célbitráták | 8, 30 és 60 Mbit/s | A GSP01/GSP02 mindhárom bitrátán mér. A thin profil (5 MB/s összesen) 60 Mbit/s-on a sávszélesség alatt van: ott az akadás elkerülhetetlen, ez a cella csak leíró, nem elfogadási feltétel. |
+| 2. Fel nem használt letöltés | Nem korlát | Mért mellékmetrika marad, de nem buktat kaput. Az ablak felső korlátja a natív hívásköltség (G0) miatt megmarad. |
+| 3. H&R-torrent lejátszás közben | Szüneteljen, mint most | Az SP01 C3-jelöltje (háttérprioritás) nem érinti a teljes letöltésű torrenteket; a mai viselkedés marad. |
+| 4. Nem válaszoló tracker | Átmenetileg kimaradhat, figyelmeztetéssel | SP05/b: 2 egymás utáni időtúllépés után 120 s kihagyás, ismétlődéskor duplázva, legfeljebb 600 s. |
+| 5. Elavultság (kemény TTL, SP07) | Nyitott | Az SP07 kapuja előtt kérdezendő. |
+| 6. Natív kliensteszt (SP09) | Nyitott | Az SP09 kapuja előtt kérdezendő. |
+| 7. Valós címlista (SP08) | Nyitott, opcionális | Nélküle az SP08 szintetikus címekkel mér. |
 
 <!-- doc-anchor:doc-korlatok -->
 <a id="doc-korlatok"></a>

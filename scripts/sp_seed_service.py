@@ -69,13 +69,14 @@ async def main() -> None:
              "errors": seed.errors, "first_handshake_monotonic": seed.first_handshake,
              "tracker_announces": tracker.announces if tracker else None,
              "tracker_errors": tracker.errors if tracker else None}
-    if tracker:
-        await tracker.close()
-    await seed.close()
+    # Write the statistics before closing, so a slow close can never lose them.
     if args.stats:
         Path(args.stats).write_text(json.dumps(stats), encoding="utf-8")
     else:
         print(json.dumps({"stats": stats}), flush=True)
+    if tracker:
+        await tracker.close()
+    await seed.close()
 
 
 if __name__ == "__main__":

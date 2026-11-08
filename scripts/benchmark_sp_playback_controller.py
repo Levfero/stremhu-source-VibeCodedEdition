@@ -169,7 +169,10 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
             record["ttfb_after_first_handshake_s"] = round(first_byte - handshake, 3)
             record["first_handshake_after_start_s"] = round(handshake - record["result"]["t_start_monotonic"], 3)
         received = record["result"]["start"]["bytes_received"] + record["result"].get("seek", {}).get("bytes_received", 0)
-        record["unused_downloaded_bytes"] = seed_stats["bytes_sent"] - received
+        if seed_stats["peers_with_stats"] == len(seeds):
+            record["unused_downloaded_bytes"] = seed_stats["bytes_sent"] - received
+        else:
+            record["seed_stats_incomplete"] = True
         logs = subprocess.run(["docker", "logs", app], check=False, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=60)
         text = (logs.stdout or "") + (logs.stderr or "")

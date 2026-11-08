@@ -199,9 +199,12 @@ class LocalSeed:
             transport.close()
         for server in self.servers:
             server.close()
-        await asyncio.gather(*(server.wait_closed() for server in self.servers))
+        # Close the open peer connections first: on Python 3.12+ Server.wait_closed() waits for
+        # every active connection, so waiting before closing them would hang while a client
+        # (the product) keeps its peer connections open.
         for writer in tuple(self.writers):
             writer.close()
         for task in tuple(self.tasks):
             task.cancel()
         await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
+        await asyncio.gather(*(server.wait_closed() for server in self.servers))

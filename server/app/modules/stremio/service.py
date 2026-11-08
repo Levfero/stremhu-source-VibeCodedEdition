@@ -161,9 +161,11 @@ class StremioService:
         """Lekéri a lejátszható streameket az adatbázisból vagy indexerekből."""
         dedup_val = getattr(user, "enable_stream_deduplication", True)
         enable_fallback = bool(getattr(user, "enable_fallback_subtitles", False))
+        # A „Letöltve” preferencia a jelölést és a sorrendet is változtatja: a kulcs része
+        downloaded_marker = bool(getattr(user, "enable_downloaded_marker", True))
         user_gen = get_user_cache_generation(user.id)
         api_key = getattr(user, "api_key", "")
-        cache_key = f"{user.id}:{user_gen}:{api_key}:{dedup_val}:{enable_fallback}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
+        cache_key = f"{user.id}:{user_gen}:{api_key}:{dedup_val}:{enable_fallback}:{downloaded_marker}:{user.enable_smart_filter}:{user.smart_filter_limit}:{parsed_id.model_dump_json()}"
         now = time.monotonic()
         cached = _stream_cache.get(cache_key)
         if cached is not None:
@@ -203,8 +205,14 @@ class StremioService:
                 file_index=parsed_id.file_index,
             )
 
+            show_downloaded_marker = bool(
+                getattr(user, "enable_downloaded_marker", True)
+            )
             return [
-                StremioStream.from_id_torrent_stream(torrent_stream=torrent_stream)
+                StremioStream.from_id_torrent_stream(
+                    torrent_stream=torrent_stream,
+                    show_downloaded_marker=show_downloaded_marker,
+                )
                 for torrent_stream in torrent_streams
             ]
 
@@ -429,10 +437,12 @@ class StremioService:
             if prefetch_task is not None and not prefetch_task.done():
                 prefetch_task.cancel()
 
+        show_downloaded_marker = bool(getattr(user, "enable_downloaded_marker", True))
         stremio_streams = [
             StremioStream.from_imdb_torrent_stream(
                 torrent_stream=torrent_stream,
                 is_series=series_info is not None,
+                show_downloaded_marker=show_downloaded_marker,
             )
             for torrent_stream in torrent_streams
         ]

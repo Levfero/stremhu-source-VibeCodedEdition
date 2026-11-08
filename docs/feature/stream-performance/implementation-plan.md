@@ -5,8 +5,8 @@ kind: "implementation-plan"
 status: "planning-only"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "gates", "work-packages", "tests", "rollback"]
-source_commit: "9984678a252293e5c33a1b0491d070f4e82be017"
-baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@9984678 (PR); pinned A/B/C + C legacy/candidate toggle (measurement)"
+source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
+baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR); pinned A/B/C + C legacy/candidate toggle (measurement)"
 verification: "static source reading at source_commit; no tests, benchmarks or Docker runs"
 structure_reviewed: "2026-11-08"
 related_docs: ["docs/feature/stream-performance/README.md", "docs/feature/stream-performance.md", "docs/feature/stability-and-optimization/implementation-plan.md"]
@@ -52,7 +52,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 <a id="doc-0-bemenet-allapot-hasznalati-szabaly"></a>
 ## 0. Bemenet, állapot, használati szabály
 
-- **Branch:** `feature/stream-performance`, a `main` `9984678a252293e5c33a1b0491d070f4e82be017` commitjáról (a PR #9 és a PR #10 után).
+- **Branch:** `feature/stream-performance`, a `main` `0515d989c764bb4103d6f7286d703b98ec859ce6` commitjáról (a PR #9 és a PR #10 után). A PR #10 squash commitja eredetileg `9984678` volt; 2026-11-08-án a Claude-attribúciós sor nélkül, azonos fájltartalommal újraírva lett `0515d98`.
 - **Bemenet:** a 2026-11-08-i kódolvasásos átnézés a `main`-en, és a stabilitási ág mérési bizonyítékai, elsősorban a [`burst27-v3` keresési alapmérés](../stability-and-optimization.md#doc-27-cr15c).
 - **Folyamat:** a [stabilitási ág](../stability-and-optimization.md) mintája. Minden tétel lépései:
   - értékelt tétel;
@@ -744,7 +744,7 @@ A felhasználó dönt, a megfelelő mérés előtt:
 <a id="doc-a-terv-atadasa-ennek-a-feladatnak-a-vege"></a>
 ### A terv átadása — ennek a feladatnak a vége
 
-- [x] Branch a `main` `9984678`-ról; HEAD és munkafa ellenőrizve; az alkalmazandó AGENTS elolvasva.
+- [x] Branch a `main` `0515d98`-ról; HEAD és munkafa ellenőrizve; az alkalmazandó AGENTS elolvasva.
 - [x] Kilenc tétel besorolva, forrásból igazolt tény és hipotézis elkülönítve; elvetett irányok rögzítve.
 - [x] Hívási láncok, módosítandó fájlok, `Új` interfészek, invariánsok, tesztmátrixok, mérési kapuk és visszaállítás rögzítve.
 - [x] Nem futott teszt, benchmark, Docker vagy tracker; nem indult implementáció.

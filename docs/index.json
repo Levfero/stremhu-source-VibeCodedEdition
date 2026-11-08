@@ -1506,7 +1506,7 @@
         "implementation-plan",
         "evidence"
       ],
-      "source_commit": "9984678a252293e5c33a1b0491d070f4e82be017",
+      "source_commit": "0515d989c764bb4103d6f7286d703b98ec859ce6",
       "baseline": null,
       "verification": "structure-only",
       "structure_reviewed": "2026-11-08",
@@ -1546,8 +1546,8 @@
         "tests",
         "rollback"
       ],
-      "source_commit": "9984678a252293e5c33a1b0491d070f4e82be017",
-      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@9984678 (PR); pinned A/B/C + C legacy/candidate toggle (measurement)",
+      "source_commit": "0515d989c764bb4103d6f7286d703b98ec859ce6",
+      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR); pinned A/B/C + C legacy/candidate toggle (measurement)",
       "verification": "static source reading at source_commit; no tests, benchmarks or Docker runs",
       "structure_reviewed": "2026-11-08",
       "related_docs": [
@@ -1726,8 +1726,8 @@
         "search",
         "playback"
       ],
-      "source_commit": "9984678a252293e5c33a1b0491d070f4e82be017",
-      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@9984678 (PR)",
+      "source_commit": "0515d989c764bb4103d6f7286d703b98ec859ce6",
+      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR)",
       "verification": "static source reading at source_commit; execution record below",
       "structure_reviewed": "2026-11-08",
       "related_docs": [

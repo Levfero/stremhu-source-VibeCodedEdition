@@ -5,8 +5,8 @@ kind: "feature-overview"
 status: "planning-only"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "relay", "search", "playback"]
-source_commit: "9984678a252293e5c33a1b0491d070f4e82be017"
-baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@9984678 (PR)"
+source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
+baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR)"
 verification: "static source reading at source_commit; execution record below"
 structure_reviewed: "2026-11-08"
 related_docs: ["docs/feature/stream-performance/README.md", "docs/feature/stream-performance/implementation-plan.md", "docs/AI-INDEX.md"]
@@ -47,7 +47,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - A/B/C és C előtte/utána mérés;
 - dokumentált döntés.
 
-**Státusz (2026-11-08):** csak terv. A branch a `main` `9984678`-ról indult. Termékkód nem változott, teszt, benchmark és Docker-futtatás nem történt. A tervben szereplő gyorsulás hipotézis, amíg a hozzá tartozó kapu nem PASS.
+**Státusz (2026-11-08):** csak terv. A branch a `main` `0515d98`-ról indult. Termékkód nem változott, teszt, benchmark és Docker-futtatás nem történt. A tervben szereplő gyorsulás hipotézis, amíg a hozzá tartozó kapu nem PASS.
 
 <!-- doc-anchor:doc-kanonikus-dokumentumok -->
 <a id="doc-kanonikus-dokumentumok"></a>
@@ -66,7 +66,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 
 Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A harmadik oszlop terv, nem megvalósult állapot.
 
-| Terület | Upstream `8c99c7d` | Fork `main` `9984678` | `feature/stream-performance` (terv) |
+| Terület | Upstream `8c99c7d` | Fork `main` `0515d98` | `feature/stream-performance` (terv) |
 |---|---|---|---|
 | Előtöltési ablak lejátszás közben | 4–8 hiányzó darab határidővel, a többi 0 prioritás; határidő `2000 + 1000·d` ms | Ugyanaz az ablak; határidő 0 / 300 / `1000 + 500·d` ms | Bájtalapú, korlátos ablak, darabméret-független határidők; opcionálisan az aktív fájl többi része alacsony prioritáson (SP01, kapus) |
 | Indulási darabsorrend | A fájl első és utolsó 3 darabja 0 ms | Ugyanaz | Fokozatos, bájtkorlátos fej és vég, az aktuális darab elsőbbségével (SP02, kapus) |
@@ -144,5 +144,5 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 <a id="doc-korlatok"></a>
 ## Korlátok
 
-- **Csak kódolvasás:** a terv a `9984678` forrásának olvasásán alapul. Lejátszási sebességmérés a projektben még nem készült.
+- **Csak kódolvasás:** a terv a `0515d98` forrásának olvasásán alapul. Lejátszási sebességmérés a projektben még nem készült.
 - **Szintetikus mérés:** a swarm és a trackerek mérése szintetikus, belső Docker-hálózaton fut. A valós trackerekkel és natív kliensekkel végzett végső ellenőrzés a felhasználó kézi tesztje.

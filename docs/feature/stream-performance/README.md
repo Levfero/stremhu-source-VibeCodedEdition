@@ -5,7 +5,7 @@ kind: "navigation"
 status: "planning-only"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "implementation-plan", "evidence"]
-source_commit: "9984678a252293e5c33a1b0491d070f4e82be017"
+source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
 baseline: null
 verification: "structure-only"
 structure_reviewed: "2026-11-08"
@@ -43,7 +43,7 @@ source_paths: []
    - nyitott döntések.
 3. `evidence/`: a regisztrált protokollok és mérési eredmények. Még üres; az első csomaggal jön létre.
 
-**Státusz:** terv, a `main` `9984678a252293e5c33a1b0491d070f4e82be017` forrásán. Implementáció, teszt és mérés még nem történt.
+**Státusz:** terv, a `main` `0515d989c764bb4103d6f7286d703b98ec859ce6` forrásán. Implementáció, teszt és mérés még nem történt.
 
 <!-- doc-anchor:doc-a-terv-szerepe -->
 <a id="doc-a-terv-szerepe"></a>

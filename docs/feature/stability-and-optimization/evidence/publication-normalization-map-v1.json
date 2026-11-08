@@ -3760,6 +3760,62 @@
     "g04-candidate-v1-complete.json": {
       "measurement_raw_sha256": "47012649bd59e4c92c661380f3e52490b3023c6b0ea6875016305f90435907ab",
       "publication_lf_sha256": "47012649bd59e4c92c661380f3e52490b3023c6b0ea6875016305f90435907ab"
+    },
+    "cr15a-after-v3-protocol.json": {
+      "measurement_raw_sha256": "10bf258de9440ed10b117954820d984348f5dfeef40d6c9f934efde47d256825",
+      "publication_lf_sha256": "1a0575b9839af53c33694752572f4baacbd943ae0930582c29a546a0aefee2fa"
+    },
+    "cr15a-after-v3-assessment.json": {
+      "measurement_raw_sha256": "6dafa02d73ac51bedcfe0073095b249cd395e007ce6ef93d4e47be2a39658eb9",
+      "publication_lf_sha256": "693d86fa7b24216d274b5fa99937d29fa360f1f40d6984cc1fff48aaf5d2f4c9"
+    },
+    "cr15a-after-v3-complete.json": {
+      "measurement_raw_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1",
+      "publication_lf_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1"
+    },
+    "cr15a-after-v3-source-manifest.json": {
+      "measurement_raw_sha256": "65ef0497101c4aa01a3d42c168a3cdd2d59a5eb8b2ea15faf7811d0b283c5fe5",
+      "publication_lf_sha256": "1ad3772051cb0597814dd6aba1648342ec557f5db4ee3304f656d85987278c26"
+    },
+    "cr15a-after-v4-protocol.json": {
+      "measurement_raw_sha256": "c07b033bc08a92e244975fede5b6e5ff35c3fed7cbebc82989a4f97da16b5de5",
+      "publication_lf_sha256": "9c4b7a383ba684b9bd38422427e5e34a8ac37e9d9cdc5d5b3b02d29ea3c1c4cc"
+    },
+    "cr15a-diag3-results.json": {
+      "measurement_raw_sha256": "edeadd91035b884d352f09c32603b670766fb02d394ee9c92f6cd5b3fce4bf82",
+      "publication_lf_sha256": "15fce2ecc326a8d02cd156125c8adbbcb4fc1b55e029e0564aeeb54e32aa85d0"
+    },
+    "cr15a-diag4-results.json": {
+      "measurement_raw_sha256": "48ad9feb05f647cbbc0c1119e229fb1f15c85227877abad6bec48f9c88e98eeb",
+      "publication_lf_sha256": "9662f0b9f49e98586540782b671bc8a09973469be88b5c2f3425e33e5a510869"
+    },
+    "cr15b-origin-v3-protocol.json": {
+      "measurement_raw_sha256": "ed86eb5b715ee49538264dbfed0bc17fe5e333225f2f79bd0ee16624ee30dc47",
+      "publication_lf_sha256": "2a32b463541f2a9e5620110e5cf26d848ba3ff20d7287624addc00905a7bc0c0"
+    },
+    "cr15b-origin-v3-assessment.json": {
+      "measurement_raw_sha256": "89ff184c9d93106881c5a3b378eb9188d510deb11f33a05faae60818d1b5c327",
+      "publication_lf_sha256": "19f8fb7c94a6ce72644c8898084dea777ff04bbf3958a366bd3a88473d6604f5"
+    },
+    "cr15b2-redirect-v4-protocol.json": {
+      "measurement_raw_sha256": "7157071d66b8f4497d98b9b3eef0766ba86da607e9c63b7480e387b155fd2e4a",
+      "publication_lf_sha256": "26e6aa7d7a4c7df15da0178c0fc6751d406032c5441beaeaf67a9fc961a09a16"
+    },
+    "cr15b2-redirect-v4-assessment.json": {
+      "measurement_raw_sha256": "c48e8cf08eba5289873feb67fed9add232d0d8e8243d586ab784a7632fa13ec3",
+      "publication_lf_sha256": "f6c0ed4b54a17f7a8529d10cfe857c6a53c9783cf4582ed887959ac3dfabafee"
+    },
+    "cr15b2-after-v4-protocol.json": {
+      "measurement_raw_sha256": "d78afe724feac8125590d24087e097a7df995e002bd69a23bb23762886aea6d3",
+      "publication_lf_sha256": "a4388ed3245b4cd6d3be58046f22c95b1dbda93fcea2a7b6b9f79ad0f606e6ea"
+    },
+    "cr15c-after-v2-protocol.json": {
+      "measurement_raw_sha256": "03a7ae7b9f0b164a237523f9bb6b1b82becf7ce648943cf2380d04fb3f82eeec",
+      "publication_lf_sha256": "42eb641a5e45eaf47b6b0e3fcf72e2cae5888e6efd18ad30a581a7f5307d082e"
+    },
+    "cr15c-after-v2-assessment.json": {
+      "measurement_raw_sha256": "8877b4603e1bca5db08160dc31f860e07a02164fc80ef889dcb03525dff428a3",
+      "publication_lf_sha256": "f6ee4c8f3e2face96eac62118c7b76cd66fac27dde5388cabc7cbee4c2b7b18b"
     }
   }
 }

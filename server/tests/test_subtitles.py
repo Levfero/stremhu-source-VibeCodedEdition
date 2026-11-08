@@ -292,8 +292,7 @@ def test_manifest_includes_subtitles_resource():
         torrent_streams_service=mock_torrent_streams,
         settings_service=mock_settings,
     )
-    user = UserModel(id="test-user", username="test")
-    manifest = service.manifest(user)
+    manifest = service.manifest()
 
     assert ShortManifestResource.SUBTITLES in manifest.resources
     assert "subtitles" in [getattr(r, "value", r) for r in manifest.resources]

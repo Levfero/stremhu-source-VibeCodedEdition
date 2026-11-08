@@ -412,7 +412,7 @@ async def test_catalog_toggle_takes_effect_without_reinstalling_the_addon():
         settings_service=MagicMock(spec=SettingsService),
     )
     user = UserModel(id="user_toggle", username="toggle_user", enable_catalog_search=False)
-    installed_manifest = stremio_service.manifest(user).model_dump(by_alias=True)
+    installed_manifest = stremio_service.manifest().model_dump(by_alias=True)
     assert ShortManifestResource.CATALOG in installed_manifest["resources"]
     assert [(c["type"], c["id"]) for c in installed_manifest["catalogs"]] == [
         (ContentType.MOVIE, "search"),
@@ -433,7 +433,7 @@ async def test_catalog_toggle_takes_effect_without_reinstalling_the_addon():
     mock_provider.find_by_query.assert_not_called()
 
     user.enable_catalog_search = True  # toggled in the web UI, the addon is NOT reinstalled
-    assert stremio_service.manifest(user).model_dump(by_alias=True) == installed_manifest
+    assert stremio_service.manifest().model_dump(by_alias=True) == installed_manifest
     await catalogs_service.get_catalog(MediaType.SERIES, "search", search, user=user)
     mock_provider.find_by_query.assert_awaited_once()
 

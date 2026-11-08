@@ -157,7 +157,12 @@ Rollback/kiadás: sémamigráció nincs. Kódrevert mellett is erős kulcs szük
 - **Viselkedés:** hiányzó, üres vagy a régi nyilvános alapérték esetén a `load_or_create_session_secret` erős kulcsot generál (`secrets.token_urlsafe(48)`), és atomikusan, `0600` joggal a `data/system/session_secret` fájlba menti: ideiglenes fájl + `os.link`, hard link nélküli fájlrendszeren kizárólagos létrehozás. Egyidejű első indulásnál mindenki ugyanazt a kulcsot kapja. A helyet a `SESSION_SECRET_FILE` adja meg.
 - **Ami változatlan:** a megadott, 32 karakternél rövidebb kulcs továbbra is titokmentes hibával állítja le az indulást. Sérült (túl rövid) kulcsfájlt a program nem ír felül, hibát jelez. A régi nyilvános alapérték helyett figyelmeztetéssel a tárolt kulcs érvényes. A kulcs nem kerül logba vagy `repr`-be.
 - **Tesztek** (`test_auth_configuration.py`): gyenge explicit kulcs; hiányzó, üres, whitespace és alapérték esetén egyetlen, újraindítás után is azonos generált kulcs; az explicit erős kulcs elsőbbsége; sérült fájl; 8 szálas egyidejű első indulás; dotenv-mentes import a generált kulccsal.
-- **Kiadás:** a generált kulcs az adatkötetben él. Kötet nélküli futtatásnál minden új konténer új kulcsot kap, ami a munkamenetek és a stream-URL-ek újrakérésével jár, ugyanúgy, ahogy az adatbázis is elveszne.
+- **Kiadás:** a generált kulcs az adatkötetben él. Kötet nélküli futtatásnál minden új konténer új kulcsot kap, ami a munkamenetek és a stream-URL-ek újrakérésével jár, ugyanúgy, ahogy az adatbázis is elveszne. Aki a `main`-en `SESSION_SECRET` nélkül (tehát a nyilvános `stremhu-source` kulccsal) futott, a frissítés után egyszer újra bejelentkezik, és a kliensek újrakérik a stream-listát: a nyilvános kulcs szándékosan cserélődik.
+- **MR-review javítások (2026-11-08):**
+  - a kulcsfájl fájlrendszer-hibája (jogosultság, csak olvasható kötet) a konfigurációs hibaüzenetben jelenik meg, nyers traceback nélkül (Dockerben igazolva: kilépési kód 1, traceback 0);
+  - a 32 karakteres minimum a szóközök nélküli hosszra vonatkozik;
+  - a régi alapértékről szóló figyelmeztetés folyamatfánként egyszer jelenik meg (eddig a Hypercorn-worker miatt kétszer);
+  - a `StremioService.manifest()` felhasználó-paraméter nélküli, mert a manifestnek felhasználófüggetlennek kell maradnia (katalógus-kapcsoló, 2026-11-08).
 
 ### 2 — CR07
 

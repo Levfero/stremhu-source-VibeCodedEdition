@@ -175,7 +175,7 @@ flowchart TD
 - **Keresési terhelés (CR15/c, 27):** legfeljebb 12 egyidejű egyedi keresés (a 13. azonnali `503`), 15 s-os teljes határidő részleges eredménnyel, folyamatszintű függőbájt-keret (32 MiB), egyszerre egy, legfeljebb 16 MiB-os mentési köteg, és fájlszámra korlátos `TorrentInfo`-gyorsítótár.
 
 ### Hitelesítés és HTTP-védelem (CR05, CR06, CR07, CR08, CR12, CR16, CR18, CR19)
-- **CR05:** a `SESSION_SECRET` megadása nem kötelező. Ha nincs megadva (vagy a régi nyilvános `stremhu-source` érték), az első indulás erős kulcsot generál, és `0600` joggal a `data/system/session_secret` fájlba menti (az adatkötetet meg kell tartani; a hely a `SESSION_SECRET_FILE` változóval állítható). Megadott, de 32 karakternél rövidebb kulccsal az alkalmazás nem indul.
+- **CR05:** a `SESSION_SECRET` megadása nem kötelező. Ha nincs megadva (vagy a régi nyilvános `stremhu-source` érték), az első indulás erős kulcsot generál, és `0600` joggal a `data/system/session_secret` fájlba menti (az adatkötetet meg kell tartani; a hely a `SESSION_SECRET_FILE` változóval állítható). Megadott, de 32 karakternél rövidebb kulccsal (a szóközöket nem számolva) az alkalmazás nem indul; csak olvasható vagy idegen tulajdonú adatkötetnél érthető hibaüzenettel áll le. **Frissítéskor:** ha korábban nem volt megadva `SESSION_SECRET` (a régi nyilvános értékkel futott), az első indulás után egyszer újra be kell jelentkezni, és a Stremio/Nuvio a stream-listát újrakéri, mert a nyilvános kulcs szándékosan cserélődik.
 - **CR07:** a hálózati hibák csak titokmentes összegzéssel naplózódnak (`common/log_safety.py`).
 - **CR08:** atomikus pairing-állapotgép és hitelesítési rate-limiter (`common/auth_rate_limit.py`).
 - **CR18:** atomikus bootstrap: pontosan egy első admin és session.
@@ -226,7 +226,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **688 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **695 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 

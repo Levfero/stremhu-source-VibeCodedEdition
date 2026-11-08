@@ -76,7 +76,9 @@ class StremioService:
         self._settings_service = settings_service
         self._tvdb_resolver = tvdb_resolver_service or tvdb_resolver
 
-    def manifest(self, user: UserModel) -> Manifest:
+    def manifest(self) -> Manifest:
+        """Felhasználófüggetlen manifest: a Stremio/Nuvio telepítéskor tárolja, ezért
+        felhasználói beállítástól függő tartalom csak újratelepítés után érvényesülne."""
         app_url = self._settings_service.get_app_url()
 
         addon_id = "hu.stremhu-source.addon"

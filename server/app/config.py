@@ -24,8 +24,21 @@ MIN_SESSION_SECRET_LENGTH = 32
 SESSION_SECRET_FILENAME = "session_secret"
 
 
+_NOTICE_ENV = "STREMHU_SESSION_SECRET_NOTICES"
+
+
 def _notice(message: str) -> None:
     Console(stderr=True).print(f"[yellow]{message}[/yellow]")
+
+
+def _notice_once(key: str, message: str) -> None:
+    # A konfigurációt a szülő és a Hypercorn-worker is betölti; a környezeti jelölőt a
+    # később indított folyamat örökli, így a figyelmeztetés folyamatfánként egyszer jelenik meg.
+    shown = {item for item in os.environ.get(_NOTICE_ENV, "").split(",") if item}
+    if key in shown:
+        return
+    os.environ[_NOTICE_ENV] = ",".join(sorted(shown | {key}))
+    _notice(message)
 
 
 def load_or_create_session_secret(path: Path) -> str:
@@ -33,8 +46,20 @@ def load_or_create_session_secret(path: Path) -> str:
 
     Plug & play: friss telepítéshez nem kell SESSION_SECRET. A kulcs az adatbázis mellett,
     az adatkötetben él, így a munkamenetek és a stream-tokenek túlélik az újraindítást.
-    Sérült (üres vagy túl rövid) fájlt soha nem ír felül csendben.
+    Sérült (üres vagy túl rövid) fájlt soha nem ír felül csendben. Fájlrendszer-hiba
+    (jogosultság, csak olvasható kötet) ValueError-ként jelenik meg, így az indulási
+    konfigurációs hibaüzenet kezeli, nyers traceback nélkül.
     """
+    try:
+        return _load_or_create_session_secret(path)
+    except OSError as error:
+        raise ValueError(
+            f"A SESSION_SECRET kulcsfájl ({path}) nem olvasható vagy nem hozható létre"
+            f" ({type(error).__name__}). Ellenőrizd az adatkötet jogosultságait, vagy adj meg SESSION_SECRET-et."
+        ) from None
+
+
+def _load_or_create_session_secret(path: Path) -> str:
     for _ in range(2):
         try:
             value = path.read_text(encoding="utf-8").strip()
@@ -134,11 +159,15 @@ class Config(BaseSettings):
     def validate_session_secret(cls, value: str) -> str:
         # Hiányzó, üres vagy a régi nyilvános alapérték: a model-validátor generált kulcsra cseréli.
         if value.strip() == PUBLIC_DEFAULT_SESSION_SECRET:
-            _notice("A SESSION_SECRET a régi nyilvános alapérték; helyette a generált, tárolt kulcs érvényes.")
+            _notice_once(
+                "public-default",
+                "A SESSION_SECRET a régi nyilvános alapérték; helyette a generált, tárolt kulcs érvényes.",
+            )
             return ""
         if not value.strip():
             return ""
-        if len(value) < MIN_SESSION_SECRET_LENGTH:
+        # A szóközzel kitöltött rövid kulcs nem erős: a hosszt a tartalmon mérjük.
+        if len(value.strip()) < MIN_SESSION_SECRET_LENGTH:
             raise ValueError(
                 "A SESSION_SECRET legalább 32 karakteres, erős, egyedi aláírókulcs legyen,"
                 " vagy hagyd üresen, és a program generál egyet."

@@ -30,7 +30,7 @@ from app.modules.stream.utils.stream_token import (
 from app.modules.users.models import UserModel
 
 
-@pytest.mark.parametrize("secret", ["short-marker", "x" * 31])
+@pytest.mark.parametrize("secret", ["short-marker", "x" * 31, "abc" + " " * 29])
 def test_weak_explicit_signing_key_is_rejected_without_disclosure(monkeypatch, tmp_path, secret):
     monkeypatch.delenv("SESSION_SECRET", raising=False)
     with pytest.raises(ValidationError) as error:
@@ -74,6 +74,29 @@ def test_corrupt_key_file_is_reported_and_never_overwritten(monkeypatch, tmp_pat
         load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret_file=key_file)
     assert "sérült" in str(error.value)
     assert key_file.read_text(encoding="utf-8") == "short"
+
+
+def test_unusable_key_location_is_a_clear_configuration_error(monkeypatch, tmp_path):
+    # A read-only or foreign-owned data volume must not crash the start with a raw traceback.
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    key_location = tmp_path / "session_secret"
+    key_location.mkdir()  # reading a directory fails with an OSError on every platform
+    with pytest.raises(ValidationError) as error:
+        load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret_file=key_location)
+    message = str(error.value)
+    assert "session_secret" in message.lower()
+    assert "nem olvasható vagy nem hozható létre" in message
+
+
+def test_public_default_warning_is_printed_once_per_process_tree(monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    monkeypatch.setenv("STREMHU_SESSION_SECRET_NOTICES", "")  # restored after the test
+    key_file = tmp_path / "session_secret"
+    for _ in range(3):
+        load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret="stremhu-source",
+                    session_secret_file=key_file)
+    assert capsys.readouterr().err.count("régi nyilvános alapérték") == 1
+    assert "public-default" in os.environ["STREMHU_SESSION_SECRET_NOTICES"]  # inherited by the worker
 
 
 def test_concurrent_first_start_agrees_on_one_generated_key(tmp_path):

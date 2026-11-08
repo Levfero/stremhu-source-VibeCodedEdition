@@ -1,5 +1,7 @@
+import contextlib
 import ipaddress
 import os
+import secrets
 import sys
 from enum import Enum
 from pathlib import Path
@@ -17,6 +19,64 @@ class NodeEnv(str, Enum):
     PROD = "prod"
 
 
+PUBLIC_DEFAULT_SESSION_SECRET = "stremhu-source"
+MIN_SESSION_SECRET_LENGTH = 32
+SESSION_SECRET_FILENAME = "session_secret"
+
+
+def _notice(message: str) -> None:
+    Console(stderr=True).print(f"[yellow]{message}[/yellow]")
+
+
+def load_or_create_session_secret(path: Path) -> str:
+    """A tárolt aláírókulcs, első használatkor atomikusan (0600) létrehozva.
+
+    Plug & play: friss telepítéshez nem kell SESSION_SECRET. A kulcs az adatbázis mellett,
+    az adatkötetben él, így a munkamenetek és a stream-tokenek túlélik az újraindítást.
+    Sérült (üres vagy túl rövid) fájlt soha nem ír felül csendben.
+    """
+    for _ in range(2):
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            value = None
+        if value is not None:
+            if len(value) < MIN_SESSION_SECRET_LENGTH:
+                raise ValueError(
+                    f"A tárolt SESSION_SECRET fájl ({path}) sérült. Töröld, vagy adj meg SESSION_SECRET-et."
+                )
+            return value
+        path.parent.mkdir(parents=True, exist_ok=True)
+        secret = secrets.token_urlsafe(48)
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(secret)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(temporary, path)  # atomikus; ha más folyamat megelőzött, az ő kulcsa érvényes
+            except FileExistsError:
+                continue
+            except OSError:
+                # Hard link nélküli fájlrendszer (egyes hálózati kötetek): kizárólagos létrehozás.
+                try:
+                    final = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    continue
+                with os.fdopen(final, "w", encoding="utf-8") as handle:
+                    handle.write(secret)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            _notice(f"SESSION_SECRET nincs megadva: erős kulcs generálva ({path}). Az adatkötetet tartsd meg.")
+            return secret
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                temporary.unlink()
+    raise ValueError(f"A SESSION_SECRET fájl ({path}) nem olvasható.")
+
+
 class Config(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(
@@ -31,7 +91,10 @@ class Config(BaseSettings):
     node_env: NodeEnv = NodeEnv.PROD
     version: str = "0.0.0"
     description: str = "Torrentalapú streaming magyar torrentoldalakra építve."
-    session_secret: str = Field(min_length=32, repr=False)
+    # Üresen hagyva (plug & play) az első induláskor generált, az adatkötetben tárolt kulcs
+    # érvényes (lásd resolve_generated_session_secret); explicit értéknek erősnek kell lennie.
+    session_secret: str = Field(default="", repr=False)
+    session_secret_file: Path | None = Field(default=None, repr=False)
     session_allowed_origins: list[str] = Field(default_factory=list, repr=False)
     host_ip: str = Field(
         default="",
@@ -69,9 +132,25 @@ class Config(BaseSettings):
     @field_validator("session_secret")
     @classmethod
     def validate_session_secret(cls, value: str) -> str:
-        if value.strip() == "stremhu-source" or not value.strip():
-            raise ValueError("A SESSION_SECRET erős, egyedi aláírókulcs legyen.")
+        # Hiányzó, üres vagy a régi nyilvános alapérték: a model-validátor generált kulcsra cseréli.
+        if value.strip() == PUBLIC_DEFAULT_SESSION_SECRET:
+            _notice("A SESSION_SECRET a régi nyilvános alapérték; helyette a generált, tárolt kulcs érvényes.")
+            return ""
+        if not value.strip():
+            return ""
+        if len(value) < MIN_SESSION_SECRET_LENGTH:
+            raise ValueError(
+                "A SESSION_SECRET legalább 32 karakteres, erős, egyedi aláírókulcs legyen,"
+                " vagy hagyd üresen, és a program generál egyet."
+            )
         return value
+
+    @model_validator(mode="after")
+    def resolve_generated_session_secret(self) -> "Config":
+        if not self.session_secret:
+            path = self.session_secret_file or self.system_dir / SESSION_SECRET_FILENAME
+            self.session_secret = load_or_create_session_secret(path)
+        return self
 
     @field_validator("session_allowed_origins")
     @classmethod

@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -601,11 +602,22 @@ async def test_get_alternate_imdb_ids_dbz():
 @pytest.mark.anyio
 async def test_get_episode_mappings_uses_alias_for_dbz():
     resolver = TvdbResolver()
-    # Mock Anime-Kitsu cache to verify that tt0121220 queries tt0214341
+    # Hermetic: Anime-Kitsu has no entry for tt0121220, so the cached alias tt0214341 must answer.
+    requested: list[str] = []
+
+    def kitsu_not_found(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return httpx.Response(404)
+
+    resolver._client = httpx.AsyncClient(transport=httpx.MockTransport(kitsu_not_found))
     # Ep 141 is Season 5 Episode 2
     resolver._series_epmap["tt0214341"] = {(5, 2): ([141], [])}
-    alts, seasons = await resolver.get_episode_mappings("tt0121220", 5, 2)
+    try:
+        alts, seasons = await resolver.get_episode_mappings("tt0121220", 5, 2)
+    finally:
+        await resolver.aclose()
     assert 141 in alts
+    assert requested == ["https://anime-kitsu.strem.fun/meta/series/tt0121220.json"]
 
 
 @pytest.mark.anyio

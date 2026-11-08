@@ -74,7 +74,7 @@ A CR-azonosítók a [stabilitási terv](./docs/feature/stability-and-optimizatio
 | CR02 | SQLite WAL / checkpoint | Méréssel lezárva: nincs változtatás (WAL-újrahasznosítás és p99 a kereten belül) |
 | CR03 | gzip a Stremio-válaszokon | Nem került be: lassú linken gyorsít, de a LAN-késleltetés és a szerver-CPU romlik |
 | CR04 | Torrentlista renderelés | A lista sora `React.memo` mögött: változatlan sor nem renderel újra a pollnál; a frissesség változatlan |
-| CR05 | `SESSION_SECRET` | Kötelező, erős kulcs, fail-fast indulás; titok nem kerül hibaüzenetbe |
+| CR05 | `SESSION_SECRET` | Erős aláírókulcs plug & play módon: megadva legalább 32 karakter, megadás nélkül az első indulás generálja és az adatkötetben tárolja; a régi nyilvános alapérték soha nem használható; titok nem kerül hibaüzenetbe |
 | CR06 | TLS | Termékdöntés: a `LOCAL` mód Plug & Play tartalék marad; egyedi szerverazonosság `MANUAL` (saját tanúsítvány / reverse proxy) vagy `AUTO` (ACME) móddal |
 | CR07 | Naplózás | Titokmentes hálózati hibanaplózás (`log_safety`), szűkített accesslog |
 | CR08 | Pairing | Atomikus állapotgép, egyszeri/idempotens link, korlátos retry; hitelesítési rate-limiter |
@@ -175,7 +175,7 @@ flowchart TD
 - **Keresési terhelés (CR15/c, 27):** legfeljebb 12 egyidejű egyedi keresés (a 13. azonnali `503`), 15 s-os teljes határidő részleges eredménnyel, folyamatszintű függőbájt-keret (32 MiB), egyszerre egy, legfeljebb 16 MiB-os mentési köteg, és fájlszámra korlátos `TorrentInfo`-gyorsítótár.
 
 ### Hitelesítés és HTTP-védelem (CR05, CR06, CR07, CR08, CR12, CR16, CR18, CR19)
-- **CR05:** a `SESSION_SECRET` kötelező (legalább 32 karakter, erős, egyedi), hiányában az alkalmazás nem indul.
+- **CR05:** a `SESSION_SECRET` megadása nem kötelező. Ha nincs megadva (vagy a régi nyilvános `stremhu-source` érték), az első indulás erős kulcsot generál, és `0600` joggal a `data/system/session_secret` fájlba menti (az adatkötetet meg kell tartani; a hely a `SESSION_SECRET_FILE` változóval állítható). Megadott, de 32 karakternél rövidebb kulccsal az alkalmazás nem indul.
 - **CR07:** a hálózati hibák csak titokmentes összegzéssel naplózódnak (`common/log_safety.py`).
 - **CR08:** atomikus pairing-állapotgép és hitelesítési rate-limiter (`common/auth_rate_limit.py`).
 - **CR18:** atomikus bootstrap: pontosan egy első admin és session.

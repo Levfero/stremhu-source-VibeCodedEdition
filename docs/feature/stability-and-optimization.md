@@ -93,7 +93,7 @@ A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [
 | Csomag | Státusz | Eredmény / korlát |
 |---|---|---|
 | 0 — G0 + core baseline | Első csomaghoz ellenőrizve | Helyi Docker Desktop Linux engine 29.9.2, npipe cél; internet nélküli izoláció, meglévő adatkötet nélkül. Minden további modul saját workload-baseline-ja külön belépési feltétel. |
-| 1 — CR05 | Megvalósított, core kapu teljesült | Fail-fast és izolált loader; 10 célzott teszt; Ruff és basedpyright zöld; Docker pytest 266 passed, 64 snapshot. |
+| 1 — CR05 | Megvalósított, core kapu teljesült; plug & play kiegészítés (2026-11-08) | Fail-fast és izolált loader; 10 célzott teszt; Ruff és basedpyright zöld; Docker pytest 266 passed, 64 snapshot. Kiegészítés: megadás nélkül generált, tárolt kulcs ([részletek](#doc-cr05-plug-and-play)). |
 | 2 — CR07 | Megvalósított; saját naplózási és HTTP-kapu teljesült | Két teljes ötszörös C előtte/utána log-sorozat és öt rotált A/B/C; 3000 szintetikus jelölő-előfordulás helyett0, teljes kivétellánc és boot-handler védelem tesztelt. |
 | 3 — CR19 | Megvalósított, saját kapu teljesült | 62 célzott regresszió; külön 42 HTTP-policy/cache teszt; Ruff/basedpyright zöld; teljes Docker pytest 321 passed / 64 snapshot. Két C-utósorozat hibamentes, A N/A. |
 | 4 — CR10 | Megvalósított, kapu teljesült | 93 célzott teszt; teljes pytest 370 passed / 64 snapshot; normál HTTP p50/p95/p99/CPU nem romlott a baseline + J fölött. |
@@ -150,6 +150,14 @@ Ellenőrzés: célzott 10 passed; utána `server/.venv` Ruff → basedpyright si
 Mérési döntés: két elfogadott utósorozatban nincs ismételhető latency/CPU-romlás a baseline-tartomány + J fölött. Cold import baseline 3,598–3,671 s, utómediánok 3,621 / 3,622 s; RSS baseline 115600–116560 KiB, utómediánok 116012 / 116180 KiB. A kezdeti, más hostfájlrendszerről csatolt utómérést kizártuk; az elfogadott előtte/utána snapshot ugyanazon fájlrendszeren van. Nincs gyorsulási állítás. A [CR05 bizonyíték](stability-and-optimization/evidence/cr05-core.json) tartalmazza a nyers cellákat, verziókat és harness-/forráshash-t.
 
 Rollback/kiadás: sémamigráció nincs. Kódrevert mellett is erős kulcs szükséges; gyenge default visszaengedése nem támogatott. A meglévő erős kulcs nem rotálódik. Új kulcs telepítése külön session-/URL-érvénytelenítési lépés. A valódi installáció kulcsát vagy dotenvjét nem olvastuk/ellenőriztük.
+
+<!-- doc-anchor:doc-cr05-plug-and-play -->
+<a id="doc-cr05-plug-and-play"></a>
+**CR05 plug & play kiegészítés (2026-11-08, felhasználói követelmény: „a felhasználó csak elindítja a konténert”).** A kötelező `SESSION_SECRET` miatt a konténer megadás nélkül nem indult (helyi image-en igazolva: kilépési kód 1), a `server/.env.example` pedig épp az elutasított `stremhu-source` értéket tartalmazta.
+- **Viselkedés:** hiányzó, üres vagy a régi nyilvános alapérték esetén a `load_or_create_session_secret` erős kulcsot generál (`secrets.token_urlsafe(48)`), és atomikusan, `0600` joggal a `data/system/session_secret` fájlba menti: ideiglenes fájl + `os.link`, hard link nélküli fájlrendszeren kizárólagos létrehozás. Egyidejű első indulásnál mindenki ugyanazt a kulcsot kapja. A helyet a `SESSION_SECRET_FILE` adja meg.
+- **Ami változatlan:** a megadott, 32 karakternél rövidebb kulcs továbbra is titokmentes hibával állítja le az indulást. Sérült (túl rövid) kulcsfájlt a program nem ír felül, hibát jelez. A régi nyilvános alapérték helyett figyelmeztetéssel a tárolt kulcs érvényes. A kulcs nem kerül logba vagy `repr`-be.
+- **Tesztek** (`test_auth_configuration.py`): gyenge explicit kulcs; hiányzó, üres, whitespace és alapérték esetén egyetlen, újraindítás után is azonos generált kulcs; az explicit erős kulcs elsőbbsége; sérült fájl; 8 szálas egyidejű első indulás; dotenv-mentes import a generált kulccsal.
+- **Kiadás:** a generált kulcs az adatkötetben él. Kötet nélküli futtatásnál minden új konténer új kulcsot kap, ami a munkamenetek és a stream-URL-ek újrakérésével jár, ugyanúgy, ahogy az adatbázis is elveszne.
 
 ### 2 — CR07
 
@@ -427,7 +435,7 @@ Az upstream `8c99c7d` helyben elérhető, a következő tulajdonságok forrásb�
 
 | Terület | Upstream funkcióeredet | Mostani munkafadiff / kritikus szerződés |
 |---|---|---|
-| Signing konfiguráció, CR05 | Beépített secret-default létezett | Kötelező erős konfiguráció, izolált loader, stabil kulccsal restart-kompatibilis aláírás |
+| Signing konfiguráció, CR05 | Beépített secret-default létezett | Erős kulcs plug & play módon (megadott ≥ 32 karakter, vagy első induláskor generált és az adatkötetben tárolt), ismert default soha; izolált loader, stabil kulccsal restart-kompatibilis aláírás |
 | Naplózás és HTTP-policy, CR07/19 | A fork új feliratcache/active-playback útjai nem mind léteztek | Hálózati kivétellánc/accesslog és célzott no-store; auth, bájtok, Range/HEAD megmaradnak |
 | Numerikus bemenet, CR10 | Más, instance-metódusú Range-parser; nincs új telített ASCII helper | Értelmes hosszú end/suffix clamp, hibás numerikus ID nem jut resolver-hálózatra |
 | Adapter relogin, CR11 | Nincs Singleflight az upstream adapterben | A fork meglévő közös Singleflightjának adapterenkénti újrafelhasználása; owner/joiner cancel elkülönül |

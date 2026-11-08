@@ -1,7 +1,10 @@
+import concurrent.futures
+import hashlib
 import os
 import secrets
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -15,7 +18,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.common.database import Base, get_db
-from app.config import load_config
+from app.config import load_config, load_or_create_session_secret
 from app.main import app
 from app.modules.roles.models import RoleModel
 from app.modules.stream.schemas import StreamToken
@@ -27,15 +30,65 @@ from app.modules.stream.utils.stream_token import (
 from app.modules.users.models import UserModel
 
 
-@pytest.mark.parametrize("secret", [None, "", "stremhu-source", "short-marker", " " * 32])
-def test_invalid_signing_configuration_does_not_disclose_input(monkeypatch, secret):
+@pytest.mark.parametrize("secret", ["short-marker", "x" * 31])
+def test_weak_explicit_signing_key_is_rejected_without_disclosure(monkeypatch, tmp_path, secret):
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    with pytest.raises(ValidationError) as error:
+        load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret=secret,
+                    session_secret_file=tmp_path / "session_secret")
+    assert "session_secret" in str(error.value)
+    assert secret not in str(error.value)
+    assert not (tmp_path / "session_secret").exists()
+
+
+@pytest.mark.parametrize("secret", [None, "", " " * 32, "stremhu-source"])
+def test_missing_or_public_default_key_uses_one_persisted_generated_key(monkeypatch, tmp_path, secret):
+    # Plug & play: a fresh install needs no SESSION_SECRET, and the public default is never used.
     monkeypatch.delenv("SESSION_SECRET", raising=False)
     values = {} if secret is None else {"session_secret": secret}
+    key_file = tmp_path / "system" / "session_secret"
+    first = load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret_file=key_file, **values)
+    restarted = load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret_file=key_file, **values)
+    assert len(first.session_secret) >= 32
+    assert first.session_secret != "stremhu-source"
+    assert first.session_secret == restarted.session_secret == key_file.read_text(encoding="utf-8").strip()
+    assert first.session_secret not in repr(first)
+    if os.name == "posix":
+        assert key_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_explicit_strong_key_wins_and_creates_no_key_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    key = secrets.token_urlsafe(48)
+    loaded = load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret=key,
+                         session_secret_file=tmp_path / "session_secret")
+    assert loaded.session_secret == key
+    assert not (tmp_path / "session_secret").exists()
+
+
+def test_corrupt_key_file_is_reported_and_never_overwritten(monkeypatch, tmp_path):
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+    key_file = tmp_path / "session_secret"
+    key_file.write_text("short", encoding="utf-8")
     with pytest.raises(ValidationError) as error:
-        load_config(load_dotenv=False, host_ip="192.0.2.1", **values)
-    assert "session_secret" in str(error.value)
-    if secret and secret.strip():
-        assert secret not in str(error.value)
+        load_config(load_dotenv=False, host_ip="192.0.2.1", session_secret_file=key_file)
+    assert "sérült" in str(error.value)
+    assert key_file.read_text(encoding="utf-8") == "short"
+
+
+def test_concurrent_first_start_agrees_on_one_generated_key(tmp_path):
+    key_file = tmp_path / "session_secret"
+    barrier = threading.Barrier(8)
+
+    def start() -> str:
+        barrier.wait()
+        return load_or_create_session_secret(key_file)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        keys = list(pool.map(lambda _: start(), range(8)))
+    assert len(set(keys)) == 1
+    assert keys[0] == key_file.read_text(encoding="utf-8")
+    assert [p.name for p in tmp_path.iterdir()] == ["session_secret"]  # no leftover temporary files
 
 
 def test_dotenv_is_never_opened_in_isolated_loader(monkeypatch):
@@ -98,21 +151,30 @@ def test_stream_token_uses_configured_key_and_existing_salt():
 
 
 def test_app_import_has_no_dotenv_fallback_with_missing_secret(tmp_path):
-    # A tempting dotenv must not repair an incomplete explicit test environment.
-    (tmp_path / ".env").write_text("SESSION_SECRET=" + secrets.token_urlsafe(48))
+    # A tempting dotenv must not supply the key when dotenv loading is off: the app starts with
+    # its own generated, persisted key instead (plug & play), never with the dotenv value.
+    dotenv_key = secrets.token_urlsafe(48)
+    (tmp_path / ".env").write_text("SESSION_SECRET=" + dotenv_key)
+    key_file = tmp_path / "data" / "session_secret"
     environment = os.environ.copy()
     environment.pop("SESSION_SECRET", None)
     environment["STREMHU_LOAD_DOTENV"] = "false"
+    environment["SESSION_SECRET_FILE"] = str(key_file)
     environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
     result = subprocess.run(
-        [sys.executable, "-B", "-c", "import app.config"],
+        [sys.executable, "-B", "-c",
+         "import hashlib, app.config as c; print(hashlib.sha256(c.config.session_secret.encode()).hexdigest())"],
         cwd=tmp_path,
         env=environment,
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 1
-    assert "session_secret" in result.stdout
+    assert result.returncode == 0, result.stdout[-500:]
+    loaded = result.stdout.strip().splitlines()[-1]
+    stored = key_file.read_text(encoding="utf-8").strip()
+    assert loaded == hashlib.sha256(stored.encode()).hexdigest()
+    assert loaded != hashlib.sha256(dotenv_key.encode()).hexdigest()
+    assert dotenv_key not in result.stdout + result.stderr
 
 
 def test_real_login_and_session_with_disposable_database(tmp_path):

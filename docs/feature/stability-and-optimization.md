@@ -117,10 +117,10 @@ A [munkacsomag belépési oldala](stability-and-optimization/README.md) és az [
 | 22 — CR17/d (22+22b) | Megvalósított; a `cr17d-after-v1` kapu FAIL maradt (35/316, memória), az azt felváltó 22b `cr17e-after-v1` kapu teljesült (316/316) | Folyamatszintű `IndexerSearchService` és állapotmentes Singleflight-factory: a megosztott keresés nem használja a request Sessiont. A 22 izolált olvasásai QueuePool-telítést okoztak (15 egyidejű checkout, before 10–11); a 22b egyhelyes `shared_read_session()` kapuval a before szintjén tartja a kapcsolatszámot. Ellenőrzés: 611 pytest/64 snapshot, Ruff/basedpyright 0, ownership-trace 4/4; memória, p95, CPU, SQL a kereten belül. Commit: `f7cdb1a`. Részletek: [CR17/c–d terv](stability-and-optimization/cr17cd-plan.md#doc-22b-megosztott-olvasasi-kapu). |
 | 23 — G01 → CR01/b | Lezárva felhasználói termékdöntéssel (2026-11-07), policyváltozás nélkül | A CR01/a egységes alkalmazója szerint a torrentenkénti limit tétlen torrentnél a beállított érték, aktív lejátszás alatt `max(beállítás, 50)` (`relay/service.py:apply_torrent_connection_policy`; az upstream `8c99c7d` lejátszás alatt fix 50-et állított, a fork `d16365d` tette alsó korláttá). A felület ezt „maximális számnak” nevezte. Döntés: a viselkedés marad, a felület mezője „Torrentenkénti kapcsolatok alapértéke” címet és a lejátszás alatti legalább 50-es értéket, valamint a globális felső határt megnevező leírást kapott (`relay/settings/-features/connection.tsx`). Az 50 tapasztalati érték, mérés nem igazolja; a G01 teljes mátrix és a hard-cap policy nem futott, mert a döntés nem igényli. Ellenőrzés: `npm run lint`, `npm run format`, `npm run build` (+`tsc`) a zárolt Node 24 konténerben. |
 | 24 — G06 → CR06 | Lezárva felhasználói termékdöntéssel (2026-11-07), változtatás nélkül | A LOCAL HTTPS-mód közös, publikus szolgáltatástól kapott kulcsa nem ad egyedi szerverazonosságot. A telepítésenként egyedi, saját aláírású tanúsítvány viszont megtörné a zéró konfigurációs működést: a Stremio/ExoPlayer (főleg Android TV-n) eldobná a kapcsolatot, saját gyökértanúsítványt a felhasználók nem telepítenek. Döntés: a LOCAL mód Plug & Play tartalékként változatlan marad; egyedi szerverazonosság a meglévő MANUAL (saját tanúsítvány / reverse proxy) vagy AUTO (ACME) móddal érhető el. G06-mérés nem futott. Részletek: [24 — TLS-döntés](#doc-24-tls-decision). |
-| 27 | Soron következő / feltételes | a 27 következik; A 27 leíró burst-alapmérése (`burst27-v3`) lefutott; az SLO-keret rögzítve: 15 s határidő, 12 egyidejű keresés, 1 GiB ([27 — burst](#doc-27-burst-baseline)). |
 | 25 — G15 → CR15/a | Megvalósított; a `cr15a-after-v1`–`-v5` kapu FAIL, a `cr15a-after-v6` kapu PASS (felhasználói jóváhagyással, 2026-11-08) | A torrentletöltés eddig a teljes választ memóriába olvasta. Most a dekódolt bájtokra 48 MiB-os korláttal (felhasználói döntés) olvas, a deklarált túl nagy hosszt olvasás előtt elutasítja, és az auth/szemafor/relogin úton marad. Két saját pufferelésű jelölt ismételhetően lassabb volt; tömörítetlen törzsnél a HTTPX saját olvasását használja számláló folyamburokkal, olvasás után pedig a beolvasott bájtokra cseréli a folyamot, így a törzs a ciklikus szemétgyűjtés helyett azonnal felszabadul; a Docker-image a glibc mmap/trim küszöbét a glibc saját dinamikus maximumára (32/64 MiB) rögzíti. A v3 kapu a próba mérési torzításán (a before oldalon hiányzó `app.config`), a v4 a HTTPX válasz–folyam ciklusa miatt késve felszabaduló törzseken, a v5 azon bukott, hogy a glibc minden letöltés után visszaadta a törzs memóriáját, és egyetlen letöltésnél a következő friss lapokon futott; a v6 kapu (a v4 mérőkörnyezete és szabálya) a G15 normál terhelésén 90 ellenőrzésből 0 ismételhető romlást adott; óriásválasznál after 0 OOM, minden kérés `too-large`. 9 új teszt, Ruff/basedpyright 0, 649 pytest/64 snapshot. Részletek: [25 — CR15/a](#doc-25-cr15a). |
 | 26a — CR15/b, süti-hatókör | Megvalósított; a beolvasztott fán futó `cr15b-origin-v5` (és a korábbi `-v1`–`-v4`) funkcionális kapu PASS | A mentett indexersütik eddig domain nélkül töltődtek vissza, így minden hostra mentek, idegen hostra és HTTP-re is. Most az indexer hostjára kötött, HTTPS-nél `Secure` domain-sütiként töltődnek vissza: ellenőrzött fixture-TLS-sel before 6/6 célon, after csak a saját hoston (3/6). 7 új teszt, Ruff/basedpyright 0, 656 pytest/64 snapshot. A redirect-út (26b) nyitott. Részletek: [26a — süti-hatókör](#doc-26a-cookie-scope). |
 | 26b — CR15/b, redirect és letöltési host | Megvalósított; a beolvasztott fán a `cr15b2-redirect-v6` funkcionális és a `cr15b2-after-v6` normál kapu PASS | A korlátos letöltés eddig a HTTPX-re bízta az átirányítást, amely minden redirect törzsét korlát nélkül beolvasta, és bármely hostra továbbment. Most kézzel követi, a törzset olvasás nélkül zárja, legfeljebb 10 lépésig, és minden lépés csak a tracker saját domainjére vagy aldomainjére mehet, a tracker sémájával (felhasználói döntés, 2026-11-07). Funkcionális kapu: before 64 MiB/kérés redirect-törzs és követett idegen redirect, after legfeljebb 3,6 MiB/kérés, az idegen host egyetlen kérést sem kap. Normál terhelésen 75 ellenőrzésből 0 ismételhető romlás. 15 új teszt, Ruff/basedpyright 0, 671 pytest/64 snapshot. Részletek: [26b — redirect és host](#doc-26b-redirect-host). |
+| 27 — CR15/c | Megvalósított; a beolvasztott fán a `cr15c-after-v4` kapu PASS | Folyamatszintű keret a forráskeresésekre a felhasználó SLO-ja szerint: 12 egyidejű egyedi keresés (a 13. azonnali 503), 15 s teljes határidő részleges eredménnyel, és bájtalapú memóriavédelem (32 MiB függő bájt, 16 MiB-os mentési kötegek, fájlszámra korlátos info-cache). Tipikus terhelésen nincs ismételhető romlás; a nehéz stresszprofilban az OOM before 5/10 → after 0/10 (N=4) és 10/10 → 0/10 (N=12). 17 új teszt, Ruff/basedpyright 0, 688 pytest/64 snapshot. Részletek: [27 — CR15/c](#doc-27-cr15c). |
 | 28 — G02 → CR02 | Lezárva méréssel: NO_CHANGE, PRAGMA/checkpoint változtatás nélkül | Két monitormentes 3600 s-os CR17 utáni C-kontroll (`aaa9ee5` forrás) az előre regisztrált szabályokkal: WAL-újrahasznosítás, commit/tranzakció p99 és szokásos WAL-csúcs mind a referencia keretén belül, egyszeri eltérés sincs; szokásos WAL-csúcs 4,4/4,4 MiB (keret 19,8 MiB), végső checkpoint teljes, pool 0. Részletek: [28 — G02](#doc-28-g02-cr17-utani-kontroll). |
 | 29 — G04 → CR04 | Megvalósított; a `g04-candidate-v1` kapu PASS | A torrentlista sora `React.memo` mögé került (`relay/torrents/-components/torrent.tsx`): változatlan sor nem renderel újra a pollnál. A 20/100/500 soros, egy változó soros cellákban a sorrender-hívás és a React commit-idő a before tartomány alá esett; a requestszám (16 cella) változatlan, a heap a +2 MiB-os kereten belül. Frontend: vitest 2 fájl / 11 teszt (1 új tesztfájl), lint, format, build sikeres a zárolt Node 24 konténerben. Részletek: [29 — G04](#doc-29-g04). |
 | 30 — G03 → CR03 | Lezárva: formálisan `INVALID` (19/20 adag), kódváltozás nélkül | A gzip a `streams/40` válasznál −64% bájtot ad, a c1 teljes p95 mob2-n 224 → 135 ms. LAN-on viszont a szerver-CPU és a késleltetés ismételhetően romlik. Az utolsó adag (mob2) a fixture-szerver kapcsolatbontása miatt elmaradt. A teljes LAN-adat mind a 12 szint–küszöb kombinációt kizárja, így a hiányzó adag a döntést nem változtathatja meg; újrafuttatás nincs. Részletek: [30 — G03](#doc-30-g03). |
@@ -440,6 +440,7 @@ Az upstream `8c99c7d` helyben elérhető, a következő tulajdonságok forrásb�
 | Torrentletöltés, CR15/a (25) | `download_torrent` korlátlan `.get()`, a teljes válasz memóriában | Dekódolt bájtra korlátos letöltés (48 MiB): tömörítetlen törzsnél számláló folyamburok a HTTPX olvasása alatt, tömörítettnél dekódolt számlálás; `Content-Length`-előszűrés; auth/szemafor/relogin közös úton; a túl nagy válasz kontrollált indexerhiba; Docker-image: rögzített glibc mmap/trim küszöb (32/64 MiB) |
 | Visszatöltött indexersütik, CR15/b (26a) | `cookies.update` domain nélkül: minden hostra és HTTP-re is | Az indexer hostjára kötött domain-süti, HTTPS-nél `Secure`; idegen host és HTTP downgrade nem kapja |
 | Letöltési redirect és host, CR15/b (26b) | A HTTPX követi a redirectet, a törzsét beolvassa, bármely hostra továbbmegy | Kézi követés `next_request`-tel, törzs olvasás nélkül, legfeljebb 10 lépés; csak a tracker domainje/aldomainje, a tracker sémájával; más host kontrollált indexerhiba |
+| Forráskeresési terhelés, CR15/c (27) | Keresésenként minden letöltés egyszerre (`gather`), nincs egyidejűségi korlát, teljes határidő vagy memóriakeret; folyamatszintű info-cache nincs | 12 egyedi keresés (a 13. gyors 503), 15 s határidő részleges eredménnyel, indexerenkénti beengedés függőbájt-kerettel, egyszerre egy, legfeljebb 16 MiB-os mentési köteg, darabszámra és fájlszámra korlátos info-cache |
 
 ```mermaid
 stateDiagram-v2
@@ -777,7 +778,7 @@ Minden lefutott keresés helyes volt: 40 forrás, 0 indexerhiba, 40 egyedi info-
 - **Admission:** egyszerre legfeljebb 12 különböző (egyedi kulcsú) forráskeresés fut. A 13. azonnali 503-at kap `Retry-After`-rel; azonos keresés csatlakozása nem foglal helyet.
 - **Memóriakeret:** a StremHU-konténer 1 GiB-on fut biztonságosan. A mérés szerint ezt darabszám-korlát nem védi, mert 4 nehéz keresés is OOM volt, ezért a nehéz torrentek feldolgozására bájtalapú keret kell.
 
-Ezek a számok a burst-alapmérés után, annak ismeretében születtek, termékdöntésként. A 27-es kapu protokollja a mérése előtt ezekből a keretekből vezeti le a szabályait, utólag nem igazítható. A vázlat (admission, batch, határidő) helyi ágon van; a számai még ideiglenesek.
+Ezek a számok a burst-alapmérés után, annak ismeretében születtek, termékdöntésként. A 27-es kapu protokollja a mérése előtt ezekből a keretekből vezeti le a szabályait, utólag nem igazítható. A megvalósítás és kapuja: [27 — CR15/c](#doc-27-cr15c).
 
 <!-- doc-anchor:doc-29-g04 -->
 <a id="doc-29-g04"></a>
@@ -917,3 +918,50 @@ A régi visszatöltéssel mind a 4 negatív eset elbukik (helyben ellenőrizve).
 Ruff 0, basedpyright 0, 671 pytest/64 snapshot.
 
 **Korlát:** az insane és az iptorrents a letöltési linket a lap HTML-jéből veszi. Ha élesben más hostról ad letöltést, az a letöltés hibát ad, és a szabályt bővíteni kell.
+
+<!-- doc-anchor:doc-27-cr15c -->
+<a id="doc-27-cr15c"></a>
+### 27 — CR15/c: admission, határidő és bájtkeret
+
+**Változás** (`common/singleflight.py`, `torrent_source_provider/service.py`, `torrent_files/models.py`, `config.py`; számok a felhasználói SLO-ból, lásd [burst-alapmérés](#doc-27-burst-baseline)):
+- **Admission:** egyszerre legfeljebb 12 egyedi forráskeresés (`source_search_max_parallel`). Azonos keresés csatlakozása nem foglal helyet; a 13. azonnal `SearchOverloadedError`-t kap, ami 503, `Retry-After: 2`, `no-store`. A helyet a tulajdonolt munka tényleges vége szabadítja fel, várakozó lecsatlakozása nem, szálmunkánál a szál befejezése után.
+- **Határidő:** 15 s a tulajdonolt task indulásától (`source_search_deadline_seconds`). Utána új letöltés nem indul, és a keresés a kész találatokkal, részleges eredményt jelző üzenettel válaszol. A már letöltött bájtok mentése még lefut, ezt a függőbájt-keret korlátozza.
+- **Bájtkeret:**
+  - Letöltésből indexerenként legfeljebb 5 lehet beengedve, és csak akkor, ha a folyamatszintű 32 MiB-os keretben (`source_search_pending_max_bytes`) van hely.
+  - Teli keretnél a várakozó elengedi a helyét, és előbb a saját függő bájtjait menti, így holtpont nincs.
+  - Mentésből egyszerre egy fut, legfeljebb 16 MiB-os kötegekben (`source_search_batch_max_bytes`). A FIFO-sorrend és a jelöltsorrend az eredményben megmarad.
+- **Info-cache:** a feldolgozott `TorrentInfo`-gyorsítótár a 2000 bejegyzés mellett legfeljebb 50 000 fájlbejegyzést tart (`torrent_info_cache_max_files`, ~65 MiB).
+- **Túlterhelés a hívóknál:** a több-azonosítós Stremio-keresés és a katalóguskeresés nem nyeli el némán a túlterhelést: részleges túlterhelésnél hibaüzenetet ad, teljesnél 503-at.
+
+**Kapu, `cr15c-after-v4`: `PASS`.** [protokoll](stability-and-optimization/evidence/cr15c-after-v4-protocol.json), [értékelés](stability-and-optimization/evidence/cr15c-after-v4-assessment.json), [befejezési jelölő](stability-and-optimization/evidence/cr15c-after-v4-complete.json), [after-forrásmanifest](stability-and-optimization/evidence/cr15c-after-v4-source-manifest.json); scriptek a `packet27-cr15c` archívumcsoportban.
+- **Összevetés:** before = `6bd0370` (a beolvasztási alap), after = `7767945`, mindkét oldal a Docker-image glibc-ENV-jével. Ugyanez a kapu a CR15/a v5 fán ([`cr15c-after-v3`](stability-and-optimization/evidence/cr15c-after-v3-assessment.json)), a CR15/a v3 fán ([`cr15c-after-v2`](stability-and-optimization/evidence/cr15c-after-v2-assessment.json)) és a v2 alapon ([`cr15c-after-v1`](stability-and-optimization/evidence/cr15c-after-v1-assessment.json)) is `PASS` volt; az alap cseréje miatt megismételtük.
+- **Terhelés:** a változatlan burst27 fixture/mérő. Cellánként két sorozat × öt ABBA-pár, futásonként friss processz, 1 GiB, DB köteten.
+
+| Tipikus, N | p95 before (s1/s2) | p95 after (s1/s2) | Anon-csúcs + before → after (sorozatmediánok) |
+|---|---|---|---|
+| 1 | 1,21 s / 1,21 s | 1,22 s / 1,22 s | 2 / 2 → 3 / 14 MiB |
+| 4 | 2,85 s / 2,86 s | 2,83 s / 2,83 s | 52 / 52 → 53 / 53 MiB |
+| 8 | 6,24 s / 6,24 s | 6,24 s / 6,24 s | 88 / 88 → 88 / 88 MiB |
+| 12 | 9,73 s / 9,73 s | 9,72 s / 9,72 s | 83 / 96 → 124 / 97 MiB |
+
+| Nehéz, N | OOM before / after (10–10 futás) | Anon-csúcs + before → after (medián) | Leghosszabb keresés after (medián) |
+|---|---|---|---|
+| 1 | 0 / 0 | 459 MiB → 313 MiB | 4,69 s |
+| 4 | 5 / 0 | 865 MiB → 490 MiB | 15,00 s |
+| 12 | 10 / 0 | – → 586 MiB | 15,02 s |
+
+- **Túlterhelés (tipikus, N=16):** mind a 10 after-futásban pontosan 12 keresés teljes, 4 pedig 100 ms-on belül `SearchOverloadedError`-t kapott.
+- **Nehéz terhelés:** minden after-keresés teljes vagy részleges eredményt adott, egyetlen határidő-üzenettel, 18 s-on belül.
+
+**Tesztek:** 17 új teszt (`test_search_admission.py`, `test_torrent_info_cache_bound.py`).
+- **Admission és túlterhelés:** limit, csatlakozó várakozó, gyors 503, a hely csak a szálmunka végén szabadul, közvetlenül befejezés után érkező kérés nem kap téves 503-at.
+- **Bájtkeret és mentés:** beengedési kapu és bájtkorlátos kötegek jelöltsorrendben; két egyidejű keresés holtpont nélkül; megszakításkor a függő bájtok visszakerülnek.
+- **Határidő:** részleges eredmény mindkét szakaszban.
+- **Hívók:** a több-azonosítós Stremio-ág nem nyeli el a túlterhelést.
+- **Info-cache:** a korlátjai.
+
+Ruff 0, basedpyright 0, 688 pytest/64 snapshot.
+
+**Korlátok:**
+- A nehéz stresszprofilban a natív feldolgozás még ~0,1–0,15 s-ig tartja a GIL-t (a mérő event-loop késése; before ~0,3 s); ehhez nincs SLO.
+- A 12-es határ egyedi kulcsokat számol; egy Stremio-kérés az alternatív IMDb-azonosítók miatt 1–3 helyet foglalhat.

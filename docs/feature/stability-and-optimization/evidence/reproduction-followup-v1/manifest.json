@@ -996,6 +996,51 @@
       "sha256": "a3572bfa7f3fe11dbebf2dd8a5337abe166d890a993c4451c117a71ac6b148e8",
       "group": "packet26b-cr15b-redirect",
       "measurement_raw_sha256": "a3572bfa7f3fe11dbebf2dd8a5337abe166d890a993c4451c117a71ac6b148e8"
+    },
+    "cr15c_after_v1.py": {
+      "sha256": "b6747249bf74080026a98e5df38731fa07e509c2b451d18ea3b42296f8c4ce69",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "b6747249bf74080026a98e5df38731fa07e509c2b451d18ea3b42296f8c4ce69"
+    },
+    "assess_cr15c_after_v1.py": {
+      "sha256": "0bd42e35cef7cd4f064612b54096f966d28d24d53595810036a3fa24dd946f4a",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "0bd42e35cef7cd4f064612b54096f966d28d24d53595810036a3fa24dd946f4a"
+    },
+    "cr15c_after_v2.py": {
+      "sha256": "98cb9a3c04dfa2eee7d5261361209f424d35eaba25ba12726e926ed97f438efd",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "98cb9a3c04dfa2eee7d5261361209f424d35eaba25ba12726e926ed97f438efd"
+    },
+    "assess_cr15c_after_v2.py": {
+      "sha256": "35125c93022d35cadf856ab3bdddf908f496caf1dd02430011c09ffcf9f9aa31",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "35125c93022d35cadf856ab3bdddf908f496caf1dd02430011c09ffcf9f9aa31"
+    },
+    "cr15c_after_v3.py": {
+      "sha256": "f537233953ca1f4e1ab066c6d5eb78a68aa08b017fc244c9ccaff66220e5a3f4",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "f537233953ca1f4e1ab066c6d5eb78a68aa08b017fc244c9ccaff66220e5a3f4"
+    },
+    "assess_cr15c_after_v3.py": {
+      "sha256": "c10dd123a111db1cae2f7ba744b8c0dd560c90e750d8a6ac86a78a54c3fb9e14",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "c10dd123a111db1cae2f7ba744b8c0dd560c90e750d8a6ac86a78a54c3fb9e14"
+    },
+    "cr15c_after_v4.py": {
+      "sha256": "63deaff37856cd9028505f435be187cb78d5e9f690840cfa92e313419771af09",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "63deaff37856cd9028505f435be187cb78d5e9f690840cfa92e313419771af09"
+    },
+    "assess_cr15c_after_v4.py": {
+      "sha256": "80acffb22908e98ff20ede986360e0016bc319812f251acf4e28c125f3646982",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "80acffb22908e98ff20ede986360e0016bc319812f251acf4e28c125f3646982"
+    },
+    "burst27_diag_src_v2.py": {
+      "sha256": "b35f13954cd1660e529b6087a4d642dccbe921a45869d111768bd785da865af8",
+      "group": "packet27-cr15c",
+      "measurement_raw_sha256": "a8fe360899b85052bf8a36be0406c5618814d41370008aaed72ce419c7177df5"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

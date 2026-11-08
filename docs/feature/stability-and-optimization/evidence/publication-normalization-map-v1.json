@@ -4016,6 +4016,50 @@
     "cr15b-origin-v2-assessment.json": {
       "measurement_raw_sha256": "a42f601d7c9032a16311fb42385c64746f457191338964f9acea4b2821eb264b",
       "publication_lf_sha256": "62add44e6ec4bba3d7b8db31e4f3b2a316c0b385598fdcf170c9db4c462406c9"
+    },
+    "cr15b2-after-v4-source-manifest.json": {
+      "measurement_raw_sha256": "10736c9a0f5a167af0a241a23f61d8003d579e2d570c38dae5c0afde7baba1b0",
+      "publication_lf_sha256": "569a016fade786f9dc025e5b76e09e6c9ffc6051cd9666c3807561ce6ddec543"
+    },
+    "cr15b2-redirect-v4-complete.json": {
+      "measurement_raw_sha256": "f8f5f4895888c31afc8b313fb95cc92f63d6a90b2e00b5c4e603e93f00bd6610",
+      "publication_lf_sha256": "f8f5f4895888c31afc8b313fb95cc92f63d6a90b2e00b5c4e603e93f00bd6610"
+    },
+    "cr15b2-after-v3-protocol.json": {
+      "measurement_raw_sha256": "70367aecb72e87a93c7cfa830f011a021605546c4775d8f927754f3f8bbfc484",
+      "publication_lf_sha256": "d7cb2480c15df523835de4beb6913f7019e469eef11db7e451ae3b2bced04610"
+    },
+    "cr15b2-after-v3-assessment.json": {
+      "measurement_raw_sha256": "0ca39e80c573de19a75ad244d7ebce22bb091d954612898f6dc34f96cd48663a",
+      "publication_lf_sha256": "f64b5dbf58c1862508679ce9b0989eb9aa7c1c308cf79ff979a07f2fdf7205ca"
+    },
+    "cr15b2-after-v3-complete.json": {
+      "measurement_raw_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0",
+      "publication_lf_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0"
+    },
+    "cr15b2-after-v3-source-manifest.json": {
+      "measurement_raw_sha256": "1be9958a154d5384f92c1ba195333228b01e243daa2e947dd7b3e8c04ae34d63",
+      "publication_lf_sha256": "cf5f81b44a49e6f0bf39e6c36e12a390a25d3eda4845de10be9613feaa8286c3"
+    },
+    "cr15b2-redirect-v3-protocol.json": {
+      "measurement_raw_sha256": "2c9f3c6407e43ad5e950989961bdeec9ebcb75140721cae4abc176d93d8950eb",
+      "publication_lf_sha256": "3736dbbfc3b3290ff1f7c47a6d7065e51e5458174bcdbc8fe7c4367c717174ba"
+    },
+    "cr15b2-redirect-v3-assessment.json": {
+      "measurement_raw_sha256": "bdd908e45fd5d097955ae9ee2b45ba552fdbc8df5ac82e83718129315cd13d28",
+      "publication_lf_sha256": "5d463fd1f2ca1f38ae70fe36883f6d4c1bef673557eeff1ff3ca3ae6d1a6fd80"
+    },
+    "cr15b2-redirect-v3-complete.json": {
+      "measurement_raw_sha256": "f8f5f4895888c31afc8b313fb95cc92f63d6a90b2e00b5c4e603e93f00bd6610",
+      "publication_lf_sha256": "f8f5f4895888c31afc8b313fb95cc92f63d6a90b2e00b5c4e603e93f00bd6610"
+    },
+    "cr15b2-redirect-v1-protocol.json": {
+      "measurement_raw_sha256": "2b420a9ed4b36d2f96e674497693a8944f4151823c68278cd0b32885b949168d",
+      "publication_lf_sha256": "36810c4f72f19ee92be75e7e66ab4f0b19467faccc86cd630e44cd64755b5824"
+    },
+    "cr15b2-redirect-v2-protocol.json": {
+      "measurement_raw_sha256": "f23ceccc45035ccc23110d8dd50c9b6c43a1680109c87683a712267c26dbd8ee",
+      "publication_lf_sha256": "9b756cc02a1b19dde4eadc8e84943e762a28f111eea1ae5c73f8b4049cee9d0f"
     }
   }
 }

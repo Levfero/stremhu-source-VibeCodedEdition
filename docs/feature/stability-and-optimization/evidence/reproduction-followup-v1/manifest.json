@@ -901,6 +901,101 @@
       "sha256": "a4743836a3402b98fa5da7a9d209b40defd182979142464d58ae406a4febfaeb",
       "group": "packet26a-cr15b-cookie",
       "measurement_raw_sha256": "a4743836a3402b98fa5da7a9d209b40defd182979142464d58ae406a4febfaeb"
+    },
+    "cr15b2_after_v3.py": {
+      "sha256": "0dc0111011c30a832101a6d24bf37bb1332ef7e96216bab005741e3140c40df3",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "0dc0111011c30a832101a6d24bf37bb1332ef7e96216bab005741e3140c40df3"
+    },
+    "assess_cr15b2_after_v3.py": {
+      "sha256": "97fe7d17d5c0aa61910d51703ddbc74b3b50490abb08563082109a2cdcf7609b",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "97fe7d17d5c0aa61910d51703ddbc74b3b50490abb08563082109a2cdcf7609b"
+    },
+    "register_cr15b2_after_v3.py": {
+      "sha256": "aeac4d33fec55f0f036a1948722dd78bb38ff329c3a1530898d62678c5b20043",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "aeac4d33fec55f0f036a1948722dd78bb38ff329c3a1530898d62678c5b20043"
+    },
+    "cr15b2_redirect_v3.py": {
+      "sha256": "ffb3a0548516049c729fbc7af5d56b0ebd218166dc41a9e987fa97160df72d92",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "ffb3a0548516049c729fbc7af5d56b0ebd218166dc41a9e987fa97160df72d92"
+    },
+    "cr15b2_after_v4.py": {
+      "sha256": "18514babcc2018a4a0fa4b40f073b1372bbb2f1873c387cd258c02f2d8d3a743",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "18514babcc2018a4a0fa4b40f073b1372bbb2f1873c387cd258c02f2d8d3a743"
+    },
+    "assess_cr15b2_after_v4.py": {
+      "sha256": "25c00a459e5b7e5fbc7f44cbab392d1db9056eb5b77f524ee77e4eb2caaec84c",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "25c00a459e5b7e5fbc7f44cbab392d1db9056eb5b77f524ee77e4eb2caaec84c"
+    },
+    "register_cr15b2_after_v4.py": {
+      "sha256": "92116cdcd6a5fc1f57629fbeed768b838fd5094d9e18f9c65a794bc90b47cbef",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "92116cdcd6a5fc1f57629fbeed768b838fd5094d9e18f9c65a794bc90b47cbef"
+    },
+    "cr15b2_redirect_v4.py": {
+      "sha256": "23b5695ae32f90e62feab4da0d24f2840631a9c745c76005aa2e448cb90895e4",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "23b5695ae32f90e62feab4da0d24f2840631a9c745c76005aa2e448cb90895e4"
+    },
+    "cr15b2_after_v5.py": {
+      "sha256": "3e5df813545fe2e8333d6d481bcc364560f09edee66ef50581c8083ec23c2ba6",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "3e5df813545fe2e8333d6d481bcc364560f09edee66ef50581c8083ec23c2ba6"
+    },
+    "assess_cr15b2_after_v5.py": {
+      "sha256": "e5920b7e6ddfeaab0a41b0e87b4c4355ba97653aaf66e42fb6578dec4dabc59d",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "e5920b7e6ddfeaab0a41b0e87b4c4355ba97653aaf66e42fb6578dec4dabc59d"
+    },
+    "register_cr15b2_after_v5.py": {
+      "sha256": "c918138b3657b9313a844b35a51aa4b78ca7b80f7aa29438e52e831d1d361a30",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "c918138b3657b9313a844b35a51aa4b78ca7b80f7aa29438e52e831d1d361a30"
+    },
+    "cr15b2_redirect_v5.py": {
+      "sha256": "536519d6f7c429ca66bea5f350c0aca776087f3d805f519a32ae77fc06ea7e28",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "536519d6f7c429ca66bea5f350c0aca776087f3d805f519a32ae77fc06ea7e28"
+    },
+    "cr15b2_after_v6.py": {
+      "sha256": "adbe5ef1d8cd3406db4d55c86c7467cd4082077db506e0de73349360a1e5044d",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "adbe5ef1d8cd3406db4d55c86c7467cd4082077db506e0de73349360a1e5044d"
+    },
+    "assess_cr15b2_after_v6.py": {
+      "sha256": "d6a9e3141944db8259cca78af0774d52dbfc5c4669a5f5a43879dceec88fc47e",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "d6a9e3141944db8259cca78af0774d52dbfc5c4669a5f5a43879dceec88fc47e"
+    },
+    "register_cr15b2_after_v6.py": {
+      "sha256": "ad69916ff2b6ba9f65581b20eaa41906d0e5c131e8e4b6d2e0d424b0649d7d89",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "ad69916ff2b6ba9f65581b20eaa41906d0e5c131e8e4b6d2e0d424b0649d7d89"
+    },
+    "cr15b2_redirect_v6.py": {
+      "sha256": "695e09e6fe2d769cdf0c9f25510b0a5b40af7042830665a863d751bd87db340d",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "695e09e6fe2d769cdf0c9f25510b0a5b40af7042830665a863d751bd87db340d"
+    },
+    "cr15b2-after-v3-fixture-probe.py": {
+      "sha256": "ac1d759cb3a9766c46217315ea15432eab66917174bb3263b6cc68b8e3ce657d",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "01a3887fe8bcf527677749b5c3c004e8ca6cb0fa1fe5a4072ce36bb970bb9f10"
+    },
+    "cr15b2-redirect-v3-fixture-redirect_probe.py": {
+      "sha256": "a64b8bcedb52935342ede62e9476d3d9d0ab5318c73569c1c8eea3138b232ed6",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "a64b8bcedb52935342ede62e9476d3d9d0ab5318c73569c1c8eea3138b232ed6"
+    },
+    "cr15b2-redirect-v3-fixture-redirect_server.py": {
+      "sha256": "a3572bfa7f3fe11dbebf2dd8a5337abe166d890a993c4451c117a71ac6b148e8",
+      "group": "packet26b-cr15b-redirect",
+      "measurement_raw_sha256": "a3572bfa7f3fe11dbebf2dd8a5337abe166d890a993c4451c117a71ac6b148e8"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

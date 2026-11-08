@@ -3748,6 +3748,18 @@
     "cr15a-after-v2-source-manifest.json": {
       "measurement_raw_sha256": "01fc8873c10b8d3367dec11e19fe6b9327b82823b2291b1ce69ba111701f634c",
       "publication_lf_sha256": "c84079849ba0e3add6f2b9e0594b7b16fe4cbe23af3e9928445c79be74e0cc40"
+    },
+    "g04-candidate-v1-protocol.json": {
+      "measurement_raw_sha256": "5334307ca84f1d4adbafa21ea4c714fb1c0e34abff5b6966f8bd1bc157e26384",
+      "publication_lf_sha256": "81e95d23659fdd0f971818568f45e20a697631787307b32b7b817dc11220806d"
+    },
+    "g04-candidate-v1-assessment.json": {
+      "measurement_raw_sha256": "c752bd9796bcf586930d68acaf2ad4324b09ba66e0fee5be66e6c3c49d8aee79",
+      "publication_lf_sha256": "69e9e57e2e23d2687ba5e1d2d88e3add3370db9a315f78b3a882d847b177c440"
+    },
+    "g04-candidate-v1-complete.json": {
+      "measurement_raw_sha256": "47012649bd59e4c92c661380f3e52490b3023c6b0ea6875016305f90435907ab",
+      "publication_lf_sha256": "47012649bd59e4c92c661380f3e52490b3023c6b0ea6875016305f90435907ab"
     }
   }
 }

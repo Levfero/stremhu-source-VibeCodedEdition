@@ -606,6 +606,31 @@
       "sha256": "ca836c0ff5f000a12c5633402df6dad77698b170221a1cd0b55a7674a684c6ed",
       "group": "packet27-burst",
       "measurement_raw_sha256": "ca836c0ff5f000a12c5633402df6dad77698b170221a1cd0b55a7674a684c6ed"
+    },
+    "g04_candidate_v1.py": {
+      "sha256": "ee1e822f153238563b487fd2b5e41e2d693d01e3b309a5102bfffbcac590a45a",
+      "group": "packet29-g04",
+      "measurement_raw_sha256": "ee1e822f153238563b487fd2b5e41e2d693d01e3b309a5102bfffbcac590a45a"
+    },
+    "assess_g04_candidate_v1.py": {
+      "sha256": "07e8885c29f5afbca61d4a4c7913129f0448156162f8f6e8e7e4263ad4068dfd",
+      "group": "packet29-g04",
+      "measurement_raw_sha256": "07e8885c29f5afbca61d4a4c7913129f0448156162f8f6e8e7e4263ad4068dfd"
+    },
+    "g04_baseline_v1.py": {
+      "sha256": "ab8ff62d18334170b60b8835d49e99064f6f6c93e365d3afa08b3e1a89e34eda",
+      "group": "packet29-g04",
+      "measurement_raw_sha256": "f547627d392702ebae404d37ff9ecea58903f7dea7bcb8b41fcb919619beacb4"
+    },
+    "g04-fixture-probe.cjs": {
+      "sha256": "514de74c457634c917c501635e166b680788e26c1870bf9945437dca3750eb01",
+      "group": "packet29-g04",
+      "measurement_raw_sha256": "01f38b92ceb1a926e8c8d984b950c156bc3b97bb60ce1d4dea30b1939ddc5860"
+    },
+    "g04-fixture-server.cjs": {
+      "sha256": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd",
+      "group": "packet29-g04",
+      "measurement_raw_sha256": "794b99d369f6f1dae941a0c1105c8028209304e8a86f075be00ee0cdf8b6d7bd"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

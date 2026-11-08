@@ -103,6 +103,10 @@ class IndexerClient(httpx.AsyncClient):
                 # pufferelése egymás utáni nagy letöltéseknél ismételhetően lassabb volt.
                 response.stream = _CappedStream(response.stream, max_bytes)
                 await response.aread()
+                # A HTTPX folyamburka visszahivatkozik a válaszra; ciklusként a törzs csak a
+                # ciklikus GC-vel szabadulna fel (cr15a-after-v4). A beolvasott törzs után a
+                # válasz már nem olvas a hálózatról, a folyamot a meglévő bájtokra cseréljük.
+                response.stream = httpx.ByteStream(response.content)
                 return response
             # Tömörített törzs: a dekódolt bájtokat számoljuk (tömörítési bomba ellen).
             chunks: list[bytes] = []

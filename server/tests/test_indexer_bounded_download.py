@@ -1,5 +1,7 @@
 import asyncio
+import gc
 import gzip
+import weakref
 
 import httpx
 import pytest
@@ -220,4 +222,29 @@ async def test_identity_body_keeps_the_original_response_and_redirect_history():
         assert response.headers["x-origin"] == "fixture" and response.headers["content-length"] == "4"
         assert [str(item.url) for item in response.history] == ["https://fixture.invalid/start"]
     finally:
+        await adapter.close()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("encoding", [None, "gzip"])
+async def test_bounded_body_is_released_without_the_cyclic_gc(encoding):
+    """cr15a-after-v4: the read response must not wait for the cyclic GC to free its body."""
+    payload = b"d8:announce" + b"x" * 50_000 + b"e"
+    wire = gzip.compress(payload) if encoding else payload
+    headers = {"content-encoding": encoding} if encoding else {}
+
+    def handler(request):
+        return httpx.Response(200, headers=headers, stream=CountingStream(wire))
+
+    adapter = await make_adapter(handler)
+    gc.collect()
+    gc.disable()
+    try:
+        response = await adapter._client.get_bounded("https://fixture.invalid/t", max_bytes=len(payload))
+        assert response.content == payload
+        released = weakref.ref(response)
+        del response
+        assert released() is None
+    finally:
+        gc.enable()
         await adapter.close()

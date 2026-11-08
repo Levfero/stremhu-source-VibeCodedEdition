@@ -871,6 +871,36 @@
       "sha256": "6272a2a03bc2446d3413470712f0ef58371abbe46a8ae0550633bd1fc126d55f",
       "group": "packet25-cr15a",
       "measurement_raw_sha256": "6272a2a03bc2446d3413470712f0ef58371abbe46a8ae0550633bd1fc126d55f"
+    },
+    "cr15b_origin_v1.py": {
+      "sha256": "e66ad0d4fc526325cbaf18cea4642a7ba0a9e69f5fe051d3234d9a853cc23b66",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "e66ad0d4fc526325cbaf18cea4642a7ba0a9e69f5fe051d3234d9a853cc23b66"
+    },
+    "cr15b_origin_v2.py": {
+      "sha256": "022f3ef4964184dbf7d839ac84a5304d817d75ec5a0ce3aa97ab13304a11c3ac",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "022f3ef4964184dbf7d839ac84a5304d817d75ec5a0ce3aa97ab13304a11c3ac"
+    },
+    "cr15b_origin_v3.py": {
+      "sha256": "b8c64fd321121001fd01fa09949625251175e4e055e70890ddf7d0bc9f22bb73",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "b8c64fd321121001fd01fa09949625251175e4e055e70890ddf7d0bc9f22bb73"
+    },
+    "cr15b_origin_v4.py": {
+      "sha256": "f8197b31f292e1e5cf22750395f1e27dedbe8d045488ee53663fab5040fdf2b4",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "f8197b31f292e1e5cf22750395f1e27dedbe8d045488ee53663fab5040fdf2b4"
+    },
+    "make_chain_v5.py": {
+      "sha256": "97c2eb6f50a5f769b7c4f100ae72f810fe6b155bedcd8f810e3ab49542479946",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "97c2eb6f50a5f769b7c4f100ae72f810fe6b155bedcd8f810e3ab49542479946"
+    },
+    "cr15b_origin_v5.py": {
+      "sha256": "a4743836a3402b98fa5da7a9d209b40defd182979142464d58ae406a4febfaeb",
+      "group": "packet26a-cr15b-cookie",
+      "measurement_raw_sha256": "a4743836a3402b98fa5da7a9d209b40defd182979142464d58ae406a4febfaeb"
     }
   },
   "normalization_scope": "Published files obey existing Git LF attributes. sha256 verifies publishedLF bytes; measurement_raw_sha256 preserves original measured source bytes. No runtime/acceptance change; exact raw reconstruction may require original CRLF when different."

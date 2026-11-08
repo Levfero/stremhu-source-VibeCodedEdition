@@ -3896,6 +3896,26 @@
     "cr15c-after-v3-complete.json": {
       "measurement_raw_sha256": "e7f98c8d2639250b057a30cdc0229a8fc9220cccdd2be54aca65ae8a607cd749",
       "publication_lf_sha256": "e7f98c8d2639250b057a30cdc0229a8fc9220cccdd2be54aca65ae8a607cd749"
+    },
+    "cr15a-after-v5-assessment.json": {
+      "measurement_raw_sha256": "724ab41e48e692190d2095ec3fd10eccc31d4910fc97c4bea3eab6a9bd55926b",
+      "publication_lf_sha256": "a77d61f0608aabf0a80f81743217305c5dc354173937132bfc6f18e586a984a9"
+    },
+    "cr15a-after-v5-complete.json": {
+      "measurement_raw_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1",
+      "publication_lf_sha256": "de4b0fb524c2bd09a26bd9c330ffcdbf0e0a3992faac5edad787c3b44ae696d1"
+    },
+    "cr15a-diag7-results.json": {
+      "measurement_raw_sha256": "d28325f2bd72811816e1c5496c6a8a6d516b7141f5f63e4c9648dd6f08b2115d",
+      "publication_lf_sha256": "4fa238827c460e6d390ce999542ce15953296dd4dcd74e704f2434a463d14387"
+    },
+    "cr15b2-after-v5-assessment.json": {
+      "measurement_raw_sha256": "851ab42634a1fe3cd33098a1d08f57a8fa40c1caa6945b94f0d7907467c01270",
+      "publication_lf_sha256": "499c40c28287544aece8f8b18209f09a0bd248329d48a936f88b9bd0b395c626"
+    },
+    "cr15b2-after-v5-complete.json": {
+      "measurement_raw_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0",
+      "publication_lf_sha256": "dd70382391037dd2924f9fdf8f07e34533fbad90039e4e3cea720ad4ae14bac0"
     }
   }
 }

@@ -138,7 +138,7 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 
 | Csomag | Állapot | Bizonyíték |
 |---|---|---|
-| 0 — G0 + mérőeszközök + baseline | folyamatban: G0-próba kész, H1 smoke-tesztelve (A és B), `pb0-v1` regisztrálva a futtatás előtt | [G0-próba](stream-performance/evidence/g0-libtorrent-probe-v2.json), [pb0-v1 protokoll](stream-performance/evidence/pb0-v1-protocol.json) |
+| 0 — G0 + mérőeszközök + baseline | folyamatban: G0-próba kész, H1 smoke-tesztelve (A és B). A `pb0-v1` 3 futás után megszakítva (harnesshiba: hiányzó seed-statisztika), javítva; `pb0-v2` regisztrálva a futtatás előtt | [G0-próba](stream-performance/evidence/g0-libtorrent-probe-v2.json), [pb0-v1 megszakítás](stream-performance/evidence/pb0-v1-aborted.json), [pb0-v2 protokoll](stream-performance/evidence/pb0-v2-protocol.json) |
 
 <!-- doc-anchor:doc-korlatok -->
 <a id="doc-korlatok"></a>

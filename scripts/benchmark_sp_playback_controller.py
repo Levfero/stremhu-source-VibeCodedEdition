@@ -176,8 +176,16 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
         logs = subprocess.run(["docker", "logs", app], check=False, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=60)
         text = (logs.stdout or "") + (logs.stderr or "")
-        record["app_log"] = {"tracebacks": text.count("Traceback"),
-                             "error_lines": sum(1 for line in text.splitlines() if "ERROR" in line)}
+        lines = text.splitlines()
+        starts = [i for i, line in enumerate(lines) if "Traceback" in line]
+        # A traceback "with an application frame" mentions the product's code (/app/app/...) before the
+        # next traceback starts (or within 80 lines); asyncio-internal ones (gsp02-v3 finding) do not.
+        app_tracebacks = sum(
+            1 for k, start in enumerate(starts)
+            if any("/app/app/" in line for line in lines[start:min(starts[k + 1] if k + 1 < len(starts) else len(lines),
+                                                                    start + 80)]))
+        record["app_log"] = {"tracebacks": len(starts), "app_tracebacks": app_tracebacks,
+                             "error_lines": sum(1 for line in lines if "ERROR" in line)}
         if plan.get("capture_log_prefix"):
             # Diagnostics only: lines with the opt-in prefix (relay-level fields, no URLs; masked anyway).
             prefix = plan["capture_log_prefix"]

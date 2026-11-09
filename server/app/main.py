@@ -37,6 +37,7 @@ from app.modules.relay.background_tasks import resume_save_loop
 from app.modules.relay.dependencies import get_relay_service
 from app.modules.relay.service import ResumeSaveResult
 from app.modules.stream.active_playback import clear_active_playbacks
+from app.modules.stream.service import clear_playback_history_state
 from app.modules.stremio.service import (
     close_stream_searches,
     invalidate_stream_cache,
@@ -178,6 +179,7 @@ async def lifespan(app: FastAPI):
             if relay is not None:
                 await step("native-session", relay.close_native)
             sync_step("playbacks", clear_active_playbacks)
+            sync_step("playback-history", clear_playback_history_state)
             sync_step("stream-cache", invalidate_stream_cache)
             sync_step("indexer-cache", invalidate_indexer_cache)
             sync_step("origin-cache", clear_origin_cache)

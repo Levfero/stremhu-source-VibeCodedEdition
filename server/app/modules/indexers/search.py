@@ -1,6 +1,7 @@
 import asyncio
 import time
-from typing import Any
+from collections.abc import Awaitable
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
 
@@ -20,6 +21,21 @@ _imdb_tracker_cache: dict[tuple[str, str], tuple[float, list[Any]]] = {}
 _QUERY_TRACKER_CACHE_TTL = 300.0
 _QUERY_TRACKER_CACHE_MAX = 1000
 _query_tracker_cache: dict[tuple[str, str, str], tuple[float, list[Any]]] = {}
+
+# Egy tracker egy keresési hívásának felső határa (SP05/a: egyetlen helyen).
+INDEXER_SEARCH_TIMEOUT_SECONDS = 12.5
+
+_T = TypeVar("_T")
+
+
+async def _with_indexer_timeout(indexer_account: IndexerAccountRef, operation: Awaitable[_T]) -> _T:
+    """Egy tracker keresési hívása a közös időkorláttal; időtúllépéskor olvasható hibaüzenet."""
+    try:
+        return await asyncio.wait_for(operation, timeout=INDEXER_SEARCH_TIMEOUT_SECONDS)
+    except TimeoutError:
+        raise TimeoutError(
+            f"A(z) '{indexer_account.indexer_definition.name}' indexer nem válaszolt időben."
+        )
 
 
 def invalidate_indexer_cache(indexer_id: str | None = None) -> None:
@@ -90,20 +106,9 @@ class IndexerSearchService:
                 ),
             )
 
-        async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountRef,
-        ) -> IndexerTorrent | None:
-            try:
-                return await asyncio.wait_for(
-                    fetch_and_map(indexer_account), timeout=12.5
-                )
-            except asyncio.TimeoutError:
-                raise TimeoutError(
-                    f"A(z) '{indexer_account.indexer_definition.name}' indexer nem válaszolt időben."
-                )
 
         tasks = [
-            fetch_and_map_with_timeout(indexer_account)
+            _with_indexer_timeout(indexer_account, fetch_and_map(indexer_account))
             for indexer_account in indexer_accounts
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -202,20 +207,9 @@ class IndexerSearchService:
                 for indexer_definition_torrent in indexer_definition_torrents
             ]
 
-        async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountRef,
-        ) -> list[IndexerTorrent]:
-            try:
-                return await asyncio.wait_for(
-                    fetch_and_map(indexer_account), timeout=12.5
-                )
-            except asyncio.TimeoutError:
-                raise TimeoutError(
-                    f"A(z) '{indexer_account.indexer_definition.name}' indexer nem válaszolt időben."
-                )
 
         tasks = [
-            fetch_and_map_with_timeout(indexer_account)
+            _with_indexer_timeout(indexer_account, fetch_and_map(indexer_account))
             for indexer_account in indexer_accounts
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -289,20 +283,9 @@ class IndexerSearchService:
                 for indexer_definition_torrent in indexer_definition_torrents
             ]
 
-        async def fetch_and_map_with_timeout(
-            indexer_account: IndexerAccountRef,
-        ) -> list[IndexerTorrent]:
-            try:
-                return await asyncio.wait_for(
-                    fetch_and_map(indexer_account), timeout=12.5
-                )
-            except asyncio.TimeoutError:
-                raise TimeoutError(
-                    f"A(z) '{indexer_account.indexer_definition.name}' indexer nem válaszolt időben."
-                )
 
         tasks = [
-            fetch_and_map_with_timeout(indexer_account)
+            _with_indexer_timeout(indexer_account, fetch_and_map(indexer_account))
             for indexer_account in indexer_accounts
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)

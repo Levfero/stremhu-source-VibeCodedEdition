@@ -164,7 +164,7 @@ A felhasználó írásban rögzítette, a kapcsolódó kapuk (GSP01, GSP02, GSP0
 | 2. Fel nem használt letöltés | Nem korlát | Mért mellékmetrika marad, de nem buktat kaput. Az ablak felső korlátja a natív hívásköltség (G0) miatt megmarad. |
 | 3. H&R-torrent lejátszás közben | Szüneteljen, mint most | Az SP01 C3-jelöltje (háttérprioritás) nem érinti a teljes letöltésű torrenteket; a mai viselkedés marad. |
 | 4. Nem válaszoló tracker | Átmenetileg kimaradhat, figyelmeztetéssel | SP05/b: 2 egymás utáni időtúllépés után 120 s kihagyás, ismétlődéskor duplázva, legfeljebb 600 s. |
-| 5. Elavultság (kemény TTL, SP07) | Nyitott | Az SP07 kapuja előtt kérdezendő. |
+| 5. Elavultság (kemény TTL, SP07) | 24 óra (döntés: 2026-11-10) | A 30 perces puha TTL után a régi lista azonnal jön, háttérfrissítéssel; 24 óra felett szinkron keresés. Ha a régi lista a kért epizódra 0 streamet ad, szinkron frissítés. A GSP07 ezzel a kerettel mér. |
 | 6. Natív kliensteszt (SP09) | Nyitott | Az SP09 kapuja előtt kérdezendő. |
 | 7. Valós címlista (SP08) | Nyitott, opcionális | Nélküle az SP08 szintetikus címekkel mér. |
 

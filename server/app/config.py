@@ -5,7 +5,7 @@ import secrets
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -131,6 +131,16 @@ class Config(BaseSettings):
     port: int = 7070
     relay_piece_timeout_seconds: float = Field(default=120.0, gt=0)
     relay_read_timeout_seconds: float = Field(default=15.0, gt=0)
+    # Streamgyorsítás (SP02/SP01): a policy-k alapértéke a mai (legacy) viselkedés, amíg a
+    # hozzájuk tartozó mérési kapu (GSP02/GSP01) nem PASS. Új kötelező beállítás nincs.
+    relay_start_policy: Literal["legacy", "graded"] = "legacy"
+    relay_head_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
+    relay_tail_bytes: int = Field(default=4 * 1024 * 1024, gt=0)
+    relay_readahead_policy: Literal["legacy", "window"] = "legacy"
+    relay_readahead_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+    relay_readahead_max_pieces: int = Field(default=128, ge=4)
+    # A határidők darabméret-független lépésköze: ennyi bájt/s-os letöltést feltételez.
+    relay_readahead_assumed_rate_bytes: int = Field(default=8_000_000, gt=0)
     # Felirat: ASS->VTT konverzióra és memóriába gyűjtésre engedett max. forrásméret
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)

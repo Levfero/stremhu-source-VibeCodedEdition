@@ -15,7 +15,7 @@ import pytest
 
 from app.modules.indexer_definitions.exceptions import TechInfoUnavailableException
 from app.modules.indexer_definitions.integrations.ncore import NcoreIndexerDefinition
-from app.modules.torrent_streams import service as streams_service
+from app.modules.media_attributes import tech_info_cache
 from app.modules.torrent_streams.service import TorrentStreamsService
 
 MEDIAINFO_NFO = "General\nAudio #1\nLanguage : Hungarian\n"
@@ -67,7 +67,7 @@ async def test_complete_nfo_skips_the_second_request():
 
 @pytest.mark.anyio
 async def test_enrichment_caches_results_but_not_failures(monkeypatch):
-    monkeypatch.setattr(streams_service, "_TECH_INFO_CACHE", {})
+    monkeypatch.setattr(tech_info_cache, "_TECH_INFO_CACHE", {})
     service = object.__new__(TorrentStreamsService)
     failing = SimpleNamespace(fetch_tech_info=AsyncMock(side_effect=TechInfoUnavailableException("x")))
     empty = SimpleNamespace(fetch_tech_info=AsyncMock(return_value=(None, None)))
@@ -79,7 +79,7 @@ async def test_enrichment_caches_results_but_not_failures(monkeypatch):
     await service._enrich_torrent_group(("empty", "1"), [])
     await service._enrich_torrent_group(("empty", "1"), [])
 
-    assert ("failing", "1") not in streams_service._TECH_INFO_CACHE
+    assert ("failing", "1") not in tech_info_cache._TECH_INFO_CACHE
     assert failing.fetch_tech_info.await_count == 2  # retried, not poisoned for an hour
-    assert ("empty", "1") in streams_service._TECH_INFO_CACHE
+    assert ("empty", "1") in tech_info_cache._TECH_INFO_CACHE
     assert empty.fetch_tech_info.await_count == 1  # a real (empty) result is cached

@@ -14,16 +14,15 @@ from app.common.logger import logger
 from app.common.schemas.internal import SeriesInfo
 from app.common.singleflight import SearchOverloadedError
 from app.common.torrent_info import TorrentInfo
+from app.config import config
 from app.modules.indexer_accounts.schemas import IndexerDefinitionRef
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
+from app.modules.media_attributes import tech_info_cache
 from app.modules.media_attributes.constants import MediaAttributeKey
 from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
 from app.modules.media_attributes.seeds import DEFAULT_ATTRIBUTES
-from app.modules.media_attributes.tech_info_parser import (
-    TechInfoMetadata,
-    parse_tech_info_metadata,
-)
+from app.modules.media_attributes.tech_info_parser import TechInfoMetadata
 from app.modules.preferences.constants import PreferenceKey
 from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
@@ -44,9 +43,8 @@ _HUN_SUB_REGEX = re.compile(
     r"\b(hun[-_. ]?sub|sub[-_. ]?hun|hungarian[-_. ]?sub|magyar[-_. ]?felirat|feliratos)\b",
     re.IGNORECASE,
 )
-_TECH_INFO_CACHE: dict[tuple[str, str], tuple[float, TechInfoMetadata]] = {}
-_TECH_INFO_CACHE_TTL = 3600.0
-_TECH_INFO_CACHE_MAX = 5000
+# A Tech Info dúsítás teljes kerete egy streamválaszon belül.
+_TECH_INFO_BUDGET_SECONDS = 1.5
 
 
 def strip_accents(text: str) -> str:
@@ -399,6 +397,13 @@ class TorrentStreamsService:
         if not candidate_keys:
             return torrent_streams
 
+        if config.tech_info_prefetch:
+            try:
+                await self._enrich_from_prefetch(candidate_keys, streams_by_torrent)
+            except Exception as e:
+                logger.debug("operation=stream-tech-enrichment %s", network_error_fields(e))
+            return torrent_streams
+
         tasks = [
             self._enrich_torrent_group(key, streams_by_torrent[key])
             for key in candidate_keys
@@ -406,7 +411,7 @@ class TorrentStreamsService:
         try:
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=1.5,
+                timeout=_TECH_INFO_BUDGET_SECONDS,
             )
         except asyncio.TimeoutError:
             logger.debug("[TorrentStreamsService] Tech info dúsítás időtúllépés (1.5s).")
@@ -414,6 +419,80 @@ class TorrentStreamsService:
             logger.debug("operation=stream-tech-enrichment %s", network_error_fields(e))
 
         return torrent_streams
+
+    async def _enrich_from_prefetch(
+        self,
+        candidate_keys: list[tuple[str, str]],
+        streams_by_torrent: dict[tuple[str, str], list[TorrentStream]],
+    ) -> None:
+        """SP06/b: a lekérés tulajdonolt háttértask, a kérés csak a keretéből hátralévőt várja.
+
+        - Cache-találat azonnal alkalmazódik.
+        - Futó (pl. a keresésben előtöltött) kulcsra nem indul új lekérés; a keret az indításától
+          számít, így a kérés csak a hátralévő időt várja.
+        - Hiányzó kulcsra a kérés indít háttérlekérést, teljes kerettel.
+        - Időtúllépéskor a háttérlekérés tovább fut és feltölti a cache-t a következő kérésnek.
+        - Teli kapacitásnál (vagy leállításkor) a kulcs a mai, kérésen belüli, megszakítható
+          lekérést kapja, így az eredmény nem rosszabb a mainál.
+        """
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        deadline = now
+        flights: dict[asyncio.Task[TechInfoMetadata | None], tuple[str, str]] = {}
+        inline: list[asyncio.Task[None]] = []
+
+        for key in candidate_keys:
+            streams = streams_by_torrent[key]
+            meta = tech_info_cache.get_cached(key)
+            if meta is not None:
+                for ts in streams:
+                    self._apply_tech_info_to_stream(ts, meta)
+                continue
+
+            flight = tech_info_cache.in_flight(key)
+            if flight is None:
+                source = self._tech_info_source(key[0])
+                if source is None:
+                    continue
+                flight = tech_info_cache.start_fetch(key, source)
+            if flight is None:
+                inline.append(asyncio.create_task(self._enrich_torrent_group(key, streams)))
+                deadline = now + _TECH_INFO_BUDGET_SECONDS
+                continue
+            flights[flight.task] = key
+            deadline = max(deadline, flight.started + _TECH_INFO_BUDGET_SECONDS)
+
+        waiting: list[asyncio.Task[Any]] = [*flights, *inline]
+        if not waiting:
+            return
+        try:
+            # asyncio.wait nem szakítja meg a várt taskokat: a háttérlekérés időtúllépés
+            # vagy a kérés megszakítása után is befejeződik.
+            done, _ = await asyncio.wait(waiting, timeout=max(0.0, deadline - now))
+        finally:
+            for task in inline:
+                task.cancel()
+            if inline:
+                await asyncio.gather(*inline, return_exceptions=True)
+
+        for task, key in flights.items():
+            if task in done and not task.cancelled():
+                meta = task.result()
+                if meta is not None:
+                    for ts in streams_by_torrent[key]:
+                        self._apply_tech_info_to_stream(ts, meta)
+
+    def _tech_info_source(self, indexer_id: str) -> tech_info_cache.TechInfoSource | None:
+        """A Tech Info-t adó indexer definíciója; ``None``, ha nincs, letiltott, vagy nem ad Tech Info-t."""
+        if self._indexer_definitions_service is None:
+            return None
+        try:
+            definition = self._indexer_definitions_service.get_by_id(indexer_id)
+        except Exception:
+            return None
+        if not getattr(definition, "provides_tech_info", False):
+            return None
+        return definition
 
     async def _enrich_torrent_group(
         self,
@@ -424,14 +503,7 @@ class TorrentStreamsService:
             indexer_id, torrent_id = cache_key
             now = time.monotonic()
 
-            cached = _TECH_INFO_CACHE.get(cache_key)
-            if cached is not None:
-                ts_time, meta = cached
-                if now - ts_time >= _TECH_INFO_CACHE_TTL:
-                    _TECH_INFO_CACHE.pop(cache_key, None)
-                    meta = None
-            else:
-                meta = None
+            meta = tech_info_cache.get_cached(cache_key)
 
             if meta is None:
                 if not self._indexer_definitions_service:
@@ -439,11 +511,8 @@ class TorrentStreamsService:
                 indexer_def = self._indexer_definitions_service.get_by_id(indexer_id)
                 if not indexer_def:
                     return
-                nfo_text, desc_text = await indexer_def.fetch_tech_info(torrent_id)
-                meta = parse_tech_info_metadata(nfo_text or "", desc_text or "")
-                if len(_TECH_INFO_CACHE) >= _TECH_INFO_CACHE_MAX:
-                    _TECH_INFO_CACHE.pop(next(iter(_TECH_INFO_CACHE)), None)
-                _TECH_INFO_CACHE[cache_key] = (now, meta)
+                meta = await tech_info_cache.fetch_metadata(indexer_def, torrent_id)
+                tech_info_cache.store(cache_key, meta, now)
 
             for ts in streams:
                 self._apply_tech_info_to_stream(ts, meta)

@@ -178,6 +178,18 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
         text = (logs.stdout or "") + (logs.stderr or "")
         record["app_log"] = {"tracebacks": text.count("Traceback"),
                              "error_lines": sum(1 for line in text.splitlines() if "ERROR" in line)}
+        if plan.get("capture_tracebacks") and "Traceback" in text:
+            # Diagnostics only: traceback blocks with every URL path/query masked (they may carry keys).
+            blocks, keep = [], False
+            for line in text.splitlines():
+                if "Traceback" in line:
+                    keep = True
+                    blocks.append("----")
+                if keep:
+                    blocks.append(re.sub(r"(https?://\S+|/api/\S+)", "<masked-url>", line)[:300])
+                    if line and not line.startswith((" ", "Traceback", "\t")) and "Error" in line:
+                        keep = False
+            (shared / "tracebacks.txt").write_text("\n".join(blocks), encoding="utf-8")
     except Exception as error:
         record["failed"] = f"{type(error).__name__}: {str(error)[:300]}"
     finally:
@@ -201,14 +213,21 @@ def main() -> None:
     parser.add_argument("--only", type=int, default=None, help="run only the first N runs (smoke)")
     args = parser.parse_args()
     plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
-    labels = list(plan["images"])
     plan["image_ids"] = {label: sh("docker", "image", "inspect", "--format", "{{.Id}}", image).strip()
                          for label, image in plan["images"].items()}
+    # Optional "series": [{"labels": [...], "reps": N}, ...] run one after the other (e.g. a second
+    # before/after series that also measures the candidate's own noise); default: one series.
+    series = plan.get("series") or [{"labels": list(plan["images"]), "reps": plan["reps"]}]
     runs = []
-    for rep in range(plan["reps"]):
-        for cell in plan["cells"]:
-            rotation = labels[rep % len(labels):] + labels[: rep % len(labels)]
-            runs += [(label, cell, rep) for label in rotation]
+    rep_base = 0
+    for index, block in enumerate(series):
+        labels = block["labels"]
+        for offset in range(block["reps"]):
+            rep = rep_base + offset
+            for cell in plan["cells"]:
+                rotation = labels[rep % len(labels):] + labels[: rep % len(labels)]
+                runs += [(label, dict(cell, series=index), rep) for label in rotation]
+        rep_base += block["reps"]
     if args.only:
         runs = runs[: args.only]
     out = Path(args.out)

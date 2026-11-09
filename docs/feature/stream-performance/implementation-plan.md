@@ -33,6 +33,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - [SP02 — Indulási darabsorrend](#sp02)
 - [SP03 — Lejátszási előzmény a válasz előtt](#sp03)
 - [SP04 — Darabolvasás átfedése a küldéssel](#sp04)
+- [SP10 — Beragadó peerek indulási büntetése](#sp10)
 - [SP09 — `Connection: close` minden streamválaszon](#sp09)
 - [4. Találatlista: keresés](#doc-4-talalatlista-kereses)
 - [SP05 — Tracker-egészség és rövidzár](#sp05)
@@ -104,6 +105,7 @@ Lejátszási sebességmérés (TTFB, pufferelés, akadás) a projektben még nem
 | SP06 | Keresés | A Tech Info legfeljebb 1,5 s-ot vár, a keresés után, sorban. Időtúllépéskor a munka elvész. Az adapterben elnyelt hiba üres eredményként 1 órára cache-elődhet. | Hipotézis a gyakoriságra; a cache-mérgezés lehetősége forrásból igazolt | SP06/a implementálható; SP06/b előbb mérendő | P2 |
 | SP07 | Keresés | A 30 perces trackercache lejáratkor eldobja a bejegyzést, a következő kérés a teljes keresést kivárja. | Hipotézis | Előbb mérendő + termékdöntés | P2; SP05 után |
 | SP08 | Keresés | A név szerinti tartalékkeresések egymás után futnak. | Csak 0 IMDb-találatnál érint; gyakoriság ismeretlen | Előbb mérendő; várható eredmény: nincs változtatás | P3; SP05 után |
+| SP10 | Lejátszás | Egy peer, amely elfogadja a blokk-kérést, de nem válaszol, az első darabok blokkjait magánál tartja. A `pb0-v2` mixed profiljában (8 peerből 2 ilyen) az első bájt 13–18 s, az upstreamen és a forkon egyaránt. | Szintetikus profilban mérve igazolt; a valós swarmokban való gyakoriság ismeretlen | Előbb mérendő (GSP10) | P1; G0-próba bővítése |
 | SP09 | HTTP | Minden streamválasz `Connection: close`. Upstreamből származik, szándékos (`92fcb8d`, #274). | Hipotézis: kérésenként új TCP/TLS-kapcsolat | Kompatibilitási kapu; alapból nincs változás | P3 |
 
 **Ami jó, és nem változik:**
@@ -371,6 +373,8 @@ A holt `get_critical_pieces` eltávolítása önálló, viselkedésváltozás n�
 - A párosított feliratdarabok (legfeljebb 6, csak kis feliratok) 500 ms-ot kapnak.
 - Az upstreamben ugyanez a határdarab-logika él.
 
+**Mért háttér (`pb0-v2`, leíró):** a fork indulása az upstreamnél J-n túl lassabb: fast/4 MiB 6,8 s vs 4,6 s, fast/16 MiB 13,2 s vs 8,9 s, és 16 MiB-os darabnál a fájlvég-próba ~4,2 s vs 0,05 s. A forrásdiff szerint az upstream csak a fájl első és utolsó darabját sürgeti (1+1), a fork az első és utolsó 3-at (6 darab, 0 ms). Az okot a GSP02 igazolja.
+
 **Hipotézis:**
 - Nagy darabméretnél az első lejátszható bájt később érkezik, mert a sürgős darabok egymással versenyeznek.
 - A fájlvég-próba (MP4 `moov`, MKV cues) igénye kicsi, ezért bájtkorláttal is kiszolgálható.
@@ -475,6 +479,30 @@ A holt `get_critical_pieces` eltávolítása önálló, viselkedésváltozás n�
 **GSP04 kapu (H1):**
 - **Forgatókönyv:** letöltött fájl, 1 és 4 MiB-os darab, a kliens a lehető leggyorsabban olvas. Mellette a GSP01 lejátszási profilja regressziókontrollként.
 - **Metrikák:** átvitel, CPU, RSS.
+
+<!-- doc-anchor:sp10 -->
+<a id="sp10"></a>
+### SP10 — Beragadó peerek indulási büntetése
+
+**Forrás:** `relay/service.py` session-beállítások `:58–80` (`piece_timeout` 10 s, `request_timeout` 30 s,
+`strict_end_game_mode` False; az upstreammel azonosak); `relay/entities.py` határidő-kezelés.
+
+**Tény (`pb0-v2`, leíró):** a mixed profilban 8 peerből 2 elfogadja a blokk-kérést, de nem válaszol. Az első bájt
+13–18 s (4 és 16 MiB-os darab), a seederhez kapcsolódás után 12–15 s; A és B között nincs érdemi különbség.
+
+**Hipotézis:** a határidős (time-critical) blokkok egy része a nem válaszoló peernél ragad, és csak időtúllépés
+után kerül másik peerhez.
+
+**Terv:**
+1. A G0-próba bővítése: egy beragadó és több gyors peer mellett mérni, mennyi idő után kéri újra a libtorrent a
+   határidős blokkot, és ez hogyan függ a `piece_timeout`, `request_timeout`, `peer_timeout` és a snub-logika
+   beállításaitól. Vak hangolás nincs: csak a próbában mért hatású beállítás lehet jelölt.
+2. **Jelöltek** (`Új` kapcsoló mögött, alapérték a mai): aktív streamnél rövidebb időkorlát a határidős
+   kérésekre, vagy a lassú/beragadó peer kizárása a határidős darabokból.
+3. **GSP10 kapu (H1):** a mixed profil 1/4/16 MiB-os cellái 8/30/60 Mbit/s-on; fő metrika az indulási idő;
+   mellékmetrika a fast és thin profil (nincs J-n túli romlás).
+
+**Függés:** az SP02 döntése után, mert az indulási sorrend és a beragadó blokkok hatása összeadódik.
 
 <!-- doc-anchor:sp09 -->
 <a id="sp09"></a>
@@ -677,6 +705,7 @@ A sorszám a munkacsomagok sorrendje. Egy csomag egy commit, vagy kis, önálló
 | 3 — SP06/a | P2 | — | Sikertelen Tech Info-lekérés nem mérgezi 1 órára a cache-t |
 | 4 — GSP02 → SP02 | P1 | H1, UX-keret | Fokozatos indulási sorrend vagy mért elvetés |
 | 5 — GSP01 → SP01 | P1 | SP02 döntése, H1, UX-keret | Bájtalapú előtöltési ablak vagy mért elvetés; holt kód eltávolítva |
+| 5b — GSP10 → SP10 | P1 | SP02 döntése, a G0-próba bővítése | Beragadó peerek kezelése, vagy mért elvetés |
 | 6 — GSP05 → SP05/b | P1 | SP05/a, H2 | Tracker-rövidzár vagy mért elvetés |
 | 7 — GSP06 → SP06/b | P2 | SP06/a, H2 | Korábban induló, háttérben befejeződő Tech Info, vagy mért elvetés |
 | 8 — GSP07 → SP07 | P2 | SP05/b döntése, UX-döntés a kemény TTL-ről | Azonnali régi találat háttérfrissítéssel, vagy mért elvetés |

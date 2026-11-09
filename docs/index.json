@@ -1638,6 +1638,11 @@
           "level": 3
         },
         {
+          "title": "SP10 — Beragadó peerek indulási büntetése",
+          "anchor": "sp10",
+          "level": 3
+        },
+        {
           "title": "SP09 — `Connection: close` minden streamválaszon",
           "anchor": "sp09",
           "level": 3

@@ -64,6 +64,8 @@ def main() -> None:
     for record in records:
         cell = record["cell"]
         key = f"{cell['profile']}/{cell['piece_size'] >> 20}MiB/{cell['bitrate_mbit']}Mbit"
+        if "series" in cell:
+            key += f"/series{cell['series']}"
         entry = cells.setdefault(key, {}).setdefault(record["label"], {"runs": 0, "failed": 0, "values": {}})
         entry["runs"] += 1
         if record.get("failed"):

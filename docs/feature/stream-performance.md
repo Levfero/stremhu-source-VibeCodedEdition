@@ -139,7 +139,13 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 
 | Csomag | Állapot | Bizonyíték |
 |---|---|---|
-| 0 — G0 + mérőeszközök + baseline | folyamatban: G0-próba kész, H1 smoke-tesztelve (A és B). A `pb0-v1` 3 futás után megszakítva (harnesshiba: hiányzó seed-statisztika), javítva; `pb0-v2` regisztrálva a futtatás előtt | [G0-próba](stream-performance/evidence/g0-libtorrent-probe-v2.json), [pb0-v1 megszakítás](stream-performance/evidence/pb0-v1-aborted.json), [pb0-v2 protokoll](stream-performance/evidence/pb0-v2-protocol.json) |
+| 0 — G0 + mérőeszközök + baseline | **kész.** G0-próba; H1 (A és B). `pb0-v1` 3 futás után megszakítva (harnesshiba), `pb0-v2` 135/135 futás, 0 hibás futás. Leíró eredmény: a fork indulása J-n túl lassabb az upstreamnél (SP02), a beragadó peerek 13–18 s-ot okoznak (új SP10), nagy a fel nem használt letöltés. | [G0-próba](stream-performance/evidence/g0-libtorrent-probe-v2.json), [pb0-v2 protokoll](stream-performance/evidence/pb0-v2-protocol.json), [összesítés](stream-performance/evidence/pb0-v2-summary.json), [értékelés](stream-performance/evidence/pb0-v2-assessment.json), [minden futás](stream-performance/evidence/pb0-v2-complete.json), [pb0-v1 megszakítás](stream-performance/evidence/pb0-v1-aborted.json) |
+| 1 — SP03 | jelölt a `wip/sp03-playback-history` ágon (`996abd6`); tesztek zöldek, a kapu (H1 + H3) hátra | — |
+| 2 — SP05/a | **kész** (`40d166e`): egy időkorlát-segéd, változatlan viselkedés | `test_indexer_search_timeout.py` |
+| 3 — SP06/a | **kész** (`cd4b0ad`): sikertelen Tech Info-lekérés nem kerül 1 órára a cache-be | `test_tech_info_failures.py` |
+| 4–5 — SP02/SP01 kód | kapcsoló mögött bent (`b794167`), alapérték `legacy`; a GSP02 következik | `test_relay_start_and_readahead_policy.py` |
+
+Ellenőrzés a `b794167`-en: Ruff és basedpyright tiszta; pytest 738 passed / 64 snapshot.
 
 <!-- doc-anchor:doc-ux-slo-keret -->
 <a id="doc-ux-slo-keret"></a>

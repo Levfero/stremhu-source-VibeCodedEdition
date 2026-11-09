@@ -197,3 +197,21 @@ def test_dropped_window_pieces_return_to_the_background_priority(policy, readahe
     assert 11 not in handle.deadlines
     # window: back to the streaming background (0); legacy keeps today's leak (1).
     assert handle.priority[11] == dropped_priority
+
+
+def test_upstream_like_candidate_matches_the_upstream_deadlines(policy):
+    # s4pp1/stremhu-source@8c99c7d: first and last piece urgent; window 0 / 2000 + 1000*d ms.
+    policy(start="edges", readahead="upstream")
+    torrent, file, handle = make_torrent(MIB, 20)
+    stream_at(torrent, file, 5)
+    assert torrent.get_deadlines() == {0: 0, 19: 0, 5: 0, 6: 3000, 7: 4000, 8: 5000}
+    assert handle.status_calls == 1 and handle.have_piece_calls == 0
+
+
+def test_upstream_like_window_skips_downloaded_pieces_and_wraps(policy):
+    policy(start="edges", readahead="upstream")
+    torrent, file, _ = make_torrent(4 * MIB, 10, have={0, 9, 8})
+    stream_at(torrent, file, 7)
+    # 4 MiB pieces -> 4-piece window: 7, then wrap to 1, 2, 3 (0, 8, 9 downloaded); edges already present.
+    deadlines = torrent.get_deadlines()
+    assert deadlines == {7: 0, 1: 2000 + 4000, 2: 2000 + 5000, 3: 2000 + 6000}

@@ -126,11 +126,15 @@ class Torrent:
         self.service.trigger_priority_update(self.info_hash)
 
     def get_deadlines(self) -> dict[int, int]:
-        graded_start = config.relay_start_policy == "graded"
-        window = config.relay_readahead_policy == "window"
+        start_policy = config.relay_start_policy
+        readahead_policy = config.relay_readahead_policy
         # Az új policy-k frissítésenként egyetlen darabtérkép-lekérdezést használnak (G0: a
         # darabonkénti have_piece natív hívás ~55 µs); a legacy út változatlan.
-        have = self._piece_bitfield() if graded_start or window else None
+        have = (
+            self._piece_bitfield()
+            if start_policy != "legacy" or readahead_policy != "legacy"
+            else None
+        )
 
         target_deadlines: dict[int, int] = {}
 
@@ -138,8 +142,10 @@ class Torrent:
             if not file.has_active_streams:
                 continue
 
-            if graded_start and have is not None:
+            if start_policy == "graded" and have is not None:
                 self._set_graded_boundary_deadlines(file, have, target_deadlines)
+            elif start_policy == "edges" and have is not None:
+                self._set_edge_deadlines(file, have, target_deadlines)
             else:
                 self._set_file_boundary_priorities(file, target_deadlines)
             self._set_matched_subtitle_priorities(file, target_deadlines)
@@ -147,8 +153,10 @@ class Torrent:
             for stream in list(file.streams.values()):
                 if stream.is_destroying:
                     continue
-                if window and have is not None:
+                if readahead_policy == "window" and have is not None:
                     self._set_window_deadlines(stream, file, have, target_deadlines)
+                elif readahead_policy == "upstream" and have is not None:
+                    self._set_upstream_stream_deadlines(stream, file, have, target_deadlines)
                 else:
                     self._set_legacy_stream_deadlines(stream, file, target_deadlines)
 
@@ -252,6 +260,48 @@ class Torrent:
             fetched += 1
             if fetched >= window:
                 break
+
+    def _set_upstream_stream_deadlines(
+        self,
+        stream: Stream,
+        file: File,
+        have: list[bool],
+        target_deadlines: dict[int, int],
+    ) -> None:
+        """GSP02-v2 jelölt: a legacy ablak (darabszám, körbefordulás), az upstream határidő-képletével.
+
+        ``s4pp1/stremhu-source@8c99c7d``: az aktuális darab 0 ms, a többi ``2000 + 1000·d`` ms.
+        """
+        current = stream.current_stream_piece
+        distance_to_end_of_file = (file.end_piece_index - current) + 1
+        candidates = itertools.chain(
+            ((index, index - current) for index in range(current, file.end_piece_index + 1)),
+            (
+                (index, distance_to_end_of_file + (index - file.start_piece_index))
+                for index in range(file.start_piece_index, current)
+            ),
+        )
+        fetched = 0
+        for piece_index, distance in candidates:
+            if have[piece_index]:
+                continue
+            deadline = 0 if piece_index == current else 2000 + distance * 1000
+            if piece_index not in target_deadlines or deadline < target_deadlines[piece_index]:
+                target_deadlines[piece_index] = deadline
+            fetched += 1
+            if fetched >= self.prefetch_piece_count:
+                break
+
+    def _set_edge_deadlines(
+        self,
+        file: File,
+        have: list[bool],
+        target_deadlines: dict[int, int],
+    ) -> None:
+        """GSP02-v2 jelölt: csak a fájl első és utolsó darabja sürgős (az upstream 1+1 viselkedése)."""
+        for piece_index in {file.start_piece_index, file.end_piece_index}:
+            if not have[piece_index]:
+                target_deadlines[piece_index] = 0
 
     def _set_graded_boundary_deadlines(
         self,

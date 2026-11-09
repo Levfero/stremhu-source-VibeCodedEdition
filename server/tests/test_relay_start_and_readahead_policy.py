@@ -215,3 +215,40 @@ def test_upstream_like_window_skips_downloaded_pieces_and_wraps(policy):
     # 4 MiB pieces -> 4-piece window: 7, then wrap to 1, 2, 3 (0, 8, 9 downloaded); edges already present.
     deadlines = torrent.get_deadlines()
     assert deadlines == {7: 0, 1: 2000 + 4000, 2: 2000 + 5000, 3: 2000 + 6000}
+
+
+def test_focus_gives_the_awaited_piece_exclusive_priority(policy):
+    policy(start="edges", readahead="focus")
+    torrent, file, handle = make_torrent(16 * MIB, 64, have={0, 63})
+    stream_at(torrent, file, 32)  # e.g. right after a seek: piece 32 is missing
+    assert torrent.get_deadlines() == {32: 0}
+    assert handle.status_calls == 1
+
+
+def test_focus_runs_the_tight_window_once_the_awaited_piece_is_present(policy):
+    policy(start="edges", readahead="focus")
+    torrent, file, _ = make_torrent(MIB, 20, have={0, 19, 5})
+    stream_at(torrent, file, 5)
+    # piece 5 present -> legacy window from 6: 300 ms, then 1000 + 500*d
+    assert torrent.get_deadlines() == {6: 300, 7: 2000, 8: 2500, 9: 3000}
+
+
+def test_focus_returns_dropped_window_pieces_to_the_background(policy):
+    policy(start="edges", readahead="focus")
+    torrent, file, handle = make_torrent(MIB, 100, have={0, 99, 10})
+    stream = stream_at(torrent, file, 10)
+    torrent.priority_manager()
+    assert handle.deadlines.get(12) == 2000
+    stream.current_stream_piece = 60  # seek to a missing piece -> focus on it alone
+    torrent.priority_manager()
+    assert handle.deadlines == {60: 0}
+    assert handle.priority[12] == PRIO_0
+
+
+def test_focus_with_a_parallel_tail_probe_keeps_both_awaited_pieces(policy):
+    policy(start="edges", readahead="focus")
+    torrent, file, _ = make_torrent(16 * MIB, 64)
+    stream_at(torrent, file, 0)
+    tail = Stream("tail", "p", "u", torrent, file, file.size - 1024, file.size - 1)
+    tail.current_stream_piece = 63
+    assert torrent.get_deadlines() == {0: 0, 63: 0}

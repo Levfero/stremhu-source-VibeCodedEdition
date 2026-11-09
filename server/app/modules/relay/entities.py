@@ -92,7 +92,7 @@ class Torrent:
 
             target_deadlines = self.get_deadlines()
 
-            restore_priority = config.relay_readahead_policy == "window"
+            restore_priority = config.relay_readahead_policy in ("window", "focus")
             for piece_index in list(self._active_deadlines.keys()):
                 if piece_index not in target_deadlines:
                     self.torrent_handle.reset_piece_deadline(piece_index)
@@ -157,6 +157,8 @@ class Torrent:
                     self._set_window_deadlines(stream, file, have, target_deadlines)
                 elif readahead_policy == "upstream" and have is not None:
                     self._set_upstream_stream_deadlines(stream, file, have, target_deadlines)
+                elif readahead_policy == "focus" and have is not None:
+                    self._set_focus_stream_deadlines(stream, file, have, target_deadlines)
                 else:
                     self._set_legacy_stream_deadlines(stream, file, target_deadlines)
 
@@ -286,6 +288,44 @@ class Torrent:
             if have[piece_index]:
                 continue
             deadline = 0 if piece_index == current else 2000 + distance * 1000
+            if piece_index not in target_deadlines or deadline < target_deadlines[piece_index]:
+                target_deadlines[piece_index] = deadline
+            fetched += 1
+            if fetched >= self.prefetch_piece_count:
+                break
+
+    def _set_focus_stream_deadlines(
+        self,
+        stream: Stream,
+        file: File,
+        have: list[bool],
+        target_deadlines: dict[int, int],
+    ) -> None:
+        """GSP02-v3 jelölt: a lejátszó által várt darab kizárólagos elsőbbsége.
+
+        Ha a stream aktuális darabja még hiányzik, csak az kap határidőt (0 ms), így minden
+        peer azon dolgozik (a diagnózis szerint különben a következő darabbal osztozik a
+        sávszélességen). Ha megvan, a legacy ablak fut (azonos darabszám, körbefordulás és
+        határidők: 300 ms, majd ``1000 + 500·d``). Az ablakból kieső darab a háttérprioritásra
+        áll vissza (``priority_manager``).
+        """
+        current = stream.current_stream_piece
+        if not have[current]:
+            target_deadlines[current] = 0
+            return
+        distance_to_end_of_file = (file.end_piece_index - current) + 1
+        candidates = itertools.chain(
+            ((index, index - current) for index in range(current, file.end_piece_index + 1)),
+            (
+                (index, distance_to_end_of_file + (index - file.start_piece_index))
+                for index in range(file.start_piece_index, current)
+            ),
+        )
+        fetched = 0
+        for piece_index, distance in candidates:
+            if have[piece_index]:
+                continue
+            deadline = 300 if distance == 1 else 1000 + distance * 500
             if piece_index not in target_deadlines or deadline < target_deadlines[piece_index]:
                 target_deadlines[piece_index] = deadline
             fetched += 1

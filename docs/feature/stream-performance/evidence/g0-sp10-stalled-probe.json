@@ -1,0 +1,1438 @@
+{
+ "id": "g0-sp10-stalled-probe",
+ "item": "SP10",
+ "status": "PARTIAL: stopped early (weekly token budget). Only batch L1 is a clean, complete batch; everything under 'hints' is n=1 or timing-contaminated and must not be used as a result.",
+ "kind": "G0 functional probe (raw libtorrent, synthetic swarm); not a gate measurement, selects no default",
+ "is_measurement": false,
+ "recorded_at_utc": "2026-11-09T18:13:18.691445+00:00",
+ "provenance": {
+  "script": "scripts/probe_sp_stalled_peers.py",
+  "script_sha256": "c261476383c4de597adbb0e3bc8c76671975fc251679205b5147a184817dc901",
+  "script_sha256_as_run": "dc25bd8a4e5f4253c0c7a6f3ecec921ebc84e226346d3c8d893ca04ef750a070",
+  "script_sha256_note": "script_sha256 is the committed (LF) file; L1 ran the same text with CRLF line endings (Windows working copy, bind-mounted read-only) = script_sha256_as_run.",
+  "helpers_sha256": {
+   "scripts/sp_seed_service.py": "b670ba1ff04e889dd8e49cc3781f2dc0a3cf7cbe10de785a59309b977127d3ce",
+   "scripts/fixtures/local_bt_seed.py": "f89cb48ef0ad3337e07eea697a57fcce16e4e45e2008bcc5e01d18e03cf123b5",
+   "scripts/fixtures/synthetic_torrent.py": "49d3640d7c9e105094ddccde829e5a301219089988f4a480fa7cd3363193e87c"
+  },
+  "image": "stremhu-source:sp-cand-c3d6035",
+  "image_id": "sha256:138c89746cf740216142d2dfe3224038326c4199e2cc47d01f7295386b5190d1",
+  "native_version": "2.1.1.0",
+  "container": "docker run --rm --network none --cpuset-cpus 8-15 --cpus 2 --memory 1g --entrypoint python -v <repo>/scripts:/sp/scripts:ro <image> /sp/scripts/probe_sp_stalled_peers.py <args>",
+  "host_load": "A separate 5-hour gate (gsp02-v4) ran on CPUs 0-5 of the same Docker VM throughout; L1 ran alone on CPUs 8-15."
+ },
+ "setup": {
+  "client": "one libtorrent session per run with the relay/service.py session settings (piece_timeout 10, request_timeout 30, peer_timeout 60, strict_end_game_mode false, piece_extent_affinity true, ...) plus the variant override; probe-only: loopback listen, no DHT/LSD/UPnP/NAT-PMP, allow_multiple_connections_per_ip, plaintext; torrent at priority 0, set_max_connections(50)",
+  "serving_swarm": {
+   "mixed": "pb0-v2 mixed without its stalled peers: 3 x 3 MB/s 30 ms + 3 x 0.5 MB/s 100 ms (50 ms jitter)",
+   "fast4": "4 x 2.5 MB/s, 30 ms latency, 10 ms jitter (smoke only)"
+  },
+  "stalled_peers": "2 peers, each on its own loopback address: handshake, full bitfield, unchoke, then every block request ignored; 'silent' sends nothing more, 'chatty' sends a keep-alive every second",
+  "scenario_L1": "legacy: relay start 'legacy' + readahead 'legacy' (head and tail 3 pieces at 0 ms, 4-piece window), re-applied on every finished piece like Torrent.priority_manager (gsp02-v4 C0)",
+  "torrents": {
+   "4 MiB": "64 pieces (256 MiB)",
+   "16 MiB": "32 pieces (512 MiB)"
+  },
+  "time_origin": "first connect_peer call; piece times from piece_finished_alert (10 ms loop)",
+  "variants_L1": {
+   "ctrl": {
+    "stall": null,
+    "settings": {}
+   },
+   "product": {
+    "stall": "silent",
+    "settings": {}
+   },
+   "product_chatty": {
+    "stall": "chatty",
+    "settings": {}
+   }
+  }
+ },
+ "clean_batch_L1": {
+  "args": {
+   "scenario": "legacy",
+   "swarm": "mixed",
+   "piece_mib": [
+    4,
+    16
+   ],
+   "reps": 5,
+   "cap_s": 60.0
+  },
+  "wall_s": 288.9,
+  "seed_stats": {
+   "serving-127.0.0.1": {
+    "handshakes": 180,
+    "requests": 146129,
+    "requests_ignored": 0,
+    "cancels": 0,
+    "bytes_sent": 2394177536,
+    "peak_connections": 6,
+    "errors": [],
+    "first_handshake_monotonic": {
+     "1ffb14d9859eef24e24b5f83e4c190c30d94b54d": 2476.435318167,
+     "476c0361eacb4ea0dc20958400112e1589a3ae8b": 2491.951446743
+    },
+    "tracker_announces": null,
+    "tracker_errors": null
+   },
+   "stalled": {
+    "handshakes": 40,
+    "requests_ignored": 160,
+    "keepalives_sent": 162
+   }
+  },
+  "summary": {
+   "legacy/mixed": {
+    "4MiB": {
+     "ctrl": {
+      "n": 5,
+      "piece0_s": {
+       "median": 3.2,
+       "min": 3.17,
+       "max": 3.59,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 3.97,
+       "min": 3.97,
+       "max": 4.05,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 2.81,
+       "min": 2.77,
+       "max": 3.18,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": null,
+      "stalled_snub_after_first_request_s": null,
+      "stalled_snubbed_runs": 0,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     },
+     "product": {
+      "n": 5,
+      "piece0_s": {
+       "median": 3.22,
+       "min": 3.13,
+       "max": 4.59,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 4.61,
+       "min": 4.57,
+       "max": 4.93,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 2.8,
+       "min": 2.38,
+       "max": 5.64,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": 1,
+      "stalled_snub_after_first_request_s": null,
+      "stalled_snubbed_runs": 0,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     },
+     "product_chatty": {
+      "n": 5,
+      "piece0_s": {
+       "median": 3.17,
+       "min": 3.15,
+       "max": 4.75,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 4.67,
+       "min": 4.35,
+       "max": 4.78,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 2.79,
+       "min": 2.75,
+       "max": 4.61,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": 1,
+      "stalled_snub_after_first_request_s": null,
+      "stalled_snubbed_runs": 0,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     }
+    },
+    "16MiB": {
+     "ctrl": {
+      "n": 5,
+      "piece0_s": {
+       "median": 7.17,
+       "min": 7.16,
+       "max": 7.26,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 13.32,
+       "min": 11.04,
+       "max": 13.64,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 13.31,
+       "min": 9.91,
+       "max": 13.41,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": null,
+      "stalled_snub_after_first_request_s": null,
+      "stalled_snubbed_runs": 0,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     },
+     "product": {
+      "n": 5,
+      "piece0_s": {
+       "median": 12.89,
+       "min": 12.7,
+       "max": 13.17,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 12.89,
+       "min": 12.7,
+       "max": 13.17,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 13.14,
+       "min": 12.89,
+       "max": 13.14,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": 5,
+      "stalled_snub_after_first_request_s": {
+       "median": 9.98,
+       "min": 9.98,
+       "max": 9.99,
+       "n": 10
+      },
+      "stalled_snubbed_runs": 5,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     },
+     "product_chatty": {
+      "n": 5,
+      "piece0_s": {
+       "median": 12.9,
+       "min": 12.7,
+       "max": 13.16,
+       "n": 5
+      },
+      "first3_s": {
+       "median": 12.9,
+       "min": 12.7,
+       "max": 13.16,
+       "n": 5
+      },
+      "last_piece_s": {
+       "median": 13.14,
+       "min": 12.9,
+       "max": 23.73,
+       "n": 5
+      },
+      "not_done": 0,
+      "piece0_stuck_runs": 5,
+      "stalled_snub_after_first_request_s": {
+       "median": 9.98,
+       "min": 9.98,
+       "max": 9.99,
+       "n": 10
+      },
+      "stalled_snubbed_runs": 5,
+      "serving_snubs_total": 0,
+      "serving_block_timeouts_total": 0,
+      "redundant_mib_median": 0.0
+     }
+    }
+   }
+  },
+  "runs": [
+   {
+    "v": "ctrl",
+    "mib": 4,
+    "rep": 0,
+    "piece_s": {
+     "0": 3.575,
+     "1": 2.37,
+     "2": 3.97,
+     "last": 3.18
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 4,
+    "rep": 0,
+    "piece_s": {
+     "0": 3.131,
+     "1": 4.931,
+     "2": 3.935,
+     "last": 5.644
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.521,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.521,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.31
+   },
+   {
+    "v": "product_chatty",
+    "mib": 4,
+    "rep": 0,
+    "piece_s": {
+     "0": 3.165,
+     "1": 4.669,
+     "2": 3.968,
+     "last": 2.758
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 16,
+    "rep": 0,
+    "piece_s": {
+     "0": 7.17,
+     "1": 13.32,
+     "2": 11.485,
+     "last": 9.915
+    },
+    "redundant_mib": 1.81
+   },
+   {
+    "v": "product",
+    "mib": 16,
+    "rep": 0,
+    "piece_s": {
+     "0": 12.894,
+     "1": 12.073,
+     "2": 12.164,
+     "last": 12.894
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.506,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.505,
+      "first_block_timeout_s": 11.505,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.249
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 16,
+    "rep": 0,
+    "piece_s": {
+     "0": 12.896,
+     "1": 12.046,
+     "2": 12.137,
+     "last": 13.143
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.508,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.508,
+      "first_block_timeout_s": 11.508,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.251
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 4,
+    "rep": 1,
+    "piece_s": {
+     "0": 3.17,
+     "1": 3.576,
+     "2": 3.981,
+     "last": 2.775
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 4,
+    "rep": 1,
+    "piece_s": {
+     "0": 4.589,
+     "1": 3.186,
+     "2": 3.969,
+     "last": 2.382
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 4.314
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 4,
+    "rep": 1,
+    "piece_s": {
+     "0": 4.75,
+     "1": 3.206,
+     "2": 3.999,
+     "last": 2.82
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 4.567
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 16,
+    "rep": 1,
+    "piece_s": {
+     "0": 7.181,
+     "1": 11.041,
+     "2": 3.18,
+     "last": 13.341
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 16,
+    "rep": 1,
+    "piece_s": {
+     "0": 13.168,
+     "1": 12.006,
+     "2": 12.172,
+     "last": 12.901
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.503,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.503,
+      "first_block_timeout_s": 11.503,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.266
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 16,
+    "rep": 1,
+    "piece_s": {
+     "0": 12.914,
+     "1": 11.969,
+     "2": 12.033,
+     "last": 13.14
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.506,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.506,
+      "first_block_timeout_s": 11.506,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.249
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 4,
+    "rep": 2,
+    "piece_s": {
+     "0": 3.586,
+     "1": 3.971,
+     "2": 2.005,
+     "last": 3.181
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 4,
+    "rep": 2,
+    "piece_s": {
+     "0": 3.178,
+     "1": 4.611,
+     "2": 3.96,
+     "last": 2.781
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 4,
+    "rep": 2,
+    "piece_s": {
+     "0": 3.166,
+     "1": 3.959,
+     "2": 4.346,
+     "last": 4.61
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 16,
+    "rep": 2,
+    "piece_s": {
+     "0": 7.171,
+     "1": 11.03,
+     "2": 13.643,
+     "last": 13.309
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 16,
+    "rep": 2,
+    "piece_s": {
+     "0": 13.002,
+     "1": 9.994,
+     "2": 11.566,
+     "last": 13.137
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.524,
+      "max_queue": 9,
+      "snub_s": 11.502,
+      "first_block_timeout_s": 12.509,
+      "block_timeouts": 1
+     },
+     {
+      "first_request_s": 1.524,
+      "max_queue": 9,
+      "snub_s": 11.502,
+      "first_block_timeout_s": 11.502,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 10.484
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 16,
+    "rep": 2,
+    "piece_s": {
+     "0": 13.157,
+     "1": 12.891,
+     "2": 12.071,
+     "last": 23.726
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.502,
+      "first_block_timeout_s": 15.511,
+      "block_timeouts": 4
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.502,
+      "first_block_timeout_s": 11.502,
+      "block_timeouts": 4
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.265
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 4,
+    "rep": 3,
+    "piece_s": {
+     "0": 3.171,
+     "1": 3.576,
+     "2": 3.971,
+     "last": 2.765
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 4,
+    "rep": 3,
+    "piece_s": {
+     "0": 3.218,
+     "1": 4.835,
+     "2": 4.0,
+     "last": 2.822
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.05
+   },
+   {
+    "v": "product_chatty",
+    "mib": 4,
+    "rep": 3,
+    "piece_s": {
+     "0": 3.187,
+     "1": 4.783,
+     "2": 3.981,
+     "last": 2.79
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.03
+   },
+   {
+    "v": "ctrl",
+    "mib": 16,
+    "rep": 3,
+    "piece_s": {
+     "0": 7.262,
+     "1": 11.091,
+     "2": 12.773,
+     "last": 13.411
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 16,
+    "rep": 3,
+    "piece_s": {
+     "0": 12.89,
+     "1": 11.974,
+     "2": 12.17,
+     "last": 13.136
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.501,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.501,
+      "first_block_timeout_s": 11.501,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.254
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 16,
+    "rep": 3,
+    "piece_s": {
+     "0": 12.695,
+     "1": 12.007,
+     "2": 12.163,
+     "last": 13.198
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.504,
+      "first_block_timeout_s": 11.504,
+      "block_timeouts": 2
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.504,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.258
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 4,
+    "rep": 4,
+    "piece_s": {
+     "0": 3.201,
+     "1": 3.657,
+     "2": 4.052,
+     "last": 2.806
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product",
+    "mib": 4,
+    "rep": 4,
+    "piece_s": {
+     "0": 3.22,
+     "1": 4.572,
+     "2": 4.013,
+     "last": 2.801
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 4,
+    "rep": 4,
+    "piece_s": {
+     "0": 3.147,
+     "1": 3.533,
+     "2": 4.651,
+     "last": 2.749
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 5,
+      "snub_s": null,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 0,
+     "last_s": null
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "ctrl",
+    "mib": 16,
+    "rep": 4,
+    "piece_s": {
+     "0": 7.16,
+     "1": 13.319,
+     "2": 11.678,
+     "last": 9.915
+    },
+    "redundant_mib": 1.97
+   },
+   {
+    "v": "product",
+    "mib": 16,
+    "rep": 4,
+    "piece_s": {
+     "0": 12.696,
+     "1": 12.101,
+     "2": 12.254,
+     "last": 13.137
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.504,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.52,
+      "max_queue": 9,
+      "snub_s": 11.504,
+      "first_block_timeout_s": 11.504,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.257
+    },
+    "redundant_mib": 0.0
+   },
+   {
+    "v": "product_chatty",
+    "mib": 16,
+    "rep": 4,
+    "piece_s": {
+     "0": 12.899,
+     "1": 12.069,
+     "2": 12.16,
+     "last": 12.899
+    },
+    "stalled": [
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.5,
+      "first_block_timeout_s": null,
+      "block_timeouts": 0
+     },
+     {
+      "first_request_s": 1.519,
+      "max_queue": 9,
+      "snub_s": 11.5,
+      "first_block_timeout_s": 11.5,
+      "block_timeouts": 2
+     }
+    ],
+    "stalled_tcp_disconnects": [
+     [],
+     []
+    ],
+    "stuck_piece0": {
+     "max": 2,
+     "last_s": 11.253
+    },
+    "redundant_mib": 0.0
+   }
+  ]
+ },
+ "hints": {
+  "contaminated_L2_piece_timeout": {
+   "warning": "Ran while a second probe container overlapped (a stopped chain kept running); absolute times are not usable as results. Kept because the snub timing is a 1 s native tick and the piece-0 times were tight across 3 reps. Same script text as L1 except the serving-peer snub field (not recorded here).",
+   "summary": {
+    "legacy/mixed": {
+     "4MiB": {
+      "piece_t2": {
+       "n": 3,
+       "piece0_s": {
+        "median": 3.16,
+        "min": 3.14,
+        "max": 3.17,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 4.59,
+        "min": 4.55,
+        "max": 4.6,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 2.76,
+        "min": 2.74,
+        "max": 2.77,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 0,
+       "stalled_snub_after_first_request_s": {
+        "median": 2.99,
+        "min": 1.98,
+        "max": 2.99,
+        "n": 6
+       },
+       "stalled_snubbed_runs": 3,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.0
+      },
+      "piece_t3": {
+       "n": 3,
+       "piece0_s": {
+        "median": 3.19,
+        "min": 3.16,
+        "max": 3.19,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 4.6,
+        "min": 4.53,
+        "max": 4.7,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 2.76,
+        "min": 2.75,
+        "max": 2.78,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 0,
+       "stalled_snub_after_first_request_s": {
+        "median": 2.99,
+        "min": 2.98,
+        "max": 2.99,
+        "n": 3
+       },
+       "stalled_snubbed_runs": 3,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.0
+      },
+      "piece_t5": {
+       "n": 3,
+       "piece0_s": {
+        "median": 5.49,
+        "min": 3.18,
+        "max": 5.67,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 5.49,
+        "min": 4.76,
+        "max": 5.67,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 3.16,
+        "min": 2.79,
+        "max": 3.19,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 2,
+       "stalled_snub_after_first_request_s": null,
+       "stalled_snubbed_runs": 0,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.06
+      }
+     },
+     "16MiB": {
+      "piece_t2": {
+       "n": 3,
+       "piece0_s": {
+        "median": 5.69,
+        "min": 5.66,
+        "max": 5.69,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 12.2,
+        "min": 12.06,
+        "max": 12.2,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 9.41,
+        "min": 9.38,
+        "max": 10.99,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 3,
+       "stalled_snub_after_first_request_s": {
+        "median": 1.99,
+        "min": 1.99,
+        "max": 1.99,
+        "n": 6
+       },
+       "stalled_snubbed_runs": 3,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.75
+      },
+      "piece_t3": {
+       "n": 3,
+       "piece0_s": {
+        "median": 9.42,
+        "min": 9.38,
+        "max": 9.44,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 12.17,
+        "min": 12.13,
+        "max": 12.26,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 10.43,
+        "min": 10.39,
+        "max": 11.55,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 3,
+       "stalled_snub_after_first_request_s": {
+        "median": 2.98,
+        "min": 2.98,
+        "max": 2.99,
+        "n": 6
+       },
+       "stalled_snubbed_runs": 3,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.0
+      },
+      "piece_t5": {
+       "n": 3,
+       "piece0_s": {
+        "median": 9.43,
+        "min": 9.43,
+        "max": 9.44,
+        "n": 3
+       },
+       "first3_s": {
+        "median": 12.2,
+        "min": 11.6,
+        "max": 12.25,
+        "n": 3
+       },
+       "last_piece_s": {
+        "median": 10.61,
+        "min": 9.48,
+        "max": 10.75,
+        "n": 3
+       },
+       "not_done": 0,
+       "piece0_stuck_runs": 3,
+       "stalled_snub_after_first_request_s": {
+        "median": 4.99,
+        "min": 4.98,
+        "max": 4.99,
+        "n": 6
+       },
+       "stalled_snubbed_runs": 3,
+       "serving_snubs_total": 0,
+       "serving_block_timeouts_total": 0,
+       "redundant_mib_median": 0.0
+      }
+     }
+    }
+   }
+  },
+  "smoke3_n1": {
+   "warning": "n=1, earlier script revision (same logic, without the serving-snub field).",
+   "runs": [
+    {
+     "v": "product",
+     "mib": 16,
+     "rep": 0,
+     "piece_s": {
+      "0": 12.884,
+      "1": 12.032,
+      "2": 12.154,
+      "last": 13.141
+     },
+     "stalled": [
+      {
+       "first_request_s": 1.52,
+       "max_queue": 9,
+       "snub_s": 11.504,
+       "first_block_timeout_s": null,
+       "block_timeouts": 0
+      },
+      {
+       "first_request_s": 1.52,
+       "max_queue": 9,
+       "snub_s": 11.504,
+       "first_block_timeout_s": 11.504,
+       "block_timeouts": 2
+      }
+     ],
+     "stalled_tcp_disconnects": [
+      [],
+      []
+     ],
+     "stuck_piece0": {
+      "max": 2,
+      "last_s": 11.246
+     },
+     "redundant_mib": 0.0
+    },
+    {
+     "v": "piece_t2_chatty",
+     "mib": 16,
+     "rep": 0,
+     "piece_s": {
+      "0": 5.655,
+      "1": 11.998,
+      "2": 12.193,
+      "last": 11.57
+     },
+     "stalled": [
+      {
+       "first_request_s": 1.521,
+       "max_queue": 5,
+       "snub_s": 3.505,
+       "first_block_timeout_s": 9.506,
+       "block_timeouts": 3
+      },
+      {
+       "first_request_s": 1.521,
+       "max_queue": 5,
+       "snub_s": 3.505,
+       "first_block_timeout_s": 3.505,
+       "block_timeouts": 4
+      }
+     ],
+     "stalled_tcp_disconnects": [
+      [],
+      []
+     ],
+     "stuck_piece0": {
+      "max": 2,
+      "last_s": 3.301
+     },
+     "redundant_mib": 0.0
+    }
+   ]
+  }
+ },
+ "discarded_attempts": [
+  "smoke runs: two stalled peers from separate sp_seed_service processes shared a peer-id and libtorrent dropped one ('duplicate peer-id', only with allow_multiple_connections_per_ip); fixed with an own stalled-seed child (distinct peer-ids)",
+  "first matrix attempt: two probe containers overlapped; output discarded except the L2 hint above"
+ ],
+ "not_run": [
+  "request_timeout / peer_timeout / strict_end_game_mode / piece_extent_affinity / request_queue_time / max_out_request_queue variants (clean)",
+  "connect order (stall_last)",
+  "ip_filter watchdog",
+  "harm controls without stalled peers (ctrl_piece_t2/t3)",
+  "window3/fast4 and edges/mixed scenarios",
+  "piece_timeout combined with request_queue_time"
+ ],
+ "interpretation": {
+  "stable_facts_L1": [
+   "16 MiB pieces, legacy start (gsp02-v4 C0 deadlines), pb0-v2 mixed serving swarm: piece 0 completes at 12.89 s median [12.70-13.17] with two stalled peers versus 7.17 s [7.16-7.26] without (n=5 each); +5.7 s, no overlap. Silent and keep-alive ('chatty') stalled peers behave the same (12.90 s [12.70-13.16]).",
+   "Every stalled peer (10/10, silent and chatty) was snubbed 9.98-9.99 s after its first block request: the native 1 s tick of piece_timeout (product value 10), not request_timeout (30; the per-peer request_timeout read 30) or peer_timeout (60). Keep-alives do not prevent it.",
+   "In 5/5 stalled runs at 16 MiB, 1-2 blocks of piece 0 were requested only from a stalled peer until just before the snub; they left the stalled peer at the snub and piece 0 completed about 1.5 s later. Before the snub libtorrent 2.1.1 did not re-request them elsewhere (no time-critical duplicate request).",
+   "4 MiB pieces: no piece-0 penalty (3.22 s vs 3.20 s median); pieces 0-2 together +0.6 s (4.61 vs 3.97 s). The window was done before the 10 s snub, the stalled peers held mostly non-first blocks; the stall cost grows with piece size (more of a piece's time is spent waiting).",
+   "No serving peer was snubbed in any L1 run (0 false snubs at piece_timeout 10)."
+  ],
+  "hints_not_results": [
+   "Contaminated L2 (two containers overlapped, 3 reps, 16 MiB): with piece_timeout 2/3/5 the stalled peers were snubbed 1.99/2.98/4.99 s after their first request, i.e. the snub time follows piece_timeout exactly. Piece 0: 5.69 s (pt2), 9.42 s (pt3), 9.43 s (pt5) versus ~12.9 s at 10. The 3 and 5 s values ended at the same ~9.4 s: after the snub the freed blocks were not re-requested at once.",
+   "Probable reason (not yet tested): libtorrent's time-critical picker stops when the best peer already has more than 2 s of queued requests; with request_queue_time 3 every serving peer's queue is about 3 s deep, so freed deadline blocks wait for the regular picker / end-game. Candidate combination to probe: short piece_timeout plus request_queue_time 1 during streams.",
+   "4 MiB with piece_timeout 2/3 in contaminated L2: no change (3.16-3.19 s piece 0), as expected when the stall did not touch piece 0.",
+   "smoke3 (n=1, 16 MiB): piece_timeout 2 with chatty stalled peers: snub at 3.5 s, piece 0 at 5.66 s versus 12.88 s with product settings."
+  ],
+  "relation_to_pb0_v2": "pb0-v2 mixed (8 peers, 2 stalled) showed 13-18 s to the first byte. The raw-libtorrent probe reproduces a +5.7 s piece-0 penalty at 16 MiB purely from the stalled peers; the rest of the pb0 gap to the fast profile is lower swarm bandwidth (10.5 vs 32 MB/s) and connection set-up, not the stall.",
+  "candidate_basis": "Only piece_timeout has a demonstrated (contaminated, n=3) effect so far; a stream-scoped shorter piece_timeout is the evidence-backed candidate shape. Its value (2 vs 3 s), the harm on serving peers without stalls (ctrl_piece_t2/t3), and the request_queue_time interaction are NOT yet measured cleanly; the candidate was therefore not committed.",
+  "gsp10_gate_should_measure": [
+   "H1 mixed profile (2 of 8 peers stalled), 4 and 16 MiB (1 MiB as a control) at 30 Mbit/s: time to first byte / time to start, product vs stream-scoped piece_timeout candidate.",
+   "fast and thin profiles as regression controls: no J-exceeding loss of start time or throughput (false snubs of serving peers).",
+   "Record per run: stalled-peer snub time after first request and serving-peer snub count (libtorrent peer_snubbed_alert), so a PASS/FAIL can be attributed to the mechanism.",
+   "On top of whichever start policy GSP02 selects (the stall penalty adds to the start-order effect)."
+  ],
+  "limits": [
+   "Synthetic loopback swarm, one client container with 2 CPUs; absolute times are harness-bound, only within-batch differences are meaningful.",
+   "Stalled peers here never send data; slow-but-alive real peers with multi-second gaps would be snubbed too by a short piece_timeout (snub = request queue 1 and no time-critical requests until data arrives), which only the harm controls and the gate can quantify.",
+   "piece_timeout is a session setting: a candidate must scope it to active streams to leave background downloads unchanged."
+  ]
+ }
+}

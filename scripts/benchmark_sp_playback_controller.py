@@ -178,6 +178,12 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
         text = (logs.stdout or "") + (logs.stderr or "")
         record["app_log"] = {"tracebacks": text.count("Traceback"),
                              "error_lines": sum(1 for line in text.splitlines() if "ERROR" in line)}
+        if plan.get("capture_log_prefix"):
+            # Diagnostics only: lines with the opt-in prefix (relay-level fields, no URLs; masked anyway).
+            prefix = plan["capture_log_prefix"]
+            kept = [re.sub(r"(https?://\S+|/api/\S+)", "<masked-url>", line)[:400]
+                    for line in text.splitlines() if prefix in line]
+            (shared / "diag.log").write_text("\n".join(kept), encoding="utf-8")
         if plan.get("capture_tracebacks") and "Traceback" in text:
             # Diagnostics only: traceback blocks with every URL path/query masked (they may carry keys).
             blocks, keep = [], False

@@ -176,6 +176,7 @@ async def main() -> None:
             await run_phase(playback, args.play_s, args.play_s * 4 + 90, may_start)
         except Exception as error:  # noqa: BLE001 - recorded; the controller marks the run failed
             result["errors"].append(f"phase1:{type(error).__name__}")
+        stop_at = time.monotonic()
         stop.set()
         for task in (reader, tail_task):
             if task is not None:
@@ -193,6 +194,8 @@ async def main() -> None:
             **playback.summary(t_start),
         }
         result["first_byte_monotonic"] = main_marks.get("first_byte")
+        result["phase1_stop_monotonic"] = stop_at
+        result["phase1_closed_monotonic"] = main_marks.get("done")
 
         # Phase 2: seek.
         size = result.get("file_size")
@@ -202,6 +205,7 @@ async def main() -> None:
             seek_marks: dict = {}
             seek_stop = asyncio.Event()
             t_seek = time.monotonic()
+            result["seek_request_monotonic"] = t_seek
             seek_reader = asyncio.create_task(read_stream(client, url, {"Range": f"bytes={seek_at}-"}, seek,
                                                           seek_marks, seek_stop))
             try:

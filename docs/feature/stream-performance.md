@@ -143,7 +143,8 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 | 1 — SP03 | jelölt a `wip/sp03-playback-history` ágon (`996abd6`); tesztek zöldek, a kapu (H1 + H3) hátra | — |
 | 2 — SP05/a | **kész** (`40d166e`): egy időkorlát-segéd, változatlan viselkedés | `test_indexer_search_timeout.py` |
 | 3 — SP06/a | **kész** (`cd4b0ad`): sikertelen Tech Info-lekérés nem kerül 1 órára a cache-be | `test_tech_info_failures.py` |
-| 4–5 — SP02/SP01 kód | kapcsoló mögött bent (`b794167`), alapérték `legacy`; a GSP02 következik | `test_relay_start_and_readahead_policy.py` |
+| 4–5 — SP02/SP01 kód | kapcsoló mögött bent (`b794167`), alapérték `legacy` | `test_relay_start_and_readahead_policy.py` |
+| 4 — GSP02 | `gsp02-v1` regisztrálva a futtatás előtt (C0 legacy vs C1 graded ugyanazon a jelölt-image-en, két sorozat, A referencia) | [gsp02-v1 protokoll](stream-performance/evidence/gsp02-v1-protocol.json) |
 
 Ellenőrzés a `b794167`-en: Ruff és basedpyright tiszta; pytest 738 passed / 64 snapshot.
 

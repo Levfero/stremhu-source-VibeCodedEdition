@@ -252,3 +252,20 @@ def test_focus_with_a_parallel_tail_probe_keeps_both_awaited_pieces(policy):
     tail = Stream("tail", "p", "u", torrent, file, file.size - 1024, file.size - 1)
     tail.current_stream_piece = 63
     assert torrent.get_deadlines() == {0: 0, 63: 0}
+
+
+def test_startfocus_is_exclusive_only_for_the_first_piece_of_a_stream(policy):
+    policy(start="edges", readahead="startfocus")
+    torrent, file, _ = make_torrent(16 * MIB, 64, have={0, 63})
+    seek = Stream("seek", "p", "u", torrent, file, 32 * 16 * MIB, file.size - 1)
+    assert seek.current_stream_piece == 32
+    assert torrent.get_deadlines() == {32: 0}  # right after a seek: all peers on the awaited piece
+
+
+def test_startfocus_runs_the_window_after_the_first_piece(policy):
+    policy(start="edges", readahead="startfocus")
+    torrent, file, _ = make_torrent(MIB, 20, have={0, 19, 5})
+    stream = Stream("s", "p", "u", torrent, file, 5 * MIB, file.size - 1)
+    stream.current_stream_piece = 6  # the first piece (5) was delivered; piece 6 is missing
+    # no exclusivity any more: the legacy window from 6 (0, 300, 1000 + 500*d)
+    assert torrent.get_deadlines() == {6: 0, 7: 300, 8: 2000, 9: 2500}

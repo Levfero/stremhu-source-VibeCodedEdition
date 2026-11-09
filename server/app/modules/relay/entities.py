@@ -92,7 +92,7 @@ class Torrent:
 
             target_deadlines = self.get_deadlines()
 
-            restore_priority = config.relay_readahead_policy in ("window", "focus")
+            restore_priority = config.relay_readahead_policy in ("window", "focus", "startfocus")
             for piece_index in list(self._active_deadlines.keys()):
                 if piece_index not in target_deadlines:
                     self.torrent_handle.reset_piece_deadline(piece_index)
@@ -159,6 +159,10 @@ class Torrent:
                     self._set_upstream_stream_deadlines(stream, file, have, target_deadlines)
                 elif readahead_policy == "focus" and have is not None:
                     self._set_focus_stream_deadlines(stream, file, have, target_deadlines)
+                elif readahead_policy == "startfocus" and have is not None:
+                    self._set_focus_stream_deadlines(
+                        stream, file, have, target_deadlines, only_first_piece=True
+                    )
                 else:
                     self._set_legacy_stream_deadlines(stream, file, target_deadlines)
 
@@ -300,8 +304,13 @@ class Torrent:
         file: File,
         have: list[bool],
         target_deadlines: dict[int, int],
+        only_first_piece: bool = False,
     ) -> None:
-        """GSP02-v3 jelölt: a lejátszó által várt darab kizárólagos elsőbbsége.
+        """GSP02-v3/v4 jelölt: a lejátszó által várt darab kizárólagos elsőbbsége.
+
+        ``only_first_piece`` (``startfocus``): csak a stream első darabjára (indulás, illetve
+        tekerés utáni első darab) érvényes; a ``focus`` minden várt darabra, ami a gsp02-v3
+        szerint egyesével töltéshez és akadáshoz vezet.
 
         Ha a stream aktuális darabja még hiányzik, csak az kap határidőt (0 ms), így minden
         peer azon dolgozik (a diagnózis szerint különben a következő darabbal osztozik a
@@ -310,7 +319,10 @@ class Torrent:
         áll vissza (``priority_manager``).
         """
         current = stream.current_stream_piece
-        if not have[current]:
+        exclusive = not have[current] and (
+            not only_first_piece or current == stream.stream_start_piece_index
+        )
+        if exclusive:
             target_deadlines[current] = 0
             return
         distance_to_end_of_file = (file.end_piece_index - current) + 1
@@ -325,7 +337,12 @@ class Torrent:
         for piece_index, distance in candidates:
             if have[piece_index]:
                 continue
-            deadline = 300 if distance == 1 else 1000 + distance * 500
+            if distance == 0:
+                deadline = 0
+            elif distance == 1:
+                deadline = 300
+            else:
+                deadline = 1000 + distance * 500
             if piece_index not in target_deadlines or deadline < target_deadlines[piece_index]:
                 target_deadlines[piece_index] = deadline
             fetched += 1

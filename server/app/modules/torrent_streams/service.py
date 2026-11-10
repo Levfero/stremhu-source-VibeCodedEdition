@@ -28,6 +28,7 @@ from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
 from app.modules.torrent_source_provider.service import (
     TorrentSourceProviderService,
+    is_stale_result,
 )
 from app.modules.torrent_streams.schemas import (
     TorrentStream,
@@ -72,6 +73,77 @@ class TorrentStreamsService:
         self._preferences_service = preferences_service
         self._indexer_definitions_service = indexer_definitions_service
 
+    async def _find_imdb_sources(
+        self,
+        ids_to_search: list[str],
+        imdb_id: str | None,
+        prefetch_task: asyncio.Task[Any] | None,
+        allow_stale: bool = True,
+    ) -> tuple[list[Any], list[str], bool]:
+        """Az IMDb-azonosítók forrásai, hibái, és hogy régi trackerlista is volt-e köztük (SP07)."""
+        provider = self._torrent_source_provider_service
+
+        def search(target: str) -> Awaitable[tuple[list[Any], list[str]]]:
+            # A mai hívás változatlan; a jelző csak a kényszerített frissítésnél megy át.
+            if allow_stale:
+                return provider.find_by_imdb_id(target)
+            return provider.find_by_imdb_id(target, allow_stale=False)
+
+        torrent_sources: list[Any] = []
+        indexer_errors: list[str] = []
+        stale = False
+
+        if len(ids_to_search) == 1:
+            if prefetch_task is not None and ids_to_search[0] == imdb_id:
+                try:
+                    res = await prefetch_task
+                    if isinstance(res, tuple):
+                        torrent_sources, indexer_errors = res
+                        stale = is_stale_result(res)
+                except Exception as e:
+                    logger.debug("operation=stream-prefetch %s", network_error_fields(e))
+                    res = await search(ids_to_search[0])
+                    torrent_sources, indexer_errors = res
+                    stale = is_stale_result(res)
+            else:
+                res = await search(ids_to_search[0])
+                torrent_sources, indexer_errors = res
+                stale = is_stale_result(res)
+        elif len(ids_to_search) > 1:
+            tasks: list[Any] = []
+            if prefetch_task is not None and ids_to_search[0] == imdb_id:
+                tasks.append(prefetch_task)
+                remaining = ids_to_search[1:]
+            else:
+                remaining = ids_to_search
+
+            for i in remaining:
+                tasks.append(search(i))
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # CR15/c: túlterhelés nem tűnhet el némán a több-azonosítós ágon.
+            overloaded = [res for res in results if isinstance(res, SearchOverloadedError)]
+            if overloaded and len(overloaded) == len(results):
+                raise overloaded[0]
+            if overloaded:
+                indexer_errors.append(str(overloaded[0]))
+            seen_source_ids: set[tuple[str, str]] = set()
+            for res in results:
+                if isinstance(res, tuple):
+                    sources, errs = res
+                    stale = stale or is_stale_result(res)
+                    indexer_errors.extend(errs)
+                    for s in sources:
+                        s_key = (
+                            s.indexer_torrent.indexer_account.indexer_id,
+                            s.indexer_torrent.torrent_id,
+                        )
+                        if s_key not in seen_source_ids:
+                            seen_source_ids.add(s_key)
+                            torrent_sources.append(s)
+
+        return torrent_sources, indexer_errors, stale
+
     async def find_by_imdb(
         self,
         user: UserModel,
@@ -89,78 +161,47 @@ class TorrentStreamsService:
                 if alt_id and alt_id.startswith("tt") and alt_id not in ids_to_search:
                     ids_to_search.append(alt_id)
 
-        torrent_sources = []
-        indexer_errors = []
-
-        if len(ids_to_search) == 1:
-            if prefetch_task is not None and ids_to_search[0] == imdb_id:
-                try:
-                    res = await prefetch_task
-                    if isinstance(res, tuple):
-                        torrent_sources, indexer_errors = res
-                except Exception as e:
-                    logger.debug("operation=stream-prefetch %s", network_error_fields(e))
-                    (
-                        torrent_sources,
-                        indexer_errors,
-                    ) = await self._torrent_source_provider_service.find_by_imdb_id(
-                        ids_to_search[0]
-                    )
-            else:
-                (
-                    torrent_sources,
-                    indexer_errors,
-                ) = await self._torrent_source_provider_service.find_by_imdb_id(
-                    ids_to_search[0]
-                )
-        elif len(ids_to_search) > 1:
-            tasks: list[Any] = []
-            if prefetch_task is not None and ids_to_search[0] == imdb_id:
-                tasks.append(prefetch_task)
-                remaining = ids_to_search[1:]
-            else:
-                remaining = ids_to_search
-
-            for i in remaining:
-                tasks.append(self._torrent_source_provider_service.find_by_imdb_id(i))
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            # CR15/c: túlterhelés nem tűnhet el némán a több-azonosítós ágon.
-            overloaded = [res for res in results if isinstance(res, SearchOverloadedError)]
-            if overloaded and len(overloaded) == len(results):
-                raise overloaded[0]
-            if overloaded:
-                indexer_errors.append(str(overloaded[0]))
-            seen_source_ids: set[tuple[str, str]] = set()
-            for res in results:
-                if isinstance(res, tuple):
-                    sources, errs = res
-                    indexer_errors.extend(errs)
-                    for s in sources:
-                        s_key = (
-                            s.indexer_torrent.indexer_account.indexer_id,
-                            s.indexer_torrent.torrent_id,
-                        )
-                        if s_key not in seen_source_ids:
-                            seen_source_ids.add(s_key)
-                            torrent_sources.append(s)
+        torrent_sources, indexer_errors, stale = await self._find_imdb_sources(
+            ids_to_search, imdb_id, prefetch_task
+        )
 
         app_url = await owned_to_thread(self._settings_service.get_app_url)
         search_start_time = time.monotonic()
 
-        torrent_streams: list[TorrentStream] = []
+        def resolve_streams(sources: list[Any]) -> list[TorrentStream]:
+            resolved: list[TorrentStream] = []
+            for torrent_source in sources:
+                torrent_stream = TorrentStream.from_imdb_id(
+                    indexer_torrent=torrent_source.indexer_torrent,
+                    torrent_file=torrent_source.torrent_file,
+                    series=series,
+                    app_url=app_url,
+                    user=user,
+                )
 
-        for torrent_source in torrent_sources:
-            torrent_stream = TorrentStream.from_imdb_id(
-                indexer_torrent=torrent_source.indexer_torrent,
-                torrent_file=torrent_source.torrent_file,
-                series=series,
-                app_url=app_url,
-                user=user,
-            )
+                if torrent_stream:
+                    resolved.append(torrent_stream)
+            return resolved
 
-            if torrent_stream:
-                torrent_streams.append(torrent_stream)
+        torrent_streams = resolve_streams(torrent_sources)
+
+        # SP07 (új epizód védelme): ha a régi (puhán lejárt) trackerlista a kért epizódra vagy
+        # filmre nem ad lejátszható streamet, a név szerinti tartalék előtt szinkron, kényszerített
+        # frissítés jön. Kikapcsolt SP07-nél nincs régi lista, így ez az ág nem fut.
+        if not torrent_streams and stale:
+            try:
+                (
+                    torrent_sources,
+                    indexer_errors,
+                    _,
+                ) = await self._find_imdb_sources(
+                    ids_to_search, imdb_id, None, allow_stale=False
+                )
+            except SearchOverloadedError as e:
+                # Túlterhelésnél a régi lista marad; a tartalékkeresés a megszokott úton jön.
+                logger.debug("operation=stream-stale-refresh %s", network_error_fields(e))
+            else:
+                torrent_streams = resolve_streams(torrent_sources)
 
         # Ha nem sikerült lejátszható streamet találni az adott epizódhoz/filmhez,
         # másodlagos név szerinti keresést hajtunk végre

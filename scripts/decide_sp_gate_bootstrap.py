@@ -16,6 +16,12 @@ variant and cell) and compares means.
 - Failed runs and tracebacks with an application frame: candidate total <= C0 total.
 - Several passing candidates: larger total mean primary gain over the key cells; a tie goes
   to rule["tie_break"].
+
+Optional rule keys (absent = the gsp02-v4 behaviour, unchanged):
+- ``guard_metrics``: the guard metrics instead of GUARD_METRICS (GSP03: range-series TTFB).
+- ``zero_required``: dotted paths from the run record root (e.g. ``history_check.lost_writes``);
+  every non-failed candidate run must carry each value and its sum must be 0.
+- A cell with a ``name`` (GSP03: RTT and DB load per cell) is keyed by that name.
 """
 
 import json
@@ -28,6 +34,15 @@ GUARD_METRICS = ["start.time_to_start_s", "start.ttfb_s", "seek.resume_s", "star
 
 def metric(record: dict, dotted: str):
     value = record.get("result", {})
+    for part in dotted.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def record_value(record: dict, dotted: str):
+    value = record
     for part in dotted.split("."):
         if not isinstance(value, dict) or part not in value:
             return None
@@ -73,6 +88,8 @@ def main() -> None:
 
     def cell_of(record: dict) -> str:
         cell = record["cell"]
+        if "name" in cell:
+            return cell["name"]
         return f"{cell['profile']}/{cell['piece_size'] >> 20}MiB/{cell['bitrate_mbit']}Mbit"
 
     cells = sorted({cell_of(r) for r in ok})
@@ -81,11 +98,22 @@ def main() -> None:
         return [float(v) for r in ok if r["label"] == label and cell_of(r) == cell
                 if (v := metric(r, name)) is not None]
 
+    guard_metrics = rule.get("guard_metrics", GUARD_METRICS)
+    zero_required = rule.get("zero_required", [])
+
+    def zero_check(label: str) -> dict:
+        report = {}
+        for path in zero_required:
+            found = [record_value(r, path) for r in ok if r["label"] == label]
+            numbers = [v for v in found if isinstance(v, (int, float))]
+            report[path] = {"sum": sum(numbers), "missing": len(found) - len(numbers)}
+        return report
+
     results = {}
     for candidate in rule["candidates"]:
         tests = {}
         for cell in cells:
-            for name in GUARD_METRICS:
+            for name in guard_metrics:
                 a, b = values("C0", cell, name), values(candidate, cell, name)
                 if len(a) >= 3 and len(b) >= 3:
                     diff, p_not_better, p_not_worse = bootstrap(a, b, rng, resamples)
@@ -111,6 +139,11 @@ def main() -> None:
             "failed_runs": failed, "tracebacks_total": tracebacks, "total_primary_gain_s": gain,
             "tests": {f"{cell} {name}": test for (cell, name), test in sorted(tests.items())},
         }
+        if zero_required:
+            zero = {"C0": zero_check("C0"), candidate: zero_check(candidate)}
+            results[candidate]["zero_required"] = zero
+            results[candidate]["pass"] = passed and all(
+                entry["sum"] == 0 and entry["missing"] == 0 for entry in zero[candidate].values())
     passing = [c for c in rule["candidates"] if results[c]["pass"]]
     if passing:
         tie_break = rule.get("tie_break", rule["candidates"][0])

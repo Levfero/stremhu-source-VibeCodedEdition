@@ -18,6 +18,16 @@ plan.json: {"tool_image": "...", "images": {"A": "...", "B": "..."}, "reps": 5,
             "profiles": {"mixed": {"peers": 8, "profiles": [...]}}, "total_size": 1073741824,
             "app_env": {"KEY": "value"}  # optional, per image key: {"C1": {...}}
             }
+
+Optional, for the GSP03 range series (absent = the playback run above, unchanged):
+  "client": "range-series"      benchmark_sp_range_series.py instead of the player emulator
+                                (client_args are passed to it; the cell needs no bitrate_mbit)
+  "fixture_playbacks": N        sp_app_fixture.py --playbacks N (fresh playback ids per run)
+  "history_check": true         sp_history_check.py after the client: record["history_check"]
+  "db_write_load_args": [...]   arguments of sp_db_write_load.py
+  per cell: "name" (cell key in summary/decision), "latency_proxy_one_way_ms" (overrides the
+  plan value), "db_write_load": true (synthetic SQLite write load in the app container while
+  the client runs: record["db_write_load"])
 """
 
 import argparse
@@ -91,7 +101,9 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
     subnet = SUBNET_BASE.format(octet)
     app_ip, client_ip = f"172.29.{octet}.20", f"172.29.{octet}.30"
     proxy_ip = f"172.29.{octet}.40"
-    proxy = f"sp-proxy-{run_id}" if plan.get("latency_proxy_one_way_ms") else None
+    one_way_ms = cell.get("latency_proxy_one_way_ms", plan.get("latency_proxy_one_way_ms"))
+    proxy = f"sp-proxy-{run_id}" if one_way_ms else None
+    series_mode = plan.get("client") == "range-series"
     net, vol = f"sp-net-{run_id}", f"sp-data-{run_id}"
     app = f"sp-app-{run_id}"
     profile = plan["profiles"][cell["profile"]]
@@ -134,9 +146,10 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
            "--cpus", "2", "--memory", "1g", "--memory-swap", "1g", "-e", f"HOST_IP={app_ip}", *env,
            "-v", f"{vol}:/app/data", *mounts, image)
         record["ready_s"] = round(wait_ready(app, app_ip, 180), 2)
+        fixture_extra = ["--playbacks", str(plan["fixture_playbacks"])] if plan.get("fixture_playbacks") else []
         fixture = sh("docker", "exec", "-w", "/app", "-e", "PYTHONPATH=/app", app, "python",
                      "/sp/scripts/sp_app_fixture.py", "--torrent-dir", "/sp/shared/torrents",
-                     "--out", "/sp/shared/targets.json")
+                     "--out", "/sp/shared/targets.json", *fixture_extra)
         record["fixture"] = json.loads(fixture.strip().splitlines()[-1])
         base_ip = app_ip
         if proxy:
@@ -144,7 +157,7 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
             sh("docker", "run", "-d", "--name", proxy, "--network", net, "--ip", proxy_ip, "--cpuset-cpus", "6,7",
                *mounts, "--entrypoint", "python", plan["tool_image"], "/sp/scripts/fixtures/latency_proxy.py",
                "--listen", "0.0.0.0:7070", "--target", f"{app_ip}:7070",
-               "--one-way-ms", str(plan["latency_proxy_one_way_ms"]))
+               "--one-way-ms", str(one_way_ms))
             for _ in range(60):
                 if '"ready": true' in sh("docker", "logs", proxy, check=False):
                     break
@@ -152,16 +165,45 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
             else:
                 raise TimeoutError("latency proxy not ready")
             base_ip = proxy_ip
-            record["latency_proxy_one_way_ms"] = plan["latency_proxy_one_way_ms"]
+            record["latency_proxy_one_way_ms"] = one_way_ms
+        db_load = shared / "db-load.json" if cell.get("db_write_load") else None
+        if db_load is not None:
+            # GSP03: synthetic SQLite write load next to the product process, for the whole client run.
+            sh("docker", "exec", "-d", "-w", "/app", "-e", "PYTHONPATH=/app", app, "python",
+               "/sp/scripts/sp_db_write_load.py", "--stats", "/sp/shared/db-load.json",
+               "--stop-file", "/sp/shared/db-load.stop", *[str(a) for a in plan.get("db_write_load_args", [])])
+            for _ in range(60):
+                if db_load.exists() and '"ready": true' in db_load.read_text(encoding="utf-8"):
+                    break
+                time.sleep(0.5)
+            else:
+                raise TimeoutError("db write load not ready")
         sampler = StatsSampler(app)
         sampler.start()
-        client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5", *mounts,
-                    "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_playback.py",
-                    "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
-                    "--out", "/sp/shared/result.json", "--bitrate-mbit", str(cell["bitrate_mbit"]),
-                    *[str(a) for a in plan.get("client_args", [])], timeout=900)
+        if series_mode:
+            client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5",
+                        *mounts, "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_range_series.py",
+                        "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
+                        "--out", "/sp/shared/result.json", *[str(a) for a in plan.get("client_args", [])], timeout=900)
+        else:
+            client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5", *mounts,
+                        "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_playback.py",
+                        "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
+                        "--out", "/sp/shared/result.json", "--bitrate-mbit", str(cell["bitrate_mbit"]),
+                        *[str(a) for a in plan.get("client_args", [])], timeout=900)
         record["client_line"] = json.loads(client.strip().splitlines()[-1])
         sampler.halt.set()
+        if db_load is not None:
+            (shared / "db-load.stop").write_text("stop", encoding="utf-8")
+            for _ in range(60):
+                if '"done": true' in db_load.read_text(encoding="utf-8"):
+                    break
+                time.sleep(0.5)
+            record["db_write_load"] = json.loads(db_load.read_text(encoding="utf-8"))
+        if plan.get("history_check"):
+            check = sh("docker", "exec", "-w", "/app", "-e", "PYTHONPATH=/app", app, "python",
+                       "/sp/scripts/sp_history_check.py", "--targets", "/sp/shared/targets.json")
+            record["history_check"] = json.loads(check.strip().splitlines()[-1])
         sh("docker", "stop", "-t", "15", *seeds, check=False)
         record["result"] = json.loads((shared / "result.json").read_text(encoding="utf-8"))
         per_peer = []
@@ -185,7 +227,10 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
         if handshake is not None and first_byte is not None:
             record["ttfb_after_first_handshake_s"] = round(first_byte - handshake, 3)
             record["first_handshake_after_start_s"] = round(handshake - record["result"]["t_start_monotonic"], 3)
-        received = record["result"]["start"]["bytes_received"] + record["result"].get("seek", {}).get("bytes_received", 0)
+        if series_mode:
+            received = record["result"]["bytes_received_total"]
+        else:
+            received = record["result"]["start"]["bytes_received"] + record["result"].get("seek", {}).get("bytes_received", 0)
         if seed_stats["peers_with_stats"] == len(seeds):
             record["unused_downloaded_bytes"] = seed_stats["bytes_sent"] - received
         else:
@@ -268,9 +313,14 @@ def main() -> None:
         with out.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record) + "\n")
         start = record.get("result", {}).get("start", {})
-        print(json.dumps({"order": order, "label": label, "cell": cell, "rep": rep, "failed": record.get("failed"),
-                          "ttfb_s": start.get("ttfb_s"), "time_to_start_s": start.get("time_to_start_s"),
-                          "stalls": start.get("stalls"), "stall_s": start.get("stall_s")}), flush=True)
+        line = {"order": order, "label": label, "cell": cell, "rep": rep, "failed": record.get("failed"),
+                "ttfb_s": start.get("ttfb_s"), "time_to_start_s": start.get("time_to_start_s"),
+                "stalls": start.get("stalls"), "stall_s": start.get("stall_s")}
+        series = record.get("result", {}).get("series")
+        if series is not None:
+            line.update(series_ttfb_s_p50=series.get("ttfb_s_p50"), series_non_206=series.get("non_206"),
+                        lost_writes=record.get("history_check", {}).get("lost_writes"))
+        print(json.dumps(line), flush=True)
 
 
 if __name__ == "__main__":

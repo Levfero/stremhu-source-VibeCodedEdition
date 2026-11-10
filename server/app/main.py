@@ -98,6 +98,9 @@ async def lifespan(app: FastAPI):
         restore_torrents()
         producers.append(asyncio.create_task(resume_save_loop(), name="resume-producer"))
         producers.append(asyncio.create_task(relay.priority_manager_loop(), name="relay-priority"))
+        if config.relay_stall_policy == "watchdog":
+            # SP10: kikapcsolva (alapérték) nincs task és nincs natív hívás.
+            producers.append(asyncio.create_task(relay.stall_watchdog_loop(), name="relay-stall-watchdog"))
         scheduler = setup_scheduler()
         scheduler.start()
         if not config.reverse_proxy_domain:

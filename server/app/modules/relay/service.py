@@ -1,6 +1,7 @@
 import asyncio
 import socket
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -17,9 +18,10 @@ from app.modules.relay.schemas import (
     RelaySettingsUpdate,
     RelayTorrent,
 )
+from app.modules.relay.stall_watchdog import PeerSample, StallWatchdog
 
-# A session piece_timeout-ja (az upstreammel azonos); az SP10 kapcsoló stream alatt rövidíti.
-PIECE_TIMEOUT_SECONDS = 10
+# SP10: a beragadt-peer figyelő mintavételi köze (a G0-próbában 0,25 s; 0,5 s elég a 2 s-os küszöbhöz).
+STALL_WATCHDOG_INTERVAL_SECONDS = 0.5
 
 
 class PieceReadAbortedError(Exception):
@@ -67,7 +69,7 @@ class RelayService:
                 "auto_sequential": False,
                 "piece_extent_affinity": True,
                 "peer_timeout": 60,
-                "piece_timeout": PIECE_TIMEOUT_SECONDS,
+                "piece_timeout": 10,
                 "request_timeout": 30,
                 "unchoke_interval": 10,
                 "active_downloads": -1,
@@ -83,7 +85,9 @@ class RelayService:
         )
 
         self._connection_policy_lock = threading.RLock()
-        self._applied_piece_timeout: int | None = PIECE_TIMEOUT_SECONDS
+        self._stall_lock = threading.Lock()
+        self._stall_watchdog: StallWatchdog | None = None
+        self._stall_filter_synced = True
         self._torrent_connections_limit = 20
         self._torrents: dict[libtorrent.sha1_hash, Torrent] = {}
         self._loop = asyncio.get_event_loop()
@@ -220,27 +224,80 @@ class RelayService:
             torrent._last_applied_limit = target
             torrent._last_applied_handle = handle
 
-    def apply_stall_policy(self) -> None:
-        """SP10: aktív stream alatt rövidebb session-szintű ``piece_timeout``.
+    async def stall_watchdog_loop(self) -> None:
+        """SP10 watchdog: a lifespan saját producere, csak ``relay_stall_policy == "watchdog"`` esetén.
 
-        A libtorrent a kérést elfogadó, de adatot nem küldő peert ``piece_timeout`` után
-        snubolja; csak ezután kerül a nála lévő határidős blokk másik peerhez (G0-próba).
-        A beállítás session-szintű, ezért csak addig rövid, amíg bármely torrentnek van aktív
-        streamje; utána visszaáll a mai értékre. ``legacy`` kapcsolónál nincs natív hívás.
+        A natív hívások worker szálon futnak (``owned_to_thread``), az event loop nem blokkol.
+        Leálláskor (cancel) a tiltólista törlődik, a session ip_filtere üres lesz.
         """
-        if config.relay_stall_policy != "stream_piece_timeout" or getattr(self, "_closed", False):
+        try:
+            while not getattr(self, "_closed", False):
+                await asyncio.sleep(STALL_WATCHDOG_INTERVAL_SECONDS)
+                try:
+                    await owned_to_thread(self.stall_watchdog_tick)
+                except Exception as error:
+                    logger.error("Stall watchdog failed: kind=%s", type(error).__name__)
+        finally:
+            try:
+                await owned_to_thread(self.clear_stall_bans)
+            except Exception as error:
+                logger.error("Stall watchdog cleanup failed: kind=%s", type(error).__name__)
+
+    def stall_watchdog_tick(self, now: float | None = None) -> None:
+        """Egy mintavétel: lejáratok, a streamelt torrentek peerjei, szükség esetén új ip_filter."""
+        if config.relay_stall_policy != "watchdog" or getattr(self, "_closed", False):
             return
-        with self._connection_policy_lock:
-            streaming = any(torrent.has_active_streams for torrent in list(self._torrents.values()))
-            target = config.relay_stream_piece_timeout_seconds if streaming else PIECE_TIMEOUT_SECONDS
-            if self._applied_piece_timeout == target:
+        now = time.monotonic() if now is None else now
+        with self._stall_lock:
+            if self._stall_watchdog is None:
+                self._stall_watchdog = StallWatchdog(
+                    config.relay_stall_watchdog_seconds,
+                    config.relay_stall_ban_seconds,
+                    config.relay_stall_ban_max,
+                )
+            detector = self._stall_watchdog
+            expired = detector.expire(now)
+            with self._connection_policy_lock:
+                streaming = [t for t in self._torrents.values() if t.has_active_streams]
+            samples: list[PeerSample] = []
+            for torrent in streaming:
+                handle = torrent.torrent_handle
+                if not handle.is_valid():
+                    continue
+                for peer in handle.get_peer_info():
+                    ip, port = peer.ip
+                    samples.append(PeerSample(
+                        torrent.info_hash, str(ip), int(port),
+                        int(peer.download_queue_length), int(peer.total_download),
+                    ))
+            banned = detector.observe(samples, now)
+            if banned or expired or not self._stall_filter_synced:
+                self._apply_stall_filter(detector.bans)
+                # Címet nem naplózunk, csak darabszámot.
+                logger.info(
+                    "Relay stall watchdog: banned=%s expired=%s active=%s",
+                    len(banned), len(expired), len(detector.bans),
+                )
+
+    def _apply_stall_filter(self, bans: dict[str, float]) -> None:
+        """A session ip_filtere pontosan a tiltólista; sikertelen hívás után a következő tick újrapróbálja."""
+        self._stall_filter_synced = False
+        ip_filter = libtorrent.ip_filter()
+        for ip in bans:
+            ip_filter.add_rule(ip, ip, 1)  # 1 = libtorrent.ip_filter blocked
+        self._libtorrent_session.set_ip_filter(ip_filter)
+        self._stall_filter_synced = True
+
+    def clear_stall_bans(self) -> None:
+        """Leállításkor: a tiltólista és a session ip_filtere üres (a relay más szabályt nem használ)."""
+        with self._stall_lock:
+            detector = self._stall_watchdog
+            if detector is None:
                 return
-            # Sikertelen natív hívás után a tényleges érték ismeretlen: a következő hívás újrapróbálja.
-            self._applied_piece_timeout = None
-            self._libtorrent_session.apply_settings({"piece_timeout": target})
-            self._applied_piece_timeout = target
-        # Csak váltáskor (stream indul / az utolsó véget ér): a kapu bekötési ellenőrzéséhez.
-        logger.info("Relay stall policy: piece_timeout=%s s (active streams: %s)", target, streaming)
+            had_bans = bool(detector.bans) or not self._stall_filter_synced
+            detector.reset()
+            if had_bans and not getattr(self, "_closed", False):
+                self._apply_stall_filter({})
 
     def get_torrents(self) -> list[RelayTorrent]:
         torrent_handlers = self._get_torrents()
@@ -490,8 +547,6 @@ class RelayService:
 
         with self._connection_policy_lock:
             self._torrents.pop(info_hash, None)
-            # Az eltávolított torrent streamje nem tarthatja rövid időkorláton a sessiont.
-            self.apply_stall_policy()
         self._loop.call_soon_threadsafe(self.cancel_piece_requests, str(info_hash))
 
         self._libtorrent_session.remove_torrent(

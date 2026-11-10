@@ -115,9 +115,6 @@ class Torrent:
             ):
                 self._update_prioritize_pieces(self._default_piece_priority)
 
-            # SP10: a session-szintű időkorlát a határidők után; natív hibája azokat nem akasztja meg.
-            self.service.apply_stall_policy()
-
         except Exception:
             logger.exception("Hiba történt a prioritáskezelőben.")
 

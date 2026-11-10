@@ -142,13 +142,19 @@ class Config(BaseSettings):
     relay_readahead_max_pieces: int = Field(default=128, ge=4)
     # A határidők darabméret-független lépésköze: ennyi bájt/s-os letöltést feltételez.
     relay_readahead_assumed_rate_bytes: int = Field(default=8_000_000, gt=0)
-    # Beragadó peerek (SP10): a kérést elfogadó, de adatot nem küldő peert a libtorrent csak
-    # `piece_timeout` (ma 10 s) után snubolja, addig a nála lévő határidős blokk nem kerül másik
-    # peerhez (g0-sp10-stalled-probe.json). "stream_piece_timeout": amíg bármely torrentnek van
-    # aktív streamje, a session `piece_timeout`-ja relay_stream_piece_timeout_seconds; stream
-    # nélkül a mai érték. Alapérték a mai (legacy) viselkedés, amíg a GSP10 kapu nem PASS.
-    relay_stall_policy: Literal["legacy", "stream_piece_timeout"] = "legacy"
-    relay_stream_piece_timeout_seconds: int = Field(default=3, ge=1, le=10)
+    # Beragadó peerek (SP10). A kérést elfogadó, de adatot nem küldő peer a libtorrentben csak
+    # piece_timeout (10 s) után snubolt, és a nála lévő blokkok akkor sem kerülnek gyorsan máshoz;
+    # rövidebb piece_timeout csak áttolja a késést (g0-sp10-stalled-probe-v2.json). "watchdog":
+    # aktív stream alatt félmásodpercenként peerlista; akinél kint lévő kérés van, de
+    # relay_stall_watchdog_seconds óta nem jött tőle adat, miközben ugyanannak a torrentnek egy
+    # másik peere haladt, annak az IP-je relay_stall_ban_seconds-ra a session ip_filterére kerül.
+    # A 120 s technikai alapérték (a tiltott peer ennyi ideig tőlünk sem kap feltöltést). A
+    # tiltólista legfeljebb relay_stall_ban_max cím. Alapérték a mai (legacy) viselkedés, amíg a
+    # GSP10 kapu nem PASS.
+    relay_stall_policy: Literal["legacy", "watchdog"] = "legacy"
+    relay_stall_watchdog_seconds: float = Field(default=2.0, gt=0)
+    relay_stall_ban_seconds: float = Field(default=120.0, gt=0)
+    relay_stall_ban_max: int = Field(default=64, ge=1)
     # Felirat: ASS->VTT konverzióra és memóriába gyűjtésre engedett max. forrásméret
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)

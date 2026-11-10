@@ -60,7 +60,8 @@ def make_torrent(piece_size: int, pieces: int, have: set[int] | None = None) -> 
     handle = FakeHandle(pieces, have)
     torrent = object.__new__(Torrent)
     torrent.torrent_handle = cast(Any, handle)
-    torrent.service = cast(Any, SimpleNamespace(apply_torrent_connection_policy=lambda _: None))
+    torrent.service = cast(Any, SimpleNamespace(apply_torrent_connection_policy=lambda _: None,
+                                                apply_stall_policy=lambda: None))
     torrent.info_hash = "0" * 40
     torrent.piece_size = piece_size
     torrent.total_size = piece_size * pieces

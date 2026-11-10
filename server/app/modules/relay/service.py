@@ -18,6 +18,9 @@ from app.modules.relay.schemas import (
     RelayTorrent,
 )
 
+# A session piece_timeout-ja (az upstreammel azonos); az SP10 kapcsoló stream alatt rövidíti.
+PIECE_TIMEOUT_SECONDS = 10
+
 
 class PieceReadAbortedError(Exception):
     """A darabolvasás a torrent eltávolítása vagy leállítás miatt megszakadt."""
@@ -64,7 +67,7 @@ class RelayService:
                 "auto_sequential": False,
                 "piece_extent_affinity": True,
                 "peer_timeout": 60,
-                "piece_timeout": 10,
+                "piece_timeout": PIECE_TIMEOUT_SECONDS,
                 "request_timeout": 30,
                 "unchoke_interval": 10,
                 "active_downloads": -1,
@@ -80,6 +83,7 @@ class RelayService:
         )
 
         self._connection_policy_lock = threading.RLock()
+        self._applied_piece_timeout: int | None = PIECE_TIMEOUT_SECONDS
         self._torrent_connections_limit = 20
         self._torrents: dict[libtorrent.sha1_hash, Torrent] = {}
         self._loop = asyncio.get_event_loop()
@@ -215,6 +219,28 @@ class RelayService:
                 raise
             torrent._last_applied_limit = target
             torrent._last_applied_handle = handle
+
+    def apply_stall_policy(self) -> None:
+        """SP10: aktív stream alatt rövidebb session-szintű ``piece_timeout``.
+
+        A libtorrent a kérést elfogadó, de adatot nem küldő peert ``piece_timeout`` után
+        snubolja; csak ezután kerül a nála lévő határidős blokk másik peerhez (G0-próba).
+        A beállítás session-szintű, ezért csak addig rövid, amíg bármely torrentnek van aktív
+        streamje; utána visszaáll a mai értékre. ``legacy`` kapcsolónál nincs natív hívás.
+        """
+        if config.relay_stall_policy != "stream_piece_timeout" or getattr(self, "_closed", False):
+            return
+        with self._connection_policy_lock:
+            streaming = any(torrent.has_active_streams for torrent in list(self._torrents.values()))
+            target = config.relay_stream_piece_timeout_seconds if streaming else PIECE_TIMEOUT_SECONDS
+            if self._applied_piece_timeout == target:
+                return
+            # Sikertelen natív hívás után a tényleges érték ismeretlen: a következő hívás újrapróbálja.
+            self._applied_piece_timeout = None
+            self._libtorrent_session.apply_settings({"piece_timeout": target})
+            self._applied_piece_timeout = target
+        # Csak váltáskor (stream indul / az utolsó véget ér): a kapu bekötési ellenőrzéséhez.
+        logger.info("Relay stall policy: piece_timeout=%s s (active streams: %s)", target, streaming)
 
     def get_torrents(self) -> list[RelayTorrent]:
         torrent_handlers = self._get_torrents()
@@ -464,6 +490,8 @@ class RelayService:
 
         with self._connection_policy_lock:
             self._torrents.pop(info_hash, None)
+            # Az eltávolított torrent streamje nem tarthatja rövid időkorláton a sessiont.
+            self.apply_stall_policy()
         self._loop.call_soon_threadsafe(self.cancel_piece_requests, str(info_hash))
 
         self._libtorrent_session.remove_torrent(

@@ -5,9 +5,13 @@ synthetic user (role USER, no password), one synthetic indexer account and a
 ``torrent_files`` row per synthetic .torrent, then writes stream targets (the
 synthetic user's API key and signed stream tokens of this throwaway container)
 to ``--out``. Prints only counts, never the key or a token. Uses the product's
-own services, so the playback path itself is unchanged.
+own services, so the playback path itself is unchanged. With ``--playbacks N``
+(GSP03 range series) every target also lists N further tokens of the same file,
+each with its own playback id (``playbacks``: playback_id + token); without it
+the output is unchanged.
 
 Usage: python sp_app_fixture.py --torrent-dir /sp/torrents --out /sp/out/targets.json [--indexer ncore]
+       [--playbacks N]
 """
 
 import argparse
@@ -29,6 +33,7 @@ def main() -> None:
     parser.add_argument("--torrent-dir", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--indexer", default="ncore")
+    parser.add_argument("--playbacks", type=int, default=0)
     args = parser.parse_args()
 
     with isolated_db_session() as db:
@@ -45,7 +50,15 @@ def main() -> None:
         files.create(indexer_id=args.indexer, torrent_id=torrent_id, torrent_bytes=path.read_bytes())
         token = generate_stream_token(StreamToken(indexer_id=args.indexer, torrent_id=torrent_id, file_index=0,
                                                   playback_id=str(uuid.uuid4())))
-        targets.append({"id": path.stem, "torrent_id": torrent_id, "token": token})
+        target = {"id": path.stem, "torrent_id": torrent_id, "token": token}
+        if args.playbacks:
+            playbacks = []
+            for _ in range(args.playbacks):
+                playback_id = str(uuid.uuid4())
+                playbacks.append({"playback_id": playback_id, "token": generate_stream_token(StreamToken(
+                    indexer_id=args.indexer, torrent_id=torrent_id, file_index=0, playback_id=playback_id))})
+            target["playbacks"] = playbacks
+        targets.append(target)
 
     out = Path(args.out)
     out.write_text(json.dumps({"api_key": api_key, "indexer": args.indexer, "targets": targets}), encoding="utf-8")

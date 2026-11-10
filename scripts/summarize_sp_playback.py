@@ -63,7 +63,8 @@ def main() -> None:
     cells: dict[str, dict] = {}
     for record in records:
         cell = record["cell"]
-        key = f"{cell['profile']}/{cell['piece_size'] >> 20}MiB/{cell['bitrate_mbit']}Mbit"
+        # A named cell (GSP03: RTT and DB load per cell) keys by its name; the rest as before.
+        key = cell["name"] if "name" in cell else f"{cell['profile']}/{cell['piece_size'] >> 20}MiB/{cell['bitrate_mbit']}Mbit"
         if "series" in cell:
             key += f"/series{cell['series']}"
         entry = cells.setdefault(key, {}).setdefault(record["label"], {"runs": 0, "failed": 0, "values": {}})

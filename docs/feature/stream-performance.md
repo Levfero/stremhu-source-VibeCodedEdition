@@ -71,6 +71,7 @@ Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A 
 |---|---|---|---|
 | Előtöltési ablak lejátszás közben | 4–8 hiányzó darab határidővel, a többi 0 prioritás; határidő `2000 + 1000·d` ms | Ugyanaz az ablak; határidő 0 / 300 / `1000 + 500·d` ms | **Alapértelmezés: az upstream képlete** (`RELAY_READAHEAD_POLICY=upstream`, `gsp02-v4` PASS:C2), ugyanazzal az ablakkal; a `legacy` visszaállítható. A bájtalapú ablak (SP01) nyitott. |
 | Indulási darabsorrend | A fájl első és utolsó darabja 0 ms (1+1) | Az első és utolsó 3 darab 0 ms (3+3) | **Alapértelmezés: az upstream 1+1** (`RELAY_START_POLICY=edges`, `gsp02-v4` PASS:C2): az indulás 5/6 kulcscellában gyorsabb (pl. 12,6 → 9,0 s); 16 MiB-nál a tekerés +0,2–0,7 s. A `legacy` (3+3) visszaállítható. |
+| Beragadó peerek (kérést elfogad, adatot nem küld) | libtorrent: `piece_timeout` 10 s után snub | Ugyanaz | Kapcsoló mögött, alapból kikapcsolva (SP10, GSP10 kapus): `RELAY_STALL_POLICY=watchdog` aktív stream alatt 2 s adat nélkül → IP-tiltás a session ip_filterén; a tiltás technikai alapértéke 120 s (`RELAY_STALL_BAN_SECONDS`), ennyi ideig a peer tőlünk sem kap feltöltést. A rövidebb `piece_timeout` a G0 v2 szerint nem javít. |
 | Lejátszási előzmény | A válasz előtt, minden kérésnél | Ugyanaz, zárral és izolált sessionnel | Playbackenként egyszer, a háttérben (SP03) |
 | Darabolvasás | Soros | Soros, megosztott olvasási taskkal | Egy darab átfedő előreolvasás (SP04, kapus) |
 | `Connection: close` | Igen (#274) | Igen | Változatlan, hacsak a kompatibilitási kapu nem PASS (SP09) |

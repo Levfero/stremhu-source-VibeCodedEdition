@@ -105,7 +105,7 @@ Lejátszási sebességmérés (TTFB, pufferelés, akadás) a projektben még nem
 | SP06 | Keresés | A Tech Info legfeljebb 1,5 s-ot vár, a keresés után, sorban. Időtúllépéskor a munka elvész. Az adapterben elnyelt hiba üres eredményként 1 órára cache-elődhet. | Hipotézis a gyakoriságra; a cache-mérgezés lehetősége forrásból igazolt | SP06/a implementálható; SP06/b előbb mérendő | P2 |
 | SP07 | Keresés | A 30 perces trackercache lejáratkor eldobja a bejegyzést, a következő kérés a teljes keresést kivárja. | Hipotézis | Előbb mérendő + termékdöntés | P2; SP05 után |
 | SP08 | Keresés | A név szerinti tartalékkeresések egymás után futnak. | Csak 0 IMDb-találatnál érint; gyakoriság ismeretlen | Előbb mérendő; várható eredmény: nincs változtatás | P3; SP05 után |
-| SP10 | Lejátszás | Egy peer, amely elfogadja a blokk-kérést, de nem válaszol, az első darabok blokkjait magánál tartja. A `pb0-v2` mixed profiljában (8 peerből 2 ilyen) az első bájt 13–18 s, az upstreamen és a forkon egyaránt. | Szintetikus profilban mérve igazolt; a valós swarmokban való gyakoriság ismeretlen | Előbb mérendő (GSP10) | P1; G0-próba bővítése |
+| SP10 | Lejátszás | Egy peer, amely elfogadja a blokk-kérést, de nem válaszol, a határdarabok blokkjait magánál tartja; a libtorrent csak `piece_timeout` (10 s) után snubolja, a blokkok akkor sem kerülnek gyorsan máshoz. A `pb0-v2` mixed profiljában (8 peerből 2 ilyen) az első bájt 13–18 s, az upstreamen és a forkon egyaránt. | Szintetikus profilban mérve igazolt (G0 v2: 16 MiB-nál +7 s az indulásban); a valós swarmokban való gyakoriság ismeretlen | Jelölt kapcsoló mögött (`relay_stall_policy=watchdog`), előbb mérendő (GSP10) | P1; G0 v2 kész |
 | SP09 | HTTP | Minden streamválasz `Connection: close`. Upstreamből származik, szándékos (`92fcb8d`, #274). | Hipotézis: kérésenként új TCP/TLS-kapcsolat | Kompatibilitási kapu; alapból nincs változás | P3 |
 
 **Ami jó, és nem változik:**
@@ -495,14 +495,41 @@ A holt `get_critical_pieces` eltávolítása önálló, viselkedésváltozás n�
 **Hipotézis:** a határidős (time-critical) blokkok egy része a nem válaszoló peernél ragad, és csak időtúllépés
 után kerül másik peerhez.
 
-**Terv:**
-1. A G0-próba bővítése: egy beragadó és több gyors peer mellett mérni, mennyi idő után kéri újra a libtorrent a
-   határidős blokkot, és ez hogyan függ a `piece_timeout`, `request_timeout`, `peer_timeout` és a snub-logika
-   beállításaitól. Vak hangolás nincs: csak a próbában mért hatású beállítás lehet jelölt.
-2. **Jelöltek** (`Új` kapcsoló mögött, alapérték a mai): aktív streamnél rövidebb időkorlát a határidős
-   kérésekre, vagy a lassú/beragadó peer kizárása a határidős darabokból.
-3. **GSP10 kapu (H1):** a mixed profil 1/4/16 MiB-os cellái 8/30/60 Mbit/s-on; fő metrika az indulási idő;
-   mellékmetrika a fast és thin profil (nincs J-n túli romlás).
+**G0-próba** (nyers libtorrent 2.1.1, szintetikus raj, nem mérés; [v1, részleges](evidence/g0-sp10-stalled-probe.json),
+[v2, 252 futás](evidence/g0-sp10-stalled-probe-v2.json)). A mai indulással (`edges` + `upstream`),
+mixed rajjal, az indulásig (mindkét határdarab kész) eltelt idő mediánja:
+
+| Változat | 4 MiB | 16 MiB |
+|---|---|---|
+| Beragadó peer nélkül | 2,4 s | 4,8 s |
+| 2 beragadó peer, mai beállítás | 5,8 s | 11,8 s |
+| `piece_timeout` 2 / 3 / 5 s | 5,3 / 6,7 / 5,6 s | 13,3 / 14,0 / 12,8 s |
+| Watchdog (2 s haladás nélkül → IP-tiltás, n=3) | 4,1 s | 6,3 s |
+
+- A beragadó peert a libtorrent pontosan `piece_timeout` mp-cel az első kérése után snubolja; a keep-alive ezt nem
+  akadályozza. A rövidebb `piece_timeout` csak áttolja a késést a 0. darabról az utolsóra (16 MiB-nál romlik); a
+  `request_timeout`, `request_queue_time`, `strict_end_game_mode`, `max_out_request_queue` és az affinitás sem javít.
+- A watchdog mindkét határdarabot gyorsítja: 12 tiltás, 0 téves; beragadó peer nélkül 0 tiltás, változatlan idők.
+
+**Jelölt** (`relay_stall_policy`, alapérték `legacy` = a mai viselkedés, amíg a GSP10 nem PASS): `watchdog` esetén
+aktív stream alatt félmásodpercenként peerlista (worker szálon). Ha egy peernél kint lévő kérés van, de
+`relay_stall_watchdog_seconds` (2 s) óta nem jött tőle adat, miközben ugyanannak a torrentnek egy másik peere haladt,
+az IP-je a session ip_filterére kerül. A feltétel második fele védi a saját kapcsolat kiesését: ha senki sem halad,
+nincs tiltás. A tiltólista legfeljebb `relay_stall_ban_max` (64) cím; a filter csak változáskor épül újra, leálláskor
+kiürül.
+
+**Technikai alapérték: a tiltás 120 s** (`relay_stall_ban_seconds`), utána a cím feloldódik. Következmény: a tiltott
+peer ennyi ideig tőlünk sem kap feltöltést, minden torrentben (session-szintű ip_filter); privát trackeren, rövid
+életű letöltőként elhanyagolható, de viselkedésváltozás. A 120 s-ot a kapu nem méri, csak egy értéket futtat.
+
+**A próbában nem vizsgált kockázatok:** élő, de nagy késleltetésű peer, amelynek első blokkja 2 s-nál később jön
+(120 s-ra kitiltódik); több valós peer egy NAT-cím mögött (mind kiesik); a később csatlakozó beragadó peerek esete
+(watchdog nélkül 16 MiB-nál 20,8 s) csak mintavételezve.
+
+**GSP10 kapu (H1), vázlat:** [`drafts/gsp10-draft.json`](evidence/drafts/gsp10-draft.json). C0 (mai
+alap) a watchdog ellen; fő metrika az indulási idő (mindkét határdarabra várva), kulcscellák a mixed profil 4 és
+16 MiB-on 8/30/60 Mbit/s-on. Őrök: fast és thin (nincs beragadó peer), egy lassú, de élő peeres profil (minden
+tiltás téves: 0 megengedett), tekerés, 1 MiB. Előfeltétel: a H1-vezérlő számolja a tiltásokat az app-logból.
 
 **Függés:** az SP02 döntése után, mert az indulási sorrend és a beragadó blokkok hatása összeadódik.
 

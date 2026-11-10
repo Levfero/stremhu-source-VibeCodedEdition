@@ -1,58 +1,43 @@
 {
  "id": "gsp10-draft",
- "status": "Session draft for gate GSP10 (SP10 stalled peers); NOT registered, no measured run. Registration copies the plan and rule into gsp10-v1-plan.json / gsp10-v1-protocol.json with the source manifest, image ids and harness hashes, after (1) the G0 completion batches below, (2) fixing the candidate value from them, (3) a non-measurement wiring smoke.",
- "item": "SP10: C0 = today's defaults (edges start + upstream deadlines since gsp02-v4 PASS:C2, relay_stall_policy legacy = session piece_timeout 10 s) vs C10 = the same + relay_stall_policy stream_piece_timeout (session piece_timeout shortened while any stream is active, restored to 10 s afterwards).",
+ "status": "Session draft for gate GSP10 (SP10 stalled peers); NOT registered, no measured run. Registration copies the plan and rule into gsp10-v1-plan.json / gsp10-v1-protocol.json with the source manifest, image ids and harness hashes, after the prerequisites below (harness ban counter, image, non-measurement wiring smoke).",
+ "item": "SP10: C0 = today's defaults (edges start + upstream deadlines since gsp02-v4 PASS:C2; relay_stall_policy legacy) vs CW = the same + relay_stall_policy watchdog (every 0.5 s during an active stream: a peer with outstanding requests and no payload for 2 s, while another peer of the same torrent progressed, is put on the session ip_filter for 120 s).",
+ "supersedes_draft": "The earlier stream-scoped piece_timeout candidate (C10) is withdrawn: G0 v2 showed it only moves the delay from piece 0 to the last piece (upstream/mixed 16 MiB edges 13.34 s with 2 s vs 11.82 s with today's 10 s).",
  "basis": {
-  "g0": "docs/feature/stream-performance/evidence/g0-sp10-stalled-probe.json (PARTIAL). Clean L1 (legacy start, mixed swarm, n=5): 16 MiB piece 0 12.89 s with two stalled peers vs 7.17 s without; every stalled peer snubbed 9.98-9.99 s after its first request (= piece_timeout 10), keep-alives or not. Hints only (contaminated, n=3): piece_timeout 2 -> 5.69 s, 3 and 5 -> ~9.4 s.",
+  "g0": "docs/feature/stream-performance/evidence/g0-sp10-stalled-probe-v2.json (252 runs, 0 failed; raw libtorrent, synthetic swarm; not a measurement). upstream/mixed, time until both boundary pieces are done ('edges'), median [min-max]: 16 MiB ctrl 4.78 [4.78-6.83], two stalled peers 11.82 [11.22-12.30], probe watchdog 6.34 [6.30-7.62] (n=3), keep-alive stalled peers + watchdog 6.35; 4 MiB ctrl 2.40, stalled 5.76, watchdog 4.05 [4.04-4.11]. 12 bans, 0 false; 0 bans without stalled peers.",
   "gsp02_v4_mixed_means_C2": {"mixed/4MiB/30Mbit": {"start.time_to_start_s": 10.96, "start.ttfb_s": 9.52}, "mixed/16MiB/30Mbit": {"start.time_to_start_s": 19.14, "start.ttfb_s": 15.28}, "note": "today's default start in the 8-peer mixed profile with 2 stalled peers, n=10 each; descriptive context, not part of this gate"}
  },
  "prerequisites": {
-  "g0_completion": {
-   "why": "Choose the candidate value (2 or 3 s, or 2 s with request_queue_time 1) and check the harm control (serving peers snubbed without stalled peers) on the C2 deadline scenario ('upstream') before registration.",
-   "rules": "One container at a time; Git Bash on Windows; run from a checkout of claude/sp10-stalled-peers-b6b89d (scripts/probe_sp_stalled_peers.py with the 'upstream' scenario and the *_rqtime1 variants); OUT is any directory outside the repo; cpuset any free CPUs (8-15 while a gate uses 0-5). Image stremhu-source:sp-cand-c3d6035 (libtorrent 2.1.1, sha256:138c89746cf740216142d2dfe3224038326c4199e2cc47d01f7295386b5190d1) keeps the batches comparable to L1; another image is fine if its id and libtorrent version are recorded.",
-   "command_template": "MSYS_NO_PATHCONV=1 docker run --rm --name sp10-probe-<B> --network none --cpuset-cpus 8-15 --cpus 2 --memory 1g --entrypoint python -v \"$(pwd -W)/scripts:/sp/scripts:ro\" stremhu-source:sp-cand-c3d6035 /sp/scripts/probe_sp_stalled_peers.py <ARGS> > \"$OUT/<B>.json\" 2> \"$OUT/<B>.log\"",
-   "batches": [
-    {"B": "U1", "ARGS": "--scenario upstream --swarm mixed --variants ctrl,product,product_chatty --piece-mib 1,4,16 --reps 5", "about_min": 6},
-    {"B": "U2", "ARGS": "--scenario upstream --swarm mixed --variants piece_t2,piece_t3,piece_t5 --piece-mib 1,4,16 --reps 5", "about_min": 6},
-    {"B": "U3", "ARGS": "--scenario upstream --swarm mixed --variants ctrl_piece_t2,ctrl_piece_t3,piece_t2_chatty --piece-mib 4,16 --reps 5", "about_min": 5},
-    {"B": "U4", "ARGS": "--scenario upstream --swarm mixed --variants piece_t2_rqtime1,piece_t3_rqtime1,ctrl_piece_t2_rqtime1 --piece-mib 4,16 --reps 5", "about_min": 5},
-    {"B": "U5", "ARGS": "--scenario upstream --swarm mixed --variants req_t5,req_t2,peer_t5 --piece-mib 4,16 --reps 3", "about_min": 3},
-    {"B": "U6", "ARGS": "--scenario upstream --swarm mixed --variants strict_eg,no_affinity,rqtime1 --piece-mib 4,16 --reps 3", "about_min": 3},
-    {"B": "U7", "ARGS": "--scenario upstream --swarm mixed --variants outq8,stall_last,product_1stall --piece-mib 4,16 --reps 3", "about_min": 3},
-    {"B": "U8", "ARGS": "--scenario upstream --swarm mixed --variants watchdog,watchdog_chatty,ctrl_watchdog --piece-mib 4,16 --reps 3", "about_min": 3},
-    {"B": "L2", "ARGS": "--scenario legacy --swarm mixed --variants piece_t2,piece_t3,piece_t5 --piece-mib 4,16 --reps 5", "about_min": 5, "optional": "replaces the contaminated legacy hint"}
-   ],
-   "summarize": "python scripts/summarize_sp_stalled_probe.py --image-id \"$(docker image inspect stremhu-source:sp-cand-c3d6035 --format '{{.Id}}')\" --out docs/feature/stream-performance/evidence/g0-sp10-stalled-probe-v2.json \"$OUT\"/U*.json \"$OUT\"/L2.json",
-   "value_rule_proposal": "Take the smallest piece_timeout whose 16 MiB piece-0 median (U2) is within 0.5 s of the best one; prefer 3 s over 2 s if they tie and U3 shows serving-peer snubs at 2 s. Add request_queue_time 1 to the candidate only if U4 beats U2 at 16 MiB by more than 1 s with no serving-peer snub and no 4 MiB loss; that would need a second switch value and is a separate decision."
-  },
+  "harness_ban_counter": "scripts/benchmark_sp_playback_controller.py must count the app log lines 'Relay stall watchdog: banned=<n> ...' into record['app_log']['stall_bans'] (sum of n), so the false-ban hard check is machine-readable. Not implemented in this session (the controller is shared with running gates); a small change with its own test before registration.",
   "image": "build stremhu-source:sp-cand-<commit> from the registered commit (both arms use the same image, they differ only in app_env)",
-  "wiring_smoke": "Non-measurement: one C10 run with --only 1; the app log must contain 'Relay stall policy: piece_timeout=<value> s (active streams: True)' and later '... piece_timeout=10 s (active streams: False)'. C0 must log no such line."
+  "wiring_smoke": "Non-measurement: one CW run in mixed/16MiB/30Mbit with --only 1: the app log contains 'Relay stall watchdog: banned=' lines with banned >= 1; one C0 run: no such line. Also check there is no 'duplicate peer-id' disconnect (pb0-v2 seed containers each start their peer-id sequence at 1)."
  },
  "plan": {
   "tool_image": "stremhu-source:sp-base-9984678",
-  "images": {"C0": "stremhu-source:sp-cand-<commit>", "C10": "stremhu-source:sp-cand-<commit>"},
+  "images": {"C0": "stremhu-source:sp-cand-<commit>", "CW": "stremhu-source:sp-cand-<commit>"},
   "app_env": {
    "C0": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "legacy"},
-   "C10": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "stream_piece_timeout", "RELAY_STREAM_PIECE_TIMEOUT_SECONDS": "<value from G0, provisional 2>"}
+   "CW": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "watchdog", "RELAY_STALL_WATCHDOG_SECONDS": "2.0", "RELAY_STALL_BAN_SECONDS": "120", "RELAY_STALL_BAN_MAX": "64"}
   },
-  "series": [{"labels": ["C0", "C10"], "reps": 5}, {"labels": ["C0", "C10"], "reps": 5}],
+  "series": [{"labels": ["C0", "CW"], "reps": 5}, {"labels": ["C0", "CW"], "reps": 5}],
   "reps": 10,
   "total_size": 1073741824,
   "client_args": ["--play-s", "10", "--seek-play-s", "8", "--start-buffer-s", "2", "--rebuffer-s", "1", "--max-buffer-s", "30"],
+  "capture_log_prefix": "Relay stall watchdog",
   "cells": [
-   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 8},
-   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 30},
-   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 60},
    {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 8},
    {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 30},
    {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 60},
    {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 8},
    {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 30},
    {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 60},
+   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 30},
    {"profile": "fast", "piece_size": 4194304, "bitrate_mbit": 30},
    {"profile": "fast", "piece_size": 16777216, "bitrate_mbit": 30},
    {"profile": "thin", "piece_size": 4194304, "bitrate_mbit": 30},
-   {"profile": "thin", "piece_size": 16777216, "bitrate_mbit": 30}
+   {"profile": "thin", "piece_size": 16777216, "bitrate_mbit": 30},
+   {"profile": "slowlive", "piece_size": 4194304, "bitrate_mbit": 30},
+   {"profile": "slowlive", "piece_size": 16777216, "bitrate_mbit": 30}
   ],
   "profiles": {
    "fast": {"peers": 8, "profiles": [{"rate_bytes_per_s": 4000000, "latency_s": 0.02, "jitter_s": 0.01}]},
@@ -65,35 +50,57 @@
     {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
     {"stall": true},
     {"stall": true}]},
-   "thin": {"peers": 2, "profiles": [{"rate_bytes_per_s": 2500000, "latency_s": 0.06, "jitter_s": 0.02}]}
+   "thin": {"peers": 2, "profiles": [{"rate_bytes_per_s": 2500000, "latency_s": 0.06, "jitter_s": 0.02}]},
+   "slowlive": {"peers": 8, "why": "no stalled peer, but slow and high-latency live peers: every ban here is a false ban", "profiles": [
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"rate_bytes_per_s": 250000, "latency_s": 0.8, "jitter_s": 0.4},
+    {"rate_bytes_per_s": 250000, "latency_s": 0.8, "jitter_s": 0.4}]}
   },
   "capture_tracebacks": true,
   "runs": "13 cells x 2 arms x 10 = 260 runs; at the gsp02-v4 pace (~50 s per run) about 3.6 h"
  },
  "decision_rule": {
-  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 at registration)",
-  "primary_metric": "start.time_to_start_s (includes TTFB, tail probe and 2 s buffer)",
-  "candidates": ["C10"],
+  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 at registration) plus the hard checks below",
+  "primary_metric": "start.time_to_start_s (playback start: includes the TTFB, the parallel tail probe of the last piece and the 2 s buffer, i.e. waits for both boundary pieces)",
+  "candidates": ["CW"],
   "key_cells": ["mixed/4MiB/8Mbit", "mixed/4MiB/30Mbit", "mixed/4MiB/60Mbit", "mixed/16MiB/8Mbit", "mixed/16MiB/30Mbit", "mixed/16MiB/60Mbit"],
   "pooling": "both series pooled: n = 10 runs per arm and cell; failed runs excluded and counted",
-  "statistic": "difference of means (C10 - C0); 10 000 bootstrap resamples per test, fixed seed (set at registration); one-sided bootstrap p-values",
+  "statistic": "difference of means (CW - C0); 10 000 bootstrap resamples per test, fixed seed (set at registration); one-sided bootstrap p-values",
   "alpha": 0.05,
   "resamples": 10000,
   "improved_required": 4,
   "improvement": "primary metric in a key cell: H0 'difference >= 0' rejected by Holm over the 6 key cells",
-  "regression": "any guard test (start.time_to_start_s, start.ttfb_s, seek.resume_s, start.stall_s in all 13 cells, 52 tests): H0 'difference <= 0' rejected by Holm over the 52 tests",
-  "pass_if_all": ["at least 4 of 6 key cells improved", "no regression", "failed runs and tracebacks with an application frame: C10 <= C0"],
+  "regression": "any guard test (start.time_to_start_s, start.ttfb_s, seek.resume_s, start.stall_s in all 13 cells, 52 tests): H0 'difference <= 0' rejected by Holm over the 52 tests; guards cover the swarms without stalled peers (fast, thin, slowlive), the seek and the 1 MiB cell",
+  "hard_checks": [
+   "false bans: app_log.stall_bans == 0 in every fast, thin and slowlive run (no stalled peer there, so every ban is false); a single false ban fails the gate",
+   "CW bans at least once in every mixed 4/16 MiB run (otherwise the mechanism did not run and the result is not attributable)",
+   "failed runs and tracebacks with an application frame: CW <= C0"
+  ],
+  "pass_if_all": ["at least 4 of 6 key cells improved", "no regression", "all hard checks"],
   "traceback_counter": "app_tracebacks",
   "otherwise": "FAIL: relay_stall_policy stays legacy."
  },
  "expected_mechanism": {
-  "mixed 4/16 MiB": "Stalled peers hold 1-2 blocks of the first awaited piece until libtorrent snubs them piece_timeout after their first request; C10 snubs them after the short value, so start (and seek, when a stalled peer took blocks of the seek piece) should shorten most at 16 MiB.",
-  "mixed 1 MiB": "Little stall exposure expected (G0: the window finishes before a 10 s snub at 4 MiB already); guard cells, not key cells.",
-  "fast / thin": "No stalled peers: C10 only changes anything if a serving peer pauses longer than the short timeout (false snub = request queue 1 and no time-critical requests until data arrives). These cells are the harm control."
+  "mixed 4/16 MiB": "Stalled peers hold blocks of the boundary pieces (16 MiB: piece 0 and the last piece, 4 MiB: mostly the last); CW bans them about 2 s after their first request and their blocks go to live peers at once (G0: 16 MiB edges 11.8 -> 6.3 s, 4 MiB 5.8 -> 4.1 s).",
+  "mixed 1 MiB": "G0: piece 0 unaffected, the last piece delayed (4.4 vs 1.8 s); not a key cell because the 1 MiB start already includes several pieces of buffer.",
+  "fast / thin / slowlive": "No stalled peer: CW must not ban anybody and must not change any time."
  },
+ "risks_not_covered_by_the_probe": [
+  "A live but high-latency or overloaded peer whose first block takes more than 2 s: it would be banned for 120 s. The slowlive profile covers 0.8 s +- 0.4 s; slower first answers stay untested.",
+  "Several real peers behind one NAT address: the IP ban removes all of them for 120 s.",
+  "A banned peer gets no upload from us either for 120 s (session-wide ip_filter, every torrent). Negligible on a private tracker where the relay is a short-lived leecher, but a behaviour change; documented as the technical default relay_stall_ban_seconds = 120.",
+  "Stalled peers that connect after the serving ones (G0 stall_last without watchdog: 16 MiB piece 0 at 20.8 s): the H1 tracker order is not controlled, so this case is only sampled, not targeted.",
+  "Peers that recover after a pause (disk stall) are re-admitted only after the ban; the ban list is capped at 64 addresses (further stalled peers stay connected).",
+  "A real outage of our own link does not ban anybody (a peer is banned only while another peer of the same torrent progresses); not exercised by H1."
+ ],
  "open_questions": [
-  "The candidate value (2 vs 3 s) and whether request_queue_time 1 belongs to it: decided by the G0 completion batches, before registration.",
-  "Real swarms: frequency of stalled peers is unknown (implementation plan, SP10 row); a PASS here shows the synthetic mechanism, not its real-world prevalence.",
-  "pb0-v2 seed peer-ids: one sp_seed_service per peer container, each starting its peer-id sequence at 1. The product keeps allow_multiple_connections_per_ip off; the G0 probe hit 'duplicate peer-id' with that setting on, and libtorrent presumably compares peer-ids only then (recollection of the native source, not verified). Worth a one-line check in the wiring smoke: no 'duplicate peer-id' disconnects."
+  "Harness ban counter (prerequisite) and the slowlive profile: both new; the slowlive latency is a choice, not derived from real swarms.",
+  "Real swarms: the frequency of stalled peers is unknown (implementation plan, SP10 row); a PASS shows the synthetic mechanism, not its real-world prevalence.",
+  "Whether 120 s is the right ban length is not measured by this gate (only one value is run); it is a technical default."
  ]
 }

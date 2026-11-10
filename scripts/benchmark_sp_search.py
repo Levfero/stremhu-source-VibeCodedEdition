@@ -18,7 +18,8 @@ Scenarios (the "subject" tracker is the last synthetic tracker):
 Per scenario: ``--requests`` cold stream requests (a fresh IMDb id each, so tracker cache,
 stored .torrent files and stream response cache are all cold), one every ``--interval`` s;
 each is followed by a warm request for the same id with the user's stream response cache
-invalidated (tracker cache, stored files and Tech Info cache stay warm).
+invalidated (tracker cache, stored files and Tech Info cache stay warm), after ``--warm-delay`` s
+(default 0: immediately; a background Tech Info fetch may then still be in flight).
 
 ``--time-scale`` multiplies every product and fixture duration (per-tracker search timeout,
 source search deadline, breaker cooldowns, tracker/download/Tech Info latencies, interval,
@@ -141,6 +142,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--breaker-cooldown-max", type=float, default=None, help="candidate cap, s (default 600; smoke 40)")
     parser.add_argument("--imdb-cache-ttl", type=float, default=None, help="tracker IMDb cache TTL override, s (SP07)")
     parser.add_argument("--steady-from", type=int, default=2, help="first cold request index of the steady window")
+    parser.add_argument("--warm-delay", type=float, default=0.0, help="seconds between a cold request and its warm pair")
     parser.add_argument("--seed", type=int, default=20261109)
     parser.add_argument("--out", default=None, help="write the JSON here instead of stdout")
     args = parser.parse_args(argv)
@@ -165,6 +167,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error(f"unknown scenario {scenario!r}")
     if args.trackers < 2 or args.requests < 1 or args.time_scale <= 0 or args.results_per_tracker < 1:
         parser.error("need >= 2 trackers, >= 1 request, a positive time scale and results")
+    if args.warm_delay < 0:
+        parser.error("--warm-delay must not be negative")
     if not 0 <= args.steady_from < args.requests:
         parser.error("--steady-from must leave at least one steady cold request")
     if not 0.0 <= args.tech_info_failure_rate <= 1.0:
@@ -517,6 +521,8 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                     await request("cold", index, imdb_id)
                     await drain_background_tasks()
                     streams.invalidate_stream_cache(user_id)
+                    if args.warm_delay > 0:
+                        await asyncio.sleep(clock.scaled(args.warm_delay))
                     await request("warm", index, imdb_id)
                     await drain_background_tasks()
             elapsed_unscaled = clock.elapsed_unscaled()

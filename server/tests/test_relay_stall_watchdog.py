@@ -206,6 +206,20 @@ def test_stalled_peer_is_filtered_once_and_released_after_the_ban(relay):
     assert len(session.filters) == 2 and not blocked(session.filters[1], STALLED)
 
 
+def test_ban_is_logged_at_warning_with_counts_only(relay, caplog):
+    # The image runs NODE_ENV=prod (WARNING level): the GSP10 ban counter needs this line there.
+    service, _, handle, _ = relay
+    with caplog.at_level("INFO"):
+        for tick in range(10):
+            set_peers(handle, tick, stalled=tick <= 4)
+            service.stall_watchdog_tick(now=tick * 0.5)
+        service.stall_watchdog_tick(now=122.0)
+    lines = [(r.levelname, r.getMessage()) for r in caplog.records if "Relay stall watchdog" in r.getMessage()]
+    assert lines == [("WARNING", "Relay stall watchdog: banned=1 expired=0 active=1"),
+                     ("INFO", "Relay stall watchdog: banned=0 expired=1 active=0")]
+    assert not any(STALLED in message or SERVING in message for _, message in lines)
+
+
 def test_without_stalled_peers_nothing_is_filtered(relay):
     service, session, handle, _ = relay
     for tick in range(20):

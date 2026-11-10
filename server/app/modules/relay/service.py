@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import socket
 import threading
 import time
@@ -273,8 +274,10 @@ class RelayService:
             banned = detector.observe(samples, now)
             if banned or expired or not self._stall_filter_synced:
                 self._apply_stall_filter(detector.bans)
-                # Címet nem naplózunk, csak darabszámot.
-                logger.info(
+                # Címet nem naplózunk, csak darabszámot. Új tiltás WARNING: az image prod módban
+                # (NODE_ENV=prod) WARNING szintről naplóz, és a GSP10 kapu ezt a sort számolja.
+                logger.log(
+                    logging.WARNING if banned else logging.INFO,
                     "Relay stall watchdog: banned=%s expired=%s active=%s",
                     len(banned), len(expired), len(detector.bans),
                 )

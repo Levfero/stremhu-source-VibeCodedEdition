@@ -162,6 +162,14 @@ class Config(BaseSettings):
     source_search_pending_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     # Indexerenként egyszerre beengedett letöltés: az adapterek alapértelmezett 5-ös szemaforja.
     source_search_downloads_per_indexer: int = Field(default=5, ge=1)
+    # SP05/b tracker-rövidzár: K egymás utáni időtúllépés vagy kapcsolódási hiba után a tracker
+    # keresése cooldown ideig hálózati kérés nélkül kimarad, ismétlődő sikertelen próbánál a
+    # kihagyás duplázódik a felső korlátig. 0 = kikapcsolva (a mai viselkedés), amíg a GSP05 kapu
+    # nem PASS; a jelölt 2. Felhasználói UX-döntés (UX/SLO-keret 4. sor): 2 / 120 s / 600 s.
+    # Ha a felső korlát kisebb az alapnál, az alap érvényes (nincs induláskori hiba).
+    indexer_breaker_threshold: int = Field(default=0, ge=0)
+    indexer_breaker_cooldown_seconds: float = Field(default=120.0, gt=0)
+    indexer_breaker_cooldown_max_seconds: float = Field(default=600.0, gt=0)
     # Feldolgozott TorrentInfo-gyorsítótár fájlbejegyzés-kerete (~1,3 KiB/fájl, ~65 MiB).
     torrent_info_cache_max_files: int = Field(default=50_000, gt=0)
 

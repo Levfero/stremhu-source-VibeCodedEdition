@@ -395,6 +395,17 @@ async def test_trackers_are_independent(trackers):
     assert _state("good").open_until is None and _state("good").failures == 0
 
 
+def test_defaults_are_the_gate_passed_breaker():
+    # gsp05-v1 PASS (2026-11-10): K = 2, 120 s doubling to 600 s (UX frame row 4); 0 switches it off.
+    from app.config import Config
+
+    fields = Config.model_fields
+    assert fields["indexer_breaker_threshold"].default == 2
+    assert fields["indexer_breaker_cooldown_seconds"].default == 120.0
+    assert fields["indexer_breaker_cooldown_max_seconds"].default == 600.0
+    assert Config.model_validate({"indexer_breaker_threshold": 0}).indexer_breaker_threshold == 0
+
+
 # E: threshold 0 -> legacy behaviour, no state at all.
 @pytest.mark.anyio
 @pytest.mark.parametrize(("method", "argument"), METHODS)

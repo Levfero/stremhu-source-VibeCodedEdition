@@ -48,7 +48,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - A/B/C és C előtte/utána mérés;
 - dokumentált döntés.
 
-**Státusz (2026-11-10):** implementáció folyamatban. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be) és a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`). A többi tétel kapcsoló mögött, alapból kikapcsolva, vagy külön `wip/`/munkamenet-branchen vár a kapujára. A részletek a [végrehajtási állapotban](#execution-status).
+**Státusz (2026-11-10):** implementáció folyamatban. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be) a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`), valamint a `gsp05-v1` PASS alapján a tracker-rövidzár (`INDEXER_BREAKER_THRESHOLD=2`). A többi tétel kapcsoló mögött, alapból kikapcsolva, vagy külön `wip/`/munkamenet-branchen vár a kapujára. A részletek a [végrehajtási állapotban](#execution-status).
 
 <!-- doc-anchor:doc-kanonikus-dokumentumok -->
 <a id="doc-kanonikus-dokumentumok"></a>
@@ -74,7 +74,7 @@ Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A 
 | Lejátszási előzmény | A válasz előtt, minden kérésnél | Ugyanaz, zárral és izolált sessionnel | Playbackenként egyszer, a háttérben (SP03) |
 | Darabolvasás | Soros | Soros, megosztott olvasási taskkal | Egy darab átfedő előreolvasás (SP04, kapus) |
 | `Connection: close` | Igen (#274) | Igen | Változatlan, hacsak a kompatibilitási kapu nem PASS (SP09) |
-| Trackerenkénti időkorlát | 12,5 s | 12,5 s, három másolatban | Egy segéd (SP05/a); rövidzár nem válaszoló trackerre (SP05/b, kapus) |
+| Trackerenkénti időkorlát | 12,5 s | 12,5 s, három másolatban | Egy segéd (SP05/a). **Alapértelmezés: rövidzár** nem válaszoló trackerre (SP05/b, `gsp05-v1` PASS): 2 egymás utáni időtúllépés vagy kapcsolódási hiba után 120 s kihagyás figyelmeztetéssel, ismétlődéskor duplázva, legfeljebb 600 s; `INDEXER_BREAKER_THRESHOLD=0` kikapcsolja. |
 | Trackercache | Nincs | 30 perc (IMDb), 5 perc (lekérdezés) | Lejárat után azonnali régi találat, háttérfrissítés (SP07, kapus) |
 | Tech Info | Nincs | Legfeljebb 1,5 s a keresés után, sorban | Hibák nem mérgezik a cache-t (SP06/a); korábbi indítás, háttérbefejezés (SP06/b, kapus) |
 | Név szerinti tartalékkeresés | Fork funkció | Soros | Várhatóan változatlan (SP08) |

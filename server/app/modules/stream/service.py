@@ -9,6 +9,7 @@ from app.common.keyed_lock import KeyedLock
 from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.schemas.internal import ImdbInfo
+from app.config import config
 from app.modules.indexers.service import IndexersService
 from app.modules.playback_histories.dependencies import (
     create_playback_histories_service,
@@ -36,7 +37,8 @@ from app.modules.torrents.service import TorrentsService
 torrent_locks = KeyedLock()
 playback_history_lock = KeyedLock()
 
-# SP03: a lejátszási előzmény playbackenként egyszer, a válasz útján kívül íródik.
+# SP03 (``playback_history_background``): a lejátszási előzmény playbackenként egyszer,
+# a válasz útján kívül íródik. Kikapcsolva ezek az állapotok érintetlenek.
 _HISTORY_RECORDED_TTL_SECONDS = 6 * 3600.0
 _HISTORY_RECORDED_MAX = 4096
 _HISTORY_PENDING_MAX = 64
@@ -73,6 +75,26 @@ _history_state = _PlaybackHistoryState()
 
 def clear_playback_history_state() -> None:
     _history_state.clear()
+
+
+def _playback_history_payload(
+    stream_token: StreamToken,
+    client_info: PlaybackHistoryClientInfo,
+    user_id: str,
+    file: File,
+    imdb_info: ImdbInfo | None,
+) -> PlaybackHistoryCreate:
+    return PlaybackHistoryCreate(
+        client=client_info,
+        indexer_id=stream_token.indexer_id,
+        playback_id=stream_token.playback_id,
+        user_id=user_id,
+        torrent_id=stream_token.torrent_id,
+        file_index=stream_token.file_index,
+        imdb_info=imdb_info,
+        torrent_name=file.torrent.name,
+        file_name=file.name,
+    )
 
 
 def _persist_playback_history(payload: PlaybackHistoryCreate) -> None:
@@ -189,26 +211,31 @@ class StreamService:
         file: File,
         imdb_info: ImdbInfo | None = None,
     ) -> None:
-        """Rögzíti a lejátszást, playbackenként egyszer, a válaszfejlécek útján kívül (SP03).
+        """Rögzíti a lejátszást a lejátszási előzményben.
 
-        Az ismételt Range/HEAD kérések nem nyúlnak a DB-hez. Az első írás a háttérben fut
-        (a lifespan ``background-db`` lépése lezárja); teli függő halmaznál szinkron tartalék,
+        Kikapcsolt ``playback_history_background`` mellett (alapérték) a mai út fut: minden
+        GET/HEAD kérés a válaszfejlécek előtt megvárja a zárolt, szálon futó ``get_or_create``-t.
+
+        Bekapcsolva (SP03-jelölt) playbackenként egyszer, a válaszfejlécek útján kívül íródik:
+        az ismételt Range/HEAD kérések nem nyúlnak a DB-hez, az első írás a háttérben fut
+        (a lifespan ``background-db`` lépése lezárja), teli függő halmaznál szinkron tartalék,
         hogy előzmény ne vesszen el.
         """
+        if not config.playback_history_background:
+            try:
+                async with playback_history_lock(stream_token.playback_id):
+                    await owned_to_thread(
+                        _persist_playback_history,
+                        _playback_history_payload(stream_token, client_info, user_id, file, imdb_info),
+                    )
+            except Exception as e:
+                logger.warning("operation=playback-history-write %s", network_error_fields(e))
+            return
+
         playback_id = stream_token.playback_id
         if _history_state.is_known(playback_id, time.monotonic()):
             return
-        payload = PlaybackHistoryCreate(
-            client=client_info,
-            indexer_id=stream_token.indexer_id,
-            playback_id=playback_id,
-            user_id=user_id,
-            torrent_id=stream_token.torrent_id,
-            file_index=stream_token.file_index,
-            imdb_info=imdb_info,
-            torrent_name=file.torrent.name,
-            file_name=file.name,
-        )
+        payload = _playback_history_payload(stream_token, client_info, user_id, file, imdb_info)
         _history_state.pending.add(playback_id)
         if len(_history_state.pending) > _HISTORY_PENDING_MAX:
             await _write_playback_history(payload)

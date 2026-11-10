@@ -240,6 +240,19 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
     return record
 
 
+# Failures of Docker itself (daemon or CLI connection), never of the measured image: a `docker run`
+# exit 125 (the daemon refused or lost the container) or a lost CLI-daemon connection. gsp07-v1
+# lost a run to "error waiting for container: unexpected EOF" (exit 125) on Docker Desktop.
+INFRA_FAILURE_SIGNATURES = (" exit 125:", "error waiting for container", "error during connect",
+                            "Cannot connect to the Docker daemon")
+INFRA_RETRY_PAUSE_S = 30
+
+
+def infra_failure(record: dict) -> bool:
+    failed = record.get("failed") or ""
+    return any(signature in failed for signature in INFRA_FAILURE_SIGNATURES)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", required=True)
@@ -269,6 +282,12 @@ def main() -> None:
     workdir = Path(args.workdir)
     for order, (label, cell, rep) in enumerate(runs):
         record = run_one(plan, label, plan["images"][label], cell, rep, order, workdir)
+        if infra_failure(record):
+            # One retry of the same slot (label, cell, rep, order); the first failure stays on the record.
+            first_failure = record["failed"]
+            time.sleep(INFRA_RETRY_PAUSE_S)
+            record = run_one(plan, label, plan["images"][label], cell, rep, order, workdir)
+            record["infra_retry"] = first_failure
         with out.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record) + "\n")
         start = record.get("result", {}).get("start", {})

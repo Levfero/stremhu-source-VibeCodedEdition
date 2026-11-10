@@ -147,8 +147,9 @@ class Config(BaseSettings):
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)
     subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     # SP06/b Tech Info előtöltés: a megosztott keresésben, a trackerfázis után indul, háttérben.
-    # Kikapcsolva (alapérték) a mai viselkedés marad, amíg a GSP06 kapu nem PASS.
-    tech_info_prefetch: bool = False
+    # Alapból bekapcsolva (gsp06-v2 PASS); TECH_INFO_PREFETCH=false visszaállítja a korábbi,
+    # a keresés utáni, legfeljebb 1,5 s-os dúsítást.
+    tech_info_prefetch: bool = True
     # A Tech Info-t adó indexerek találataiból seederszám szerint ennyit tölt elő egy keresés.
     tech_info_prefetch_top_n: int = Field(default=5, ge=1)
     # Folyamatszinten egyszerre futó háttérlekérések felső határa; a többlet kimarad.

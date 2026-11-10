@@ -462,3 +462,14 @@ async def test_attributes_identical_to_legacy_when_details_are_fast(prefetch_on,
 
     assert snapshot(prefetched) == snapshot(legacy)
     assert MediaAttributeKey.JAP in language_ids(legacy[0]) and legacy[0].has_hungarian_sub  # the fixture enriches
+
+
+def test_defaults_are_the_gate_passed_prefetch():
+    from app.config import Config
+
+    fields = Config.model_fields
+    assert fields["tech_info_prefetch"].default is True
+    assert fields["tech_info_prefetch_top_n"].default == 5
+    assert fields["tech_info_prefetch_max_in_flight"].default == 20
+    assert fields["tech_info_prefetch_timeout_seconds"].default == 10.0
+    assert Config.model_validate({"tech_info_prefetch": "false"}).tech_info_prefetch is False

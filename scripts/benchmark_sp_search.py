@@ -99,13 +99,17 @@ SCENARIOS = {
     "S3": "egy tracker lassú, de válaszol",
     "S4": "egy tracker ingadozik (le/fel periódusok)",
 }
-POLICIES = ("legacy", "candidate", "prefetch")
+POLICIES = ("legacy", "candidate", "prefetch", "default")
 BASE_URL = "https://fixture.invalid"
 ERROR_STREAM_NAME = "⚠️ [StremHU] Hiba"
 DEADLINE_ERROR = getattr(provider_module, "DEADLINE_ERROR", "A keresés elérte az időkorlátot; a találatok részlegesek.")
 # Product defaults the harness scales; read once, before any override.
 PRODUCT_SEARCH_TIMEOUT = float(getattr(search, "INDEXER_SEARCH_TIMEOUT_SECONDS", 12.5))
 PRODUCT_DEADLINE = float(config.source_search_deadline_seconds)
+# The image's own settings (code default or env), for the "default" policy.
+PRODUCT_SETTINGS = {name: getattr(config, name) for name in (
+    "indexer_breaker_threshold", "indexer_breaker_cooldown_seconds", "indexer_breaker_cooldown_max_seconds",
+    "tech_info_prefetch") if hasattr(config, name)}
 TECH_INFO_MARKER = "Felirat"  # stremio/schemas.py renders "Felirat" when has_hungarian_sub
 NFO_TEXT = "General\nVideo #1\nFormat : HEVC\nAudio #1\nLanguage : Hungarian\nText #1\nLanguage : Hungarian\n"
 TORRENT_SIZE = 100 * 1024 * 1024
@@ -115,7 +119,7 @@ PIECE_SIZE = 1024 * 1024
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--smoke", action="store_true", help="tiny wiring run (seconds); never a measurement")
-    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate,prefetch (default: legacy; smoke: legacy,candidate)")
+    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate,prefetch,default (default: legacy; smoke: legacy,candidate); default = the image's own breaker/prefetch settings (code default or env), durations scaled")
     parser.add_argument("--scenarios", default="S1,S2,S3,S4")
     parser.add_argument("--requests", type=int, default=None, help="cold requests per scenario (default 30; smoke 6)")
     parser.add_argument("--interval", type=float, default=10.0, help="seconds between cold request starts")
@@ -348,10 +352,12 @@ def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError("Candidate policy needs SP05/b (IndexerHealth) in the image under test")
     if policy == "prefetch" and not has_prefetch:
         raise RuntimeError("Prefetch policy needs SP06/b (tech_info_prefetch) in the image under test")
-    # "prefetch" = SP06/b Tech Info prefetch on, breaker off; the others keep prefetch off.
+    # "prefetch" = SP06/b Tech Info prefetch on, breaker off; "default" = the image's settings;
+    # the others keep prefetch off.
     prefetch_info: dict[str, Any] = {"tech_info_prefetch": "N/A"}
     if has_prefetch:
-        config.tech_info_prefetch = policy == "prefetch"
+        config.tech_info_prefetch = (PRODUCT_SETTINGS["tech_info_prefetch"] if policy == "default"
+                                     else policy == "prefetch")
         prefetch_info = {"tech_info_prefetch": config.tech_info_prefetch,
                          "tech_info_prefetch_top_n": config.tech_info_prefetch_top_n}
     if not hasattr(search, "INDEXER_SEARCH_TIMEOUT_SECONDS") and args.time_scale != 1.0:
@@ -363,13 +369,19 @@ def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
         search._IMDB_TRACKER_CACHE_TTL = args.imdb_cache_ttl * args.time_scale
     if not has_breaker:
         return {"name": policy, "breaker": "N/A", **prefetch_info}
-    threshold = args.breaker_threshold if policy == "candidate" else 0
+    if policy == "default":
+        threshold = PRODUCT_SETTINGS["indexer_breaker_threshold"]
+        cooldown = PRODUCT_SETTINGS["indexer_breaker_cooldown_seconds"]
+        cooldown_max = PRODUCT_SETTINGS["indexer_breaker_cooldown_max_seconds"]
+    else:
+        threshold = args.breaker_threshold if policy == "candidate" else 0
+        cooldown, cooldown_max = args.breaker_cooldown, args.breaker_cooldown_max
     config.indexer_breaker_threshold = threshold
-    config.indexer_breaker_cooldown_seconds = args.breaker_cooldown * args.time_scale
-    config.indexer_breaker_cooldown_max_seconds = args.breaker_cooldown_max * args.time_scale
+    config.indexer_breaker_cooldown_seconds = cooldown * args.time_scale
+    config.indexer_breaker_cooldown_max_seconds = cooldown_max * args.time_scale
     return {"name": policy, "indexer_breaker_threshold": threshold,
-            "indexer_breaker_cooldown_seconds": args.breaker_cooldown,
-            "indexer_breaker_cooldown_max_seconds": args.breaker_cooldown_max, **prefetch_info}
+            "indexer_breaker_cooldown_seconds": cooldown,
+            "indexer_breaker_cooldown_max_seconds": cooldown_max, **prefetch_info}
 
 
 async def settle_tech_info_prefetch() -> None:

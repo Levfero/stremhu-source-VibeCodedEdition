@@ -45,6 +45,8 @@ _HUN_SUB_REGEX = re.compile(
 )
 # A Tech Info dúsítás teljes kerete egy streamválaszon belül.
 _TECH_INFO_BUDGET_SECONDS = 1.5
+# M08: a név szerinti tartalékkeresés időkerete az IMDb-fázis végétől; új lekérdezés csak ezen belül indul.
+_FALLBACK_BUDGET_SECONDS = 20.0
 
 
 def strip_accents(text: str) -> str:
@@ -216,7 +218,7 @@ class TorrentStreamsService:
 
                 for q in candidate_queries:
                     # M08: Keresési idő- és munkakeret: ne lépjük túl a teljes 20 másodperces időkeretet
-                    if time.monotonic() - search_start_time > 20.0:
+                    if time.monotonic() - search_start_time > _FALLBACK_BUDGET_SECONDS:
                         logger.info(
                             f"[TorrentStreamsService] Keresési időkeret elérve ({actual_title}), fallback keresés megszakítva."
                         )

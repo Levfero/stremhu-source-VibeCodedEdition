@@ -48,7 +48,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - A/B/C és C előtte/utána mérés;
 - dokumentált döntés.
 
-**Státusz (2026-11-08):** csak terv. A branch a `main` `0515d98`-ról indult. Termékkód nem változott, teszt, benchmark és Docker-futtatás nem történt. A tervben szereplő gyorsulás hipotézis, amíg a hozzá tartozó kapu nem PASS.
+**Státusz (2026-11-10):** implementáció folyamatban. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be) és a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`). A többi tétel kapcsoló mögött, alapból kikapcsolva, vagy külön `wip/`/munkamenet-branchen vár a kapujára. A részletek a [végrehajtási állapotban](#execution-status).
 
 <!-- doc-anchor:doc-kanonikus-dokumentumok -->
 <a id="doc-kanonikus-dokumentumok"></a>
@@ -69,8 +69,8 @@ Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A 
 
 | Terület | Upstream `8c99c7d` | Fork `main` `0515d98` | `feature/stream-performance` (terv) |
 |---|---|---|---|
-| Előtöltési ablak lejátszás közben | 4–8 hiányzó darab határidővel, a többi 0 prioritás; határidő `2000 + 1000·d` ms | Ugyanaz az ablak; határidő 0 / 300 / `1000 + 500·d` ms | Bájtalapú, korlátos ablak, darabméret-független határidők; opcionálisan az aktív fájl többi része alacsony prioritáson (SP01, kapus) |
-| Indulási darabsorrend | A fájl első és utolsó 3 darabja 0 ms | Ugyanaz | Fokozatos, bájtkorlátos fej és vég, az aktuális darab elsőbbségével (SP02, kapus) |
+| Előtöltési ablak lejátszás közben | 4–8 hiányzó darab határidővel, a többi 0 prioritás; határidő `2000 + 1000·d` ms | Ugyanaz az ablak; határidő 0 / 300 / `1000 + 500·d` ms | **Alapértelmezés: az upstream képlete** (`RELAY_READAHEAD_POLICY=upstream`, `gsp02-v4` PASS:C2), ugyanazzal az ablakkal; a `legacy` visszaállítható. A bájtalapú ablak (SP01) nyitott. |
+| Indulási darabsorrend | A fájl első és utolsó darabja 0 ms (1+1) | Az első és utolsó 3 darab 0 ms (3+3) | **Alapértelmezés: az upstream 1+1** (`RELAY_START_POLICY=edges`, `gsp02-v4` PASS:C2): az indulás 5/6 kulcscellában gyorsabb (pl. 12,6 → 9,0 s); 16 MiB-nál a tekerés +0,2–0,7 s. A `legacy` (3+3) visszaállítható. |
 | Lejátszási előzmény | A válasz előtt, minden kérésnél | Ugyanaz, zárral és izolált sessionnel | Playbackenként egyszer, a háttérben (SP03) |
 | Darabolvasás | Soros | Soros, megosztott olvasási taskkal | Egy darab átfedő előreolvasás (SP04, kapus) |
 | `Connection: close` | Igen (#274) | Igen | Változatlan, hacsak a kompatibilitási kapu nem PASS (SP09) |

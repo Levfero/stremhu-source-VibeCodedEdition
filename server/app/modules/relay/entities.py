@@ -175,7 +175,7 @@ class Torrent:
             pieces = [bool(piece) for piece in status.pieces]
         except Exception:
             return None
-        return pieces if len(pieces) == self.piece_count else None
+        return pieces if len(pieces) == getattr(self, "piece_count", None) else None
 
     def _set_legacy_stream_deadlines(
         self,

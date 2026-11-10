@@ -269,3 +269,25 @@ def test_startfocus_runs_the_window_after_the_first_piece(policy):
     stream.current_stream_piece = 6  # the first piece (5) was delivered; piece 6 is missing
     # no exclusivity any more: the legacy window from 6 (0, 300, 1000 + 500*d)
     assert torrent.get_deadlines() == {6: 0, 7: 300, 8: 2000, 9: 2500}
+
+
+def test_defaults_are_the_gate_passed_upstream_like_start_and_legacy_stays_selectable():
+    # gsp02-v4 PASS:C2 (2026-11-10): edges start + upstream deadlines by default; legacy for rollback.
+    from typing import get_args
+
+    from app.config import Config
+
+    fields = Config.model_fields
+    assert fields["relay_start_policy"].default == "edges"
+    assert fields["relay_readahead_policy"].default == "upstream"
+    assert "legacy" in get_args(fields["relay_start_policy"].annotation)
+    assert "legacy" in get_args(fields["relay_readahead_policy"].annotation)
+
+
+def test_upstream_like_path_falls_back_when_the_torrent_has_no_piece_count(policy):
+    policy(start="edges", readahead="upstream")
+    torrent, file, handle = make_torrent(MIB, 20)
+    del torrent.piece_count  # e.g. an object built without __init__
+    stream_at(torrent, file, 5)
+    # falls back to the legacy path instead of raising
+    assert torrent.get_deadlines() == {0: 0, 1: 0, 2: 0, 17: 0, 18: 0, 19: 0, 5: 0, 6: 300, 7: 2000, 8: 2500}

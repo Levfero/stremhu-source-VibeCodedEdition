@@ -131,12 +131,13 @@ class Config(BaseSettings):
     port: int = 7070
     relay_piece_timeout_seconds: float = Field(default=120.0, gt=0)
     relay_read_timeout_seconds: float = Field(default=15.0, gt=0)
-    # Streamgyorsítás (SP02/SP01): a policy-k alapértéke a mai (legacy) viselkedés, amíg a
-    # hozzájuk tartozó mérési kapu (GSP02/GSP01) nem PASS. Új kötelező beállítás nincs.
-    relay_start_policy: Literal["legacy", "graded", "edges"] = "legacy"
+    # Streamgyorsítás (SP02): a gsp02-v4 kapu PASS:C2 (2026-11-10) óta az alapérték az upstream-szerű
+    # indulás: csak a fájl első és utolsó darabja sürgős (`edges`), az upstream határidő-képletével
+    # (`upstream`). A `legacy` értékek visszaállításra választhatók. Új kötelező beállítás nincs.
+    relay_start_policy: Literal["legacy", "graded", "edges"] = "edges"
     relay_head_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
     relay_tail_bytes: int = Field(default=4 * 1024 * 1024, gt=0)
-    relay_readahead_policy: Literal["legacy", "window", "upstream", "focus", "startfocus"] = "legacy"
+    relay_readahead_policy: Literal["legacy", "window", "upstream", "focus", "startfocus"] = "upstream"
     relay_readahead_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     relay_readahead_max_pieces: int = Field(default=128, ge=4)
     # A határidők darabméret-független lépésköze: ennyi bájt/s-os letöltést feltételez.

@@ -115,7 +115,9 @@ def main() -> None:
                         reference.setdefault(key, digest)
         return found
 
-    digest_mismatches = mismatches(rule.get("identical_sources", []), "source_digest")
+    # "source_digest" hashes the Stremio filenames (they carry media attribute ids); a rule can name
+    # "source_set_digest" (torrent identity) instead.
+    digest_mismatches = mismatches(rule.get("identical_sources", []), rule.get("source_digest_field", "source_digest"))
     enrichment_mismatches = mismatches(rule.get("identical_enrichment", []), "enrichment_digest")
     never_open_violations = [f"{scenario_key(r, run)} rep {r['rep']}" for scenario in rule.get("never_open", [])
                              for r in ok if r["arm"] == cand for run in r["result"]["runs"]

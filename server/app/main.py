@@ -27,6 +27,10 @@ from app.exceptions import setup_exception_handlers
 from app.modules.auth.bootstrap import initialize_bootstrap_state
 from app.modules.indexer_definitions.dependencies import get_indexer_definitions_service
 from app.modules.indexers.service import invalidate_indexer_cache
+from app.modules.media_attributes.tech_info_cache import (
+    close_tech_info_prefetch,
+    open_tech_info_prefetch,
+)
 from app.modules.network.background_tasks import verify_self_connection
 from app.modules.network.service import close_network_setup
 from app.modules.relay.background_tasks import resume_save_loop
@@ -76,6 +80,7 @@ async def lifespan(app: FastAPI):
     try:
         open_stream_searches()
         open_source_searches()
+        open_tech_info_prefetch()
         if config.node_env == NodeEnv.DEV:
             config.openapi_dir.mkdir(parents=True, exist_ok=True)
             with (config.openapi_dir / "openapi.json").open("w", encoding="utf-8") as output:
@@ -148,6 +153,8 @@ async def lifespan(app: FastAPI):
             # or native resource. A cancelled await is never a thread-stop ack.
             await step("stream-searches", close_stream_searches)
             await step("source-searches", close_source_searches)
+            # SP06/b: a keresések után nem indul új előtöltés; a futók az indexer-HTTP zárása előtt állnak le.
+            await step("tech-info-prefetch", close_tech_info_prefetch)
             if definitions is not None:
                 await step("relogins", definitions.close_logins)
             await step("producers", lambda: _cancel_producers(producers))

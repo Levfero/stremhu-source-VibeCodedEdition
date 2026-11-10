@@ -360,6 +360,8 @@ A holt `get_critical_pieces` eltávolítása önálló, viselkedésváltozás n�
 <a id="sp02"></a>
 ### SP02 — Indulási darabsorrend
 
+> **Döntés (2026-11-10):** a `gsp02-v1`–`v3` FAIL után a `gsp02-v4` (bootstrap/Holm szabály) PASS:C2: alapértelmezés az upstream-szerű `edges` + `upstream`. A részletek és a fenntartás a [végrehajtási állapotban](../stream-performance.md#execution-status); a `graded`, `focus` és `startfocus` jelöltek elvetve.
+
 **Forrás:**
 - `relay/entities.py`:
   - `_set_file_boundary_priorities:178–191`;

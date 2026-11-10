@@ -90,6 +90,8 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
     octet = 40 + (order % 200)
     subnet = SUBNET_BASE.format(octet)
     app_ip, client_ip = f"172.29.{octet}.20", f"172.29.{octet}.30"
+    proxy_ip = f"172.29.{octet}.40"
+    proxy = f"sp-proxy-{run_id}" if plan.get("latency_proxy_one_way_ms") else None
     net, vol = f"sp-net-{run_id}", f"sp-data-{run_id}"
     app = f"sp-app-{run_id}"
     profile = plan["profiles"][cell["profile"]]
@@ -136,11 +138,26 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
                      "/sp/scripts/sp_app_fixture.py", "--torrent-dir", "/sp/shared/torrents",
                      "--out", "/sp/shared/targets.json")
         record["fixture"] = json.loads(fixture.strip().splitlines()[-1])
+        base_ip = app_ip
+        if proxy:
+            # H3: fixed one-way latency between player and product (both directions).
+            sh("docker", "run", "-d", "--name", proxy, "--network", net, "--ip", proxy_ip, "--cpuset-cpus", "6,7",
+               *mounts, "--entrypoint", "python", plan["tool_image"], "/sp/scripts/fixtures/latency_proxy.py",
+               "--listen", "0.0.0.0:7070", "--target", f"{app_ip}:7070",
+               "--one-way-ms", str(plan["latency_proxy_one_way_ms"]))
+            for _ in range(60):
+                if '"ready": true' in sh("docker", "logs", proxy, check=False):
+                    break
+                time.sleep(0.5)
+            else:
+                raise TimeoutError("latency proxy not ready")
+            base_ip = proxy_ip
+            record["latency_proxy_one_way_ms"] = plan["latency_proxy_one_way_ms"]
         sampler = StatsSampler(app)
         sampler.start()
         client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5", *mounts,
                     "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_playback.py",
-                    "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{app_ip}:7070",
+                    "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
                     "--out", "/sp/shared/result.json", "--bitrate-mbit", str(cell["bitrate_mbit"]),
                     *[str(a) for a in plan.get("client_args", [])], timeout=900)
         record["client_line"] = json.loads(client.strip().splitlines()[-1])
@@ -211,7 +228,7 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
             sampler.halt.set()
             sampler.join(timeout=40)
             record["app_stats"] = sampler.summary()
-        sh("docker", "rm", "-f", app, *seeds, check=False)
+        sh("docker", "rm", "-f", app, *seeds, *([proxy] if proxy else []), check=False)
         sh("docker", "volume", "rm", "-f", vol, check=False)
         sh("docker", "network", "rm", net, check=False)
         for name in ("targets.json",):

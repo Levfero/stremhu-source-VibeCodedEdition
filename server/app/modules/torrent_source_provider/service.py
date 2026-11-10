@@ -10,8 +10,10 @@ from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.singleflight import AdmissionGate, Singleflight
 from app.config import config
+from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.indexers.schemas.internal import IndexerTorrent
 from app.modules.indexers.search import IndexerSearchService
+from app.modules.media_attributes import tech_info_cache
 from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
 from app.modules.torrent_files.isolated_service import IsolatedTorrentFilesService
@@ -104,13 +106,20 @@ class TorrentSourceProviderService:
         self,
         indexers_service: IndexerSearchService,
         isolated_torrent_files_service: IsolatedTorrentFilesService,
+        indexer_definitions_service: IndexerDefinitionsService | None = None,
     ):
         self._indexers_service = indexers_service
         self._isolated_torrent_files_service = isolated_torrent_files_service
+        # SP06/b: csak a Tech Info előtöltéshez kell (folyamatszintű registry).
+        self._indexer_definitions_service = indexer_definitions_service
 
     def _shared_search(self) -> "_SourceSearch":
         # A megosztott task csak request-független függőséget kap, a providert nem.
-        return _SourceSearch(self._indexers_service, self._isolated_torrent_files_service)
+        return _SourceSearch(
+            self._indexers_service,
+            self._isolated_torrent_files_service,
+            self._indexer_definitions_service,
+        )
 
     async def find_by_imdb_id(
         self,
@@ -199,11 +208,48 @@ class _SourceSearch:
         self,
         indexers: IndexerSearchService,
         files: IsolatedTorrentFilesService,
+        definitions: IndexerDefinitionsService | None = None,
     ):
         self._indexers = indexers
         self._files = files
+        self._definitions = definitions
         self._deadline: float | None = None
         self._deadline_hit = False
+
+    def _prefetch_tech_info(self, indexer_torrents: list[IndexerTorrent]) -> None:
+        """SP06/b: Tech Info előtöltés a trackerfázis után, a .torrent letöltésekkel párhuzamosan.
+
+        A Tech Info-t adó indexerek találatai közül seederszám szerint a legjobb N kulcsra indít
+        tulajdonolt háttérlekérést. Nem vár rá, és hibája sem érinti a keresést.
+        """
+        if not config.tech_info_prefetch or self._definitions is None or not indexer_torrents:
+            return
+        try:
+            sources: dict[str, tech_info_cache.TechInfoSource | None] = {}
+            candidates: dict[tech_info_cache.TechInfoKey, tech_info_cache.TechInfoSource] = {}
+            for indexer_torrent in sorted(indexer_torrents, key=lambda t: t.seeders or 0, reverse=True):
+                indexer_id = indexer_torrent.indexer_account.indexer_id
+                if indexer_id not in sources:
+                    sources[indexer_id] = self._tech_info_source(indexer_id)
+                source = sources[indexer_id]
+                if source is None:
+                    continue
+                candidates.setdefault((indexer_id, indexer_torrent.torrent_id), source)
+                if len(candidates) >= config.tech_info_prefetch_top_n:
+                    break
+            tech_info_cache.prefetch(candidates.items())
+        except Exception as error:
+            logger.debug("operation=tech-info-prefetch-schedule %s", network_error_fields(error))
+
+    def _tech_info_source(self, indexer_id: str) -> tech_info_cache.TechInfoSource | None:
+        if self._definitions is None:
+            return None
+        try:
+            definition = self._definitions.get_by_id(indexer_id)
+        except Exception:
+            # Nem regisztrált vagy letiltott indexer: nincs előtöltés.
+            return None
+        return definition if definition.provides_tech_info else None
 
     def _start_deadline(self) -> None:
         # A határ a tulajdonolt task indulásakor kezdődik, nem a várakozónál.
@@ -238,6 +284,7 @@ class _SourceSearch:
             indexer_errors,
         ) = await self._search_stage(lambda: self._indexers.get_torrents_by_imdb_id(imdb_id))
 
+        self._prefetch_tech_info(indexer_torrents)
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
         return torrent_files, self._errors(indexer_errors)
@@ -279,6 +326,7 @@ class _SourceSearch:
                 else:
                     by_indexer.pop(iid, None)
 
+        self._prefetch_tech_info(fair_selected)
         torrent_files = await self._sync_torrent_files(fair_selected)
 
         return torrent_files, self._errors(indexer_errors)
@@ -293,6 +341,7 @@ class _SourceSearch:
             indexer_errors,
         ) = await self._search_stage(lambda: self._indexers.get_torrents_by_torrent_id(torrent_id))
 
+        self._prefetch_tech_info(indexer_torrents)
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
         return torrent_files, self._errors(indexer_errors)
@@ -308,6 +357,7 @@ class _SourceSearch:
                 indexer_id, torrent_id
             )
 
+        self._prefetch_tech_info([indexer_torrent])
         torrent_file = await self._sync_torrent_files(indexer_torrent)
 
         return torrent_file

@@ -131,12 +131,13 @@ class Config(BaseSettings):
     port: int = 7070
     relay_piece_timeout_seconds: float = Field(default=120.0, gt=0)
     relay_read_timeout_seconds: float = Field(default=15.0, gt=0)
-    # Streamgyorsítás (SP02/SP01): a policy-k alapértéke a mai (legacy) viselkedés, amíg a
-    # hozzájuk tartozó mérési kapu (GSP02/GSP01) nem PASS. Új kötelező beállítás nincs.
-    relay_start_policy: Literal["legacy", "graded", "edges"] = "legacy"
+    # Streamgyorsítás (SP02): a gsp02-v4 kapu PASS:C2 (2026-11-10) óta az alapérték az upstream-szerű
+    # indulás: csak a fájl első és utolsó darabja sürgős (`edges`), az upstream határidő-képletével
+    # (`upstream`). A `legacy` értékek visszaállításra választhatók. Új kötelező beállítás nincs.
+    relay_start_policy: Literal["legacy", "graded", "edges"] = "edges"
     relay_head_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
     relay_tail_bytes: int = Field(default=4 * 1024 * 1024, gt=0)
-    relay_readahead_policy: Literal["legacy", "window", "upstream", "focus", "startfocus"] = "legacy"
+    relay_readahead_policy: Literal["legacy", "window", "upstream", "focus", "startfocus"] = "upstream"
     relay_readahead_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     relay_readahead_max_pieces: int = Field(default=128, ge=4)
     # A határidők darabméret-független lépésköze: ennyi bájt/s-os letöltést feltételez.
@@ -145,6 +146,15 @@ class Config(BaseSettings):
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)
     subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+    # SP06/b Tech Info előtöltés: a megosztott keresésben, a trackerfázis után indul, háttérben.
+    # Kikapcsolva (alapérték) a mai viselkedés marad, amíg a GSP06 kapu nem PASS.
+    tech_info_prefetch: bool = False
+    # A Tech Info-t adó indexerek találataiból seederszám szerint ennyit tölt elő egy keresés.
+    tech_info_prefetch_top_n: int = Field(default=5, ge=1)
+    # Folyamatszinten egyszerre futó háttérlekérések felső határa; a többlet kimarad.
+    tech_info_prefetch_max_in_flight: int = Field(default=20, ge=1)
+    # Egy háttérlekérés teljes felső határa (szemaforvárakozással együtt); lejárat = sikertelen.
+    tech_info_prefetch_timeout_seconds: float = Field(default=10.0, gt=0)
     # Indexerről letöltött .torrent dekódolt törzsének felső határa.
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).
@@ -161,6 +171,14 @@ class Config(BaseSettings):
     source_search_pending_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     # Indexerenként egyszerre beengedett letöltés: az adapterek alapértelmezett 5-ös szemaforja.
     source_search_downloads_per_indexer: int = Field(default=5, ge=1)
+    # SP05/b tracker-rövidzár: K egymás utáni időtúllépés vagy kapcsolódási hiba után a tracker
+    # keresése cooldown ideig hálózati kérés nélkül kimarad, ismétlődő sikertelen próbánál a
+    # kihagyás duplázódik a felső korlátig. Alapértelmezés 2 (`gsp05-v1` PASS, 2026-11-10);
+    # 0 = kikapcsolva (a korábbi viselkedés). Felhasználói UX-döntés (UX/SLO-keret 4. sor):
+    # 2 / 120 s / 600 s. Ha a felső korlát kisebb az alapnál, az alap érvényes (nincs induláskori hiba).
+    indexer_breaker_threshold: int = Field(default=2, ge=0)
+    indexer_breaker_cooldown_seconds: float = Field(default=120.0, gt=0)
+    indexer_breaker_cooldown_max_seconds: float = Field(default=600.0, gt=0)
     # Feldolgozott TorrentInfo-gyorsítótár fájlbejegyzés-kerete (~1,3 KiB/fájl, ~65 MiB).
     torrent_info_cache_max_files: int = Field(default=50_000, gt=0)
 

@@ -10,8 +10,8 @@ Rule (protocol["decision_rule"]):
 - baseline arm = rule["baseline"], candidate = rule["candidate"]; n = all reps of each arm;
 - improvement: for each entry in rule["improve"], H0 "candidate is not better than baseline"
   rejected by Holm over that family at alpha (one-sided bootstrap of the mean difference, seeded);
-- regression: for each entry in rule["guard"], H0 "candidate is not worse than baseline"
-  rejected by Holm over that family at alpha;
+- regression: for each entry in rule["guard"], H0 "candidate is not worse than baseline by more
+  than rule["guard_margin"][metric] (default 0)" rejected by Holm over that family at alpha;
 - hard checks: identical source digests (rule["identical_sources"]) and rendered-stream digests
   (rule["identical_enrichment"]) per (scenario, kind, index) across every run of both arms; breaker
   never opens in rule["never_open"] scenarios (candidate); candidate minus baseline mean Tech Info
@@ -26,15 +26,22 @@ from pathlib import Path
 
 
 def bootstrap(a, b, rng, n):
+    """Observed mean difference (b - a) and the resampled differences (seeded, fixed draw order)."""
     observed = sum(b) / len(b) - sum(a) / len(a)
-    ge = le = 0
+    diffs = []
     for _ in range(n):
         sa = [a[rng.randrange(len(a))] for _ in a]
         sb = [b[rng.randrange(len(b))] for _ in b]
-        diff = sum(sb) / len(sb) - sum(sa) / len(sa)
-        ge += diff >= 0
-        le += diff <= 0
-    return observed, (ge + 1) / (n + 1), (le + 1) / (n + 1)
+        diffs.append(sum(sb) / len(sb) - sum(sa) / len(sa))
+    return observed, diffs
+
+
+def p_at_least(diffs, threshold):
+    return (sum(d >= threshold for d in diffs) + 1) / (len(diffs) + 1)
+
+
+def p_at_most(diffs, threshold):
+    return (sum(d <= threshold for d in diffs) + 1) / (len(diffs) + 1)
 
 
 def holm(pvalues: dict, alpha: float) -> set:
@@ -75,12 +82,17 @@ def main() -> None:
             scenario, kind, stat = entry[:3]
             metric = entry[3] if len(entry) > 3 else "steady_latency_ms"
             direction = entry[4] if len(entry) > 4 else "lower"
+            margin = float(rule.get("guard_margin", {}).get(metric, 0.0))
             a, b = values(base, scenario, kind, stat, metric), values(cand, scenario, kind, stat, metric)
-            diff, p_ge, p_le = bootstrap(a, b, rng, resamples)
-            # lower is better: improvement rejects "diff >= 0", regression rejects "diff <= 0"
-            p_improve, p_regress = (p_ge, p_le) if direction == "lower" else (p_le, p_ge)
+            diff, diffs = bootstrap(a, b, rng, resamples)
+            # Lower is better: improvement rejects "diff >= 0"; regression rejects "diff <= margin"
+            # (a worsening within the registered margin is not a regression). Mirrored for higher.
+            if direction == "lower":
+                p_improve, p_regress = p_at_least(diffs, 0.0), p_at_most(diffs, margin)
+            else:
+                p_improve, p_regress = p_at_most(diffs, 0.0), p_at_least(diffs, -margin)
             key = (family, scenario, kind, stat) + ((metric,) if metric != "steady_latency_ms" else ())
-            tests[key] = {"metric": metric, "better": direction,
+            tests[key] = {"metric": metric, "better": direction, "guard_margin": margin,
                           "mean_baseline": round(sum(a) / len(a), 3), "mean_candidate": round(sum(b) / len(b), 3),
                           "diff": round(diff, 3), "n": [len(a), len(b)],
                           "p_improvement_null": p_improve, "p_regression_null": p_regress}

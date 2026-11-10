@@ -597,8 +597,11 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                         "errors": error_kinds, "partial": bool(error_kinds.get("deadline")),
                     }
                     if args.new_upload != "none":
-                        marker = ".S01E02." if args.new_upload == "episode" else "-new."
-                        row["new_upload_visible"] = any(marker in file_name for file_name in files)
+                        # Torrent identity of the new release (bingeGroup "<indexer>-<torrent id>").
+                        marker = "-ep2-" if args.new_upload == "episode" else "-new"
+                        row["new_upload_visible"] = any(
+                            source_id.endswith(marker) if marker == "-new" else marker in source_id
+                            for source_id in source_ids)
                     rows.append(row)
                     return row
 

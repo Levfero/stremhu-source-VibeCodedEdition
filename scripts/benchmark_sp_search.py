@@ -36,6 +36,7 @@ Usage (from ``server/``, synthetic only; never against a real install's data vol
 import argparse
 import asyncio
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -76,6 +77,11 @@ from app.modules.indexer_definitions.models import IndexerDefinitionModel  # noq
 from app.modules.indexer_definitions.schemas.internal import IndexerDefinitionTorrent  # noqa: E402
 from app.modules.indexers import search  # noqa: E402
 from app.modules.indexers.search import IndexerSearchService, invalidate_indexer_cache  # noqa: E402
+
+try:  # SP06/b shared Tech Info cache and prefetch (absent before the SP06/b merge)
+    from app.modules.media_attributes import tech_info_cache  # noqa: E402
+except ImportError:  # pragma: no cover - older image under test
+    tech_info_cache = None
 from app.modules.preferences.dependencies import create_preferences_service  # noqa: E402
 from app.modules.roles.models import RoleModel  # noqa: E402
 from app.modules.stremio import service as streams  # noqa: E402
@@ -93,13 +99,14 @@ SCENARIOS = {
     "S3": "egy tracker lassú, de válaszol",
     "S4": "egy tracker ingadozik (le/fel periódusok)",
 }
-POLICIES = ("legacy", "candidate")
+POLICIES = ("legacy", "candidate", "prefetch")
 BASE_URL = "https://fixture.invalid"
 ERROR_STREAM_NAME = "⚠️ [StremHU] Hiba"
 DEADLINE_ERROR = getattr(provider_module, "DEADLINE_ERROR", "A keresés elérte az időkorlátot; a találatok részlegesek.")
 # Product defaults the harness scales; read once, before any override.
 PRODUCT_SEARCH_TIMEOUT = float(getattr(search, "INDEXER_SEARCH_TIMEOUT_SECONDS", 12.5))
 PRODUCT_DEADLINE = float(config.source_search_deadline_seconds)
+TECH_INFO_MARKER = "Felirat"  # stremio/schemas.py renders "Felirat" when has_hungarian_sub
 NFO_TEXT = "General\nVideo #1\nFormat : HEVC\nAudio #1\nLanguage : Hungarian\nText #1\nLanguage : Hungarian\n"
 TORRENT_SIZE = 100 * 1024 * 1024
 PIECE_SIZE = 1024 * 1024
@@ -108,7 +115,7 @@ PIECE_SIZE = 1024 * 1024
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--smoke", action="store_true", help="tiny wiring run (seconds); never a measurement")
-    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate (default: legacy; smoke: both)")
+    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate,prefetch (default: legacy; smoke: legacy,candidate)")
     parser.add_argument("--scenarios", default="S1,S2,S3,S4")
     parser.add_argument("--requests", type=int, default=None, help="cold requests per scenario (default 30; smoke 6)")
     parser.add_argument("--interval", type=float, default=10.0, help="seconds between cold request starts")
@@ -172,6 +179,7 @@ def percentile(values: list[float], fraction: float) -> float | None:
 
 def distribution(values: list[float]) -> dict[str, Any]:
     return {"n": len(values), "p50": percentile(values, 0.5), "p95": percentile(values, 0.95),
+            "mean": round(sum(values) / len(values), 6) if values else None,
             "min": min(values) if values else None, "max": max(values) if values else None}
 
 
@@ -214,13 +222,19 @@ class ScenarioClock:
 class SyntheticTracker:
     """A tracker adapter double with the product adapter's public search/download surface."""
 
+    provides_tech_info = False
+
     def __init__(self, indexer_id: str, name: str, args: argparse.Namespace, clock: ScenarioClock,
-                 rng: random.Random, behaviour: str = "healthy") -> None:
+                 seed_key: str, behaviour: str = "healthy") -> None:
         self.id = indexer_id
         self.name = name
         self.args = args
         self.clock = clock
-        self.rng = rng
+        # Search jitter: one stream per tracker, untouched by Tech Info lookups, so both policies of
+        # a gate see the same jitter sequence for the same seed.
+        self.seed_key = seed_key
+        self.rng = random.Random(f"{seed_key}:{indexer_id}:search")
+        self.tech_attempts: Counter[str] = Counter()
         self.behaviour = behaviour
         self.search_calls = 0
         self.download_calls = 0
@@ -290,12 +304,18 @@ class SyntheticTracker:
 
 
 class NcoreLikeTracker(SyntheticTracker):
-    """nCore-like Tech Info: configurable latency and failure rate (SP06 later)."""
+    """nCore-like Tech Info: configurable latency and failure rate (GSP06)."""
+
+    provides_tech_info = True
 
     async def fetch_tech_info(self, torrent_id: str) -> tuple[str | None, str | None]:
         self.tech_info_calls += 1
+        # Failure is a function of (seed, torrent, attempt): the n-th lookup of a torrent fails in
+        # both policies alike, whichever of them asks first or prefetches it.
+        self.tech_attempts[torrent_id] += 1
+        draw = random.Random(f"{self.seed_key}:{torrent_id}:tech:{self.tech_attempts[torrent_id]}").random()
         await asyncio.sleep(self.clock.scaled(self.args.tech_info_latency))
-        if self.rng.random() < self.args.tech_info_failure_rate:
+        if draw < self.args.tech_info_failure_rate:
             self.tech_info_failures += 1
             raise TechInfoUnavailableException("nCore Tech Info nem érhető el.")
         return NFO_TEXT, None
@@ -323,8 +343,17 @@ async def drain_background_tasks() -> None:
 
 def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
     has_breaker = hasattr(config, "indexer_breaker_threshold") and hasattr(search, "IndexerHealth")
+    has_prefetch = hasattr(config, "tech_info_prefetch") and tech_info_cache is not None
     if policy == "candidate" and not has_breaker:
         raise RuntimeError("Candidate policy needs SP05/b (IndexerHealth) in the image under test")
+    if policy == "prefetch" and not has_prefetch:
+        raise RuntimeError("Prefetch policy needs SP06/b (tech_info_prefetch) in the image under test")
+    # "prefetch" = SP06/b Tech Info prefetch on, breaker off; the others keep prefetch off.
+    prefetch_info: dict[str, Any] = {"tech_info_prefetch": "N/A"}
+    if has_prefetch:
+        config.tech_info_prefetch = policy == "prefetch"
+        prefetch_info = {"tech_info_prefetch": config.tech_info_prefetch,
+                         "tech_info_prefetch_top_n": config.tech_info_prefetch_top_n}
     if not hasattr(search, "INDEXER_SEARCH_TIMEOUT_SECONDS") and args.time_scale != 1.0:
         raise RuntimeError("Time scaling needs the SP05/a search timeout constant")
     if hasattr(search, "INDEXER_SEARCH_TIMEOUT_SECONDS"):
@@ -333,18 +362,36 @@ def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
     if args.imdb_cache_ttl is not None:
         search._IMDB_TRACKER_CACHE_TTL = args.imdb_cache_ttl * args.time_scale
     if not has_breaker:
-        return {"name": policy, "breaker": "N/A"}
+        return {"name": policy, "breaker": "N/A", **prefetch_info}
     threshold = args.breaker_threshold if policy == "candidate" else 0
     config.indexer_breaker_threshold = threshold
     config.indexer_breaker_cooldown_seconds = args.breaker_cooldown * args.time_scale
     config.indexer_breaker_cooldown_max_seconds = args.breaker_cooldown_max * args.time_scale
     return {"name": policy, "indexer_breaker_threshold": threshold,
             "indexer_breaker_cooldown_seconds": args.breaker_cooldown,
-            "indexer_breaker_cooldown_max_seconds": args.breaker_cooldown_max}
+            "indexer_breaker_cooldown_max_seconds": args.breaker_cooldown_max, **prefetch_info}
+
+
+async def settle_tech_info_prefetch() -> None:
+    """Let SP06/b background Tech Info fetches finish so nothing leaks into the next scenario."""
+    prefetcher = getattr(tech_info_cache, "_prefetcher", None)
+    if prefetcher is None:
+        return
+    flights = prefetcher().flights
+    while flights:
+        await asyncio.gather(*(flight.task for flight in tuple(flights.values())), return_exceptions=True)
+        await asyncio.sleep(0)
+
+
+def clear_tech_info_cache() -> None:
+    for module in (tech_info_cache, torrent_streams_module):
+        cache = getattr(module, "_TECH_INFO_CACHE", None)
+        if cache is not None:
+            cache.clear()
 
 
 async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run_index: int) -> dict[str, Any]:
-    rng = random.Random(f"{args.seed}:{scenario}")
+    seed_key = f"{args.seed}:{scenario}"
     policy_info = apply_policy(policy, args)
     original_session_local = database.SessionLocal
     with tempfile.TemporaryDirectory(prefix="sp-search-") as directory:
@@ -371,7 +418,7 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                         subject_id = indexer_id
                         behaviour = {"S1": "healthy", "S2": "down", "S3": "slow", "S4": "flap"}[scenario]
                     tracker_type = NcoreLikeTracker if index == 0 else SyntheticTracker
-                    trackers[indexer_id] = tracker_type(indexer_id, name, args, clock, rng, behaviour)
+                    trackers[indexer_id] = tracker_type(indexer_id, name, args, clock, seed_key, behaviour)
                     definition = IndexerDefinitionModel(id=indexer_id, name=name, url=f"https://{indexer_id}.fixture.invalid",
                                                         details_path="/details/{torrent_id}")
                     account = IndexerAccountModel(indexer_id=indexer_id, username="synthetic", password="synthetic")
@@ -387,9 +434,7 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                 health = CountingHealth(clock)
                 search.indexer_health = health
             streams.invalidate_stream_cache()
-            tech_cache = getattr(torrent_streams_module, "_TECH_INFO_CACHE", None)
-            if tech_cache is not None:
-                tech_cache.clear()
+            clear_tech_info_cache()
             info_cache = getattr(torrent_models, "_TORRENT_INFO_CACHE", None)
             if info_cache is not None:
                 info_cache.clear()
@@ -400,13 +445,20 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
 
             def stremio_service(db: Annotated[Session, Depends(get_db, scope="function")]):
                 indexers = IndexerSearchService(registry)  # type: ignore[arg-type]
-                provider = provider_module.TorrentSourceProviderService(indexers, IsolatedTorrentFilesService())
+                provider = provider_module.TorrentSourceProviderService(
+                    indexers, IsolatedTorrentFilesService(), **provider_extra)
                 torrent_streams = torrent_streams_module.TorrentStreamsService(
                     db, provider, inventory, settings, create_preferences_service(db),  # type: ignore[arg-type]
                     indexer_definitions_service=registry,  # type: ignore[arg-type]
                 )
                 return streams.StremioService(torrent_streams, settings, tvdb_resolver_service=resolver)  # type: ignore[arg-type]
 
+            # SP06/b: the shared search gets the (process-wide) definitions registry for prefetch,
+            # exactly like the product DI; older images have no such parameter.
+            provider_extra: dict[str, Any] = (
+                {"indexer_definitions_service": registry}
+                if "indexer_definitions_service" in inspect.signature(provider_module.TorrentSourceProviderService).parameters
+                else {})
             app.dependency_overrides[get_stremio_service] = stremio_service
             rows: list[dict[str, Any]] = []
             cpu_before = time.process_time()
@@ -424,6 +476,11 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                     playable = [stream for stream in body if stream.get("url")]
                     errors = [stream.get("description", "") for stream in body if stream.get("name") == ERROR_STREAM_NAME]
                     files = sorted((stream.get("behaviorHints") or {}).get("filename") or "" for stream in playable)
+                    # GSP06: the fixture NFO carries a Hungarian subtitle track, the torrent names do not,
+                    # so the subtitle marker in a description means Tech Info reached that stream.
+                    enriched = [stream for stream in playable if TECH_INFO_MARKER in (stream.get("description") or "")]
+                    rendered = sorted(f"{(stream.get('behaviorHints') or {}).get('filename') or ''}|"
+                                      f"{stream.get('description') or ''}" for stream in playable)
                     by_tracker = Counter()
                     for file_name in files:
                         for indexer_id in trackers:
@@ -434,6 +491,9 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                         "kind": kind, "index": index, "offset_s": round(offset, 3), "latency_ms": round(latency_ms, 3),
                         "subject_state": subject_state, "sources": len(playable), "sources_by_tracker": dict(by_tracker),
                         "source_digest": hashlib.sha256("\n".join(files).encode()).hexdigest(),
+                        "tech_enriched": len(enriched),
+                        "enrichment_digest": hashlib.sha256("\n".join(rendered).encode()).hexdigest(),
+                        "tech_info_calls_total": sum(t.tech_info_calls for t in trackers.values()),
                         "errors": error_kinds, "partial": bool(error_kinds.get("deadline")),
                     })
 
@@ -448,6 +508,7 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                     await request("warm", index, imdb_id)
                     await drain_background_tasks()
             elapsed_unscaled = clock.elapsed_unscaled()
+            await settle_tech_info_prefetch()
             cpu_seconds = time.process_time() - cpu_before
             if engine.pool.checkedout():
                 raise RuntimeError("Synthetic search fixture left a checked-out connection")
@@ -470,6 +531,7 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
             "steady_latency_ms": distribution([row["latency_ms"] for row in steady]),
             "steady_sources": distribution([float(row["sources"]) for row in steady]),
             "steady_partial_rate": sum(row["partial"] for row in steady) / len(steady),
+            "steady_tech_enriched": distribution([float(row["tech_enriched"]) for row in steady]),
             "sources": distribution([float(row["sources"]) for row in selected]),
             "healthy_sources": distribution([float(sum(n for t, n in row["sources_by_tracker"].items() if t != subject_id))
                                              for row in selected]),
@@ -488,8 +550,9 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                            "opened_at_s": health.opened_at.get(subject_id, []),
                            "openings_other_trackers": sum(n for t, n in health.openings.items() if t != subject_id)}
                           if health is not None else "N/A")
-    summary["tech_info"] = {"calls": sum(t.tech_info_calls for t in trackers.values()),
-                            "failures": sum(t.tech_info_failures for t in trackers.values())}
+    tech_calls = sum(t.tech_info_calls for t in trackers.values())
+    summary["tech_info"] = {"calls": tech_calls, "failures": sum(t.tech_info_failures for t in trackers.values()),
+                            "calls_per_cold_request": round(tech_calls / args.requests, 3)}
     summary["requests"] = rows
     return summary
 
@@ -515,7 +578,7 @@ async def main(args: argparse.Namespace) -> dict[str, Any]:
 
     imdb_cache_ttl = getattr(search, "_IMDB_TRACKER_CACHE_TTL", None)
     defaults = {name: getattr(config, name) for name in (
-        "source_search_deadline_seconds", "indexer_breaker_threshold",
+        "source_search_deadline_seconds", "indexer_breaker_threshold", "tech_info_prefetch",
         "indexer_breaker_cooldown_seconds", "indexer_breaker_cooldown_max_seconds") if hasattr(config, name)}
     httpx.AsyncClient.send = offline_send  # type: ignore[method-assign]
     runs = []

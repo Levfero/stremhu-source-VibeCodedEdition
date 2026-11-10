@@ -1,0 +1,99 @@
+{
+ "id": "gsp10-draft",
+ "status": "Session draft for gate GSP10 (SP10 stalled peers); NOT registered, no measured run. Registration copies the plan and rule into gsp10-v1-plan.json / gsp10-v1-protocol.json with the source manifest, image ids and harness hashes, after (1) the G0 completion batches below, (2) fixing the candidate value from them, (3) a non-measurement wiring smoke.",
+ "item": "SP10: C0 = today's defaults (edges start + upstream deadlines since gsp02-v4 PASS:C2, relay_stall_policy legacy = session piece_timeout 10 s) vs C10 = the same + relay_stall_policy stream_piece_timeout (session piece_timeout shortened while any stream is active, restored to 10 s afterwards).",
+ "basis": {
+  "g0": "docs/feature/stream-performance/evidence/g0-sp10-stalled-probe.json (PARTIAL). Clean L1 (legacy start, mixed swarm, n=5): 16 MiB piece 0 12.89 s with two stalled peers vs 7.17 s without; every stalled peer snubbed 9.98-9.99 s after its first request (= piece_timeout 10), keep-alives or not. Hints only (contaminated, n=3): piece_timeout 2 -> 5.69 s, 3 and 5 -> ~9.4 s.",
+  "gsp02_v4_mixed_means_C2": {"mixed/4MiB/30Mbit": {"start.time_to_start_s": 10.96, "start.ttfb_s": 9.52}, "mixed/16MiB/30Mbit": {"start.time_to_start_s": 19.14, "start.ttfb_s": 15.28}, "note": "today's default start in the 8-peer mixed profile with 2 stalled peers, n=10 each; descriptive context, not part of this gate"}
+ },
+ "prerequisites": {
+  "g0_completion": {
+   "why": "Choose the candidate value (2 or 3 s, or 2 s with request_queue_time 1) and check the harm control (serving peers snubbed without stalled peers) on the C2 deadline scenario ('upstream') before registration.",
+   "rules": "One container at a time; Git Bash on Windows; run from a checkout of claude/sp10-stalled-peers-b6b89d (scripts/probe_sp_stalled_peers.py with the 'upstream' scenario and the *_rqtime1 variants); OUT is any directory outside the repo; cpuset any free CPUs (8-15 while a gate uses 0-5). Image stremhu-source:sp-cand-c3d6035 (libtorrent 2.1.1, sha256:138c89746cf740216142d2dfe3224038326c4199e2cc47d01f7295386b5190d1) keeps the batches comparable to L1; another image is fine if its id and libtorrent version are recorded.",
+   "command_template": "MSYS_NO_PATHCONV=1 docker run --rm --name sp10-probe-<B> --network none --cpuset-cpus 8-15 --cpus 2 --memory 1g --entrypoint python -v \"$(pwd -W)/scripts:/sp/scripts:ro\" stremhu-source:sp-cand-c3d6035 /sp/scripts/probe_sp_stalled_peers.py <ARGS> > \"$OUT/<B>.json\" 2> \"$OUT/<B>.log\"",
+   "batches": [
+    {"B": "U1", "ARGS": "--scenario upstream --swarm mixed --variants ctrl,product,product_chatty --piece-mib 1,4,16 --reps 5", "about_min": 6},
+    {"B": "U2", "ARGS": "--scenario upstream --swarm mixed --variants piece_t2,piece_t3,piece_t5 --piece-mib 1,4,16 --reps 5", "about_min": 6},
+    {"B": "U3", "ARGS": "--scenario upstream --swarm mixed --variants ctrl_piece_t2,ctrl_piece_t3,piece_t2_chatty --piece-mib 4,16 --reps 5", "about_min": 5},
+    {"B": "U4", "ARGS": "--scenario upstream --swarm mixed --variants piece_t2_rqtime1,piece_t3_rqtime1,ctrl_piece_t2_rqtime1 --piece-mib 4,16 --reps 5", "about_min": 5},
+    {"B": "U5", "ARGS": "--scenario upstream --swarm mixed --variants req_t5,req_t2,peer_t5 --piece-mib 4,16 --reps 3", "about_min": 3},
+    {"B": "U6", "ARGS": "--scenario upstream --swarm mixed --variants strict_eg,no_affinity,rqtime1 --piece-mib 4,16 --reps 3", "about_min": 3},
+    {"B": "U7", "ARGS": "--scenario upstream --swarm mixed --variants outq8,stall_last,product_1stall --piece-mib 4,16 --reps 3", "about_min": 3},
+    {"B": "U8", "ARGS": "--scenario upstream --swarm mixed --variants watchdog,watchdog_chatty,ctrl_watchdog --piece-mib 4,16 --reps 3", "about_min": 3},
+    {"B": "L2", "ARGS": "--scenario legacy --swarm mixed --variants piece_t2,piece_t3,piece_t5 --piece-mib 4,16 --reps 5", "about_min": 5, "optional": "replaces the contaminated legacy hint"}
+   ],
+   "summarize": "python scripts/summarize_sp_stalled_probe.py --image-id \"$(docker image inspect stremhu-source:sp-cand-c3d6035 --format '{{.Id}}')\" --out docs/feature/stream-performance/evidence/g0-sp10-stalled-probe-v2.json \"$OUT\"/U*.json \"$OUT\"/L2.json",
+   "value_rule_proposal": "Take the smallest piece_timeout whose 16 MiB piece-0 median (U2) is within 0.5 s of the best one; prefer 3 s over 2 s if they tie and U3 shows serving-peer snubs at 2 s. Add request_queue_time 1 to the candidate only if U4 beats U2 at 16 MiB by more than 1 s with no serving-peer snub and no 4 MiB loss; that would need a second switch value and is a separate decision."
+  },
+  "image": "build stremhu-source:sp-cand-<commit> from the registered commit (both arms use the same image, they differ only in app_env)",
+  "wiring_smoke": "Non-measurement: one C10 run with --only 1; the app log must contain 'Relay stall policy: piece_timeout=<value> s (active streams: True)' and later '... piece_timeout=10 s (active streams: False)'. C0 must log no such line."
+ },
+ "plan": {
+  "tool_image": "stremhu-source:sp-base-9984678",
+  "images": {"C0": "stremhu-source:sp-cand-<commit>", "C10": "stremhu-source:sp-cand-<commit>"},
+  "app_env": {
+   "C0": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "legacy"},
+   "C10": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "stream_piece_timeout", "RELAY_STREAM_PIECE_TIMEOUT_SECONDS": "<value from G0, provisional 2>"}
+  },
+  "series": [{"labels": ["C0", "C10"], "reps": 5}, {"labels": ["C0", "C10"], "reps": 5}],
+  "reps": 10,
+  "total_size": 1073741824,
+  "client_args": ["--play-s", "10", "--seek-play-s", "8", "--start-buffer-s", "2", "--rebuffer-s", "1", "--max-buffer-s", "30"],
+  "cells": [
+   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 8},
+   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 30},
+   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 60},
+   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 8},
+   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 30},
+   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 60},
+   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 8},
+   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 30},
+   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 60},
+   {"profile": "fast", "piece_size": 4194304, "bitrate_mbit": 30},
+   {"profile": "fast", "piece_size": 16777216, "bitrate_mbit": 30},
+   {"profile": "thin", "piece_size": 4194304, "bitrate_mbit": 30},
+   {"profile": "thin", "piece_size": 16777216, "bitrate_mbit": 30}
+  ],
+  "profiles": {
+   "fast": {"peers": 8, "profiles": [{"rate_bytes_per_s": 4000000, "latency_s": 0.02, "jitter_s": 0.01}]},
+   "mixed": {"peers": 8, "profiles": [
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
+    {"stall": true},
+    {"stall": true}]},
+   "thin": {"peers": 2, "profiles": [{"rate_bytes_per_s": 2500000, "latency_s": 0.06, "jitter_s": 0.02}]}
+  },
+  "capture_tracebacks": true,
+  "runs": "13 cells x 2 arms x 10 = 260 runs; at the gsp02-v4 pace (~50 s per run) about 3.6 h"
+ },
+ "decision_rule": {
+  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 at registration)",
+  "primary_metric": "start.time_to_start_s (includes TTFB, tail probe and 2 s buffer)",
+  "candidates": ["C10"],
+  "key_cells": ["mixed/4MiB/8Mbit", "mixed/4MiB/30Mbit", "mixed/4MiB/60Mbit", "mixed/16MiB/8Mbit", "mixed/16MiB/30Mbit", "mixed/16MiB/60Mbit"],
+  "pooling": "both series pooled: n = 10 runs per arm and cell; failed runs excluded and counted",
+  "statistic": "difference of means (C10 - C0); 10 000 bootstrap resamples per test, fixed seed (set at registration); one-sided bootstrap p-values",
+  "alpha": 0.05,
+  "resamples": 10000,
+  "improved_required": 4,
+  "improvement": "primary metric in a key cell: H0 'difference >= 0' rejected by Holm over the 6 key cells",
+  "regression": "any guard test (start.time_to_start_s, start.ttfb_s, seek.resume_s, start.stall_s in all 13 cells, 52 tests): H0 'difference <= 0' rejected by Holm over the 52 tests",
+  "pass_if_all": ["at least 4 of 6 key cells improved", "no regression", "failed runs and tracebacks with an application frame: C10 <= C0"],
+  "traceback_counter": "app_tracebacks",
+  "otherwise": "FAIL: relay_stall_policy stays legacy."
+ },
+ "expected_mechanism": {
+  "mixed 4/16 MiB": "Stalled peers hold 1-2 blocks of the first awaited piece until libtorrent snubs them piece_timeout after their first request; C10 snubs them after the short value, so start (and seek, when a stalled peer took blocks of the seek piece) should shorten most at 16 MiB.",
+  "mixed 1 MiB": "Little stall exposure expected (G0: the window finishes before a 10 s snub at 4 MiB already); guard cells, not key cells.",
+  "fast / thin": "No stalled peers: C10 only changes anything if a serving peer pauses longer than the short timeout (false snub = request queue 1 and no time-critical requests until data arrives). These cells are the harm control."
+ },
+ "open_questions": [
+  "The candidate value (2 vs 3 s) and whether request_queue_time 1 belongs to it: decided by the G0 completion batches, before registration.",
+  "Real swarms: frequency of stalled peers is unknown (implementation plan, SP10 row); a PASS here shows the synthetic mechanism, not its real-world prevalence.",
+  "pb0-v2 seed peer-ids: one sp_seed_service per peer container, each starting its peer-id sequence at 1. The product keeps allow_multiple_connections_per_ip off; the G0 probe hit 'duplicate peer-id' with that setting on, and libtorrent presumably compares peer-ids only then (recollection of the native source, not verified). Worth a one-line check in the wiring smoke: no 'duplicate peer-id' disconnects."
+ ]
+}

@@ -14,7 +14,9 @@ serving swarm and the variant's stalled peers. Scenarios (deadlines):
   legacy   relay start policy "legacy" + readahead "legacy" (head and tail 3 pieces at
            0 ms, 4-piece window), re-applied on every finished piece like
            Torrent.priority_manager (gsp02-v4 C0);
-  edges    start policy "edges" + readahead "legacy" (gsp02-v4 C4), re-applied likewise.
+  edges    start policy "edges" + readahead "legacy" (gsp02-v4 C4), re-applied likewise;
+  upstream start policy "edges" + readahead "upstream" (gsp02-v4 C2, the default since
+           5c14f1e): first and last piece at 0 ms, window 0 / 2000+1000*d ms, re-applied likewise.
 Measured: seconds from the first connect_peer until pieces 0/1/2 and the last piece
 complete; per stalled peer the libtorrent reactions (snub, block time-outs, disconnect,
 queued requests) and how many blocks of the first pieces waited on a stalled peer only.
@@ -82,6 +84,9 @@ SETTING_SETS: dict[str, dict] = {
     "rqtime1": {"request_queue_time": 1},
     "piece_t3_req_t5": {"piece_timeout": 3, "request_timeout": 5},
     "piece_t2_req_t2": {"piece_timeout": 2, "request_timeout": 2},
+    # Freed deadline blocks wait while every serving peer has > 2 s queued (request_queue_time 3).
+    "piece_t2_rqtime1": {"piece_timeout": 2, "request_queue_time": 1},
+    "piece_t3_rqtime1": {"piece_timeout": 3, "request_queue_time": 1},
 }
 VARIANTS: dict[str, dict] = {}
 for _name, _settings in SETTING_SETS.items():
@@ -205,17 +210,21 @@ def product_targets(scenario: str, have: list[bool], n: int) -> dict[int, int]:
         for i in range(3):
             offer(i, 0)
             offer(n - 1 - i, 0)
-    elif scenario == "edges":  # _set_edge_deadlines
+    elif scenario in ("edges", "upstream"):  # _set_edge_deadlines
         offer(0, 0)
         offer(n - 1, 0)
-    # _set_legacy_stream_deadlines; the client reads at once, so the stream sits on the first missing piece.
+    # _set_legacy_stream_deadlines / _set_upstream_stream_deadlines; the client reads at once, so
+    # the stream sits on the first missing piece.
     current = next((p for p in range(n) if not have[p]), n)
     fetched = 0
     for piece in range(current, n):
         if have[piece]:
             continue
         d = piece - current
-        offer(piece, 0 if d == 0 else 300 if d == 1 else 1000 + 500 * d)
+        if scenario == "upstream":
+            offer(piece, 0 if d == 0 else 2000 + 1000 * d)
+        else:
+            offer(piece, 0 if d == 0 else 300 if d == 1 else 1000 + 500 * d)
         fetched += 1
         if fetched >= 4:
             break
@@ -429,7 +438,6 @@ async def run_once(lt, scenario: str, name: str, piece_mib: int, torrent, swarm:
         }
         ses.remove_torrent(handle)
         ses.pause()
-        del handle
     del ses
     return result
 
@@ -445,7 +453,7 @@ async def main(argv: list[str]) -> None:
     import libtorrent as lt
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", choices=("window3", "legacy", "edges"), default="window3")
+    parser.add_argument("--scenario", choices=("window3", "legacy", "edges", "upstream"), default="window3")
     parser.add_argument("--swarm", choices=tuple(SWARMS), default="fast4")
     parser.add_argument("--variants", default="ctrl,product")
     parser.add_argument("--piece-mib", default="4,16")

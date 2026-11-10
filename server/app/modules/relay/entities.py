@@ -620,7 +620,14 @@ class Stream:
         csak naplózásra kerül és az adatfolyam rendezetten lezárul.
         `raise_errors=True` (feliratgyűjtés): a hiba továbbterjed, hogy a fogyasztó
         ne kezelje a részleges tartalmat teljesként.
+
+        SP04 (`relay_piece_read_lookahead_bytes`, 0 = ki): ha a darabméret legfeljebb a
+        korlát, az N. darab küldése alatt a következő, már helyben lévő darab olvasása is
+        elindul a megosztott `get_piece_data` úton. Legfeljebb 1 előreolvasás streamenként;
+        a hibája csak akkor jelenik meg, amikor az a darab sorra kerül.
         """
+        read_ahead = 0 < self.torrent.piece_size <= config.relay_piece_read_lookahead_bytes
+        lookahead: tuple[int, asyncio.Task[bytes]] | None = None
         try:
             for piece_index in range(
                 self.stream_start_piece_index, self.stream_end_piece_index + 1
@@ -632,9 +639,14 @@ class Stream:
                 if await request.is_disconnected():
                     break
 
-                piece_buffer = await self.torrent.service.get_piece_data(
-                    self.torrent.torrent_handle, piece_index
-                )
+                if lookahead is not None and lookahead[0] == piece_index:
+                    pending = lookahead[1]
+                    lookahead = None
+                    piece_buffer = await pending
+                else:
+                    piece_buffer = await self.torrent.service.get_piece_data(
+                        self.torrent.torrent_handle, piece_index
+                    )
 
                 start_offset = 0
                 end_offset = len(piece_buffer)
@@ -656,6 +668,10 @@ class Stream:
                     if await request.is_disconnected():
                         disconnected = True
                         break
+                    if read_ahead and lookahead is None:
+                        # A még letöltés alatt álló darabra nem: annak a teljes lekérési
+                        # határideje a mai módon a saját sorra kerülésekor indul.
+                        lookahead = self._start_lookahead(piece_index + 1)
                     yield view[chunk_start : chunk_start + CHUNK_SIZE].tobytes()
 
                 if disconnected:
@@ -669,4 +685,29 @@ class Stream:
                 raise
             logger.exception("Hiba történt a fájl streamelése közben.")
         finally:
+            if lookahead is not None:
+                _drop_lookahead(lookahead[1])
             fire_and_forget(self.destroy())
+
+    def _start_lookahead(self, piece_index: int) -> tuple[int, asyncio.Task[bytes]] | None:
+        if piece_index > self.stream_end_piece_index:
+            return None
+        if not self.torrent.torrent_handle.have_piece(piece_index):
+            return None
+        task = asyncio.create_task(
+            self.torrent.service.get_piece_data(self.torrent.torrent_handle, piece_index)
+        )
+        return piece_index, task
+
+
+def _drop_lookahead(task: asyncio.Task[bytes]) -> None:
+    # Csak a stream saját hivatkozása szűnik meg: a megosztott olvasó task a shield mögött
+    # a saját végéig fut, a _piece_fetch_tasks takarítása változatlan. A soha sorra nem
+    # került előreolvasás hibáját lekérjük, hogy ne legyen "never retrieved" figyelmeztetés.
+    task.cancel()
+    task.add_done_callback(_consume_lookahead_result)
+
+
+def _consume_lookahead_result(task: asyncio.Task[bytes]) -> None:
+    if not task.cancelled():
+        task.exception()

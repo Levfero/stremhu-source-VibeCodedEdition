@@ -131,6 +131,10 @@ class Config(BaseSettings):
     port: int = 7070
     relay_piece_timeout_seconds: float = Field(default=120.0, gt=0)
     relay_read_timeout_seconds: float = Field(default=15.0, gt=0)
+    # SP04 jelölt (GSP04 előtt): a stream a darab megérkezésekor a következő, már helyben lévő darab
+    # olvasását is elindítja, ha a darabméret legfeljebb ennyi bájt; streamenként legfeljebb 1 előre
+    # olvasott darab. 0 = kikapcsolva (a mai, soros olvasás), amíg a kapu nem PASS.
+    relay_piece_read_lookahead_bytes: int = Field(default=0, ge=0)
     # Streamgyorsítás (SP02): a gsp02-v4 kapu PASS:C2 (2026-11-10) óta az alapérték az upstream-szerű
     # indulás: csak a fájl első és utolsó darabja sürgős (`edges`), az upstream határidő-képletével
     # (`upstream`). A `legacy` értékek visszaállításra választhatók. Új kötelező beállítás nincs.

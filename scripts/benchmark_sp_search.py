@@ -574,6 +574,8 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                     # GSP06: the fixture NFO carries a Hungarian subtitle track, the torrent names do not,
                     # so the subtitle marker in a description means Tech Info reached that stream.
                     enriched = [stream for stream in playable if TECH_INFO_MARKER in (stream.get("description") or "")]
+                    source_ids = sorted((stream.get("behaviorHints") or {}).get("bingeGroup") or ""
+                                        for stream in playable)
                     rendered = sorted(f"{(stream.get('behaviorHints') or {}).get('filename') or ''}|"
                                       f"{stream.get('description') or ''}" for stream in playable)
                     by_tracker = Counter()
@@ -586,6 +588,9 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                         "kind": kind, "index": index, "offset_s": round(offset, 3), "latency_ms": round(latency_ms, 3),
                         "subject_state": subject_state, "sources": len(playable), "sources_by_tracker": dict(by_tracker),
                         "source_digest": hashlib.sha256("\n".join(files).encode()).hexdigest(),
+                        # Torrent identity (bingeGroup = "<indexer>-<torrent id>"): unlike the filename it does
+                        # not carry media attribute ids, so Tech Info enrichment cannot change it.
+                        "source_set_digest": hashlib.sha256("\n".join(source_ids).encode()).hexdigest(),
                         "tech_enriched": len(enriched),
                         "enrichment_digest": hashlib.sha256("\n".join(rendered).encode()).hexdigest(),
                         "tech_info_calls_total": sum(t.tech_info_calls for t in trackers.values()),

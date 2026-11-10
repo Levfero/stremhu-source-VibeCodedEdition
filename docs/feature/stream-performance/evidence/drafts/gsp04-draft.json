@@ -1,0 +1,297 @@
+{
+ "id": "gsp04-draft",
+ "registered_at_utc": null,
+ "status": "UNREGISTERED DRAFT, not a gate protocol: no measured run may cite it and no decision may rest on it. Registration = review by the main session/user, then a copy of 'plan' to evidence/gsp04-v1-plan.json and of this file (without 'runner_draft' notes that no longer apply) to evidence/gsp04-v1-protocol.json with source commit, server/app manifest, image id, harness sha256 and plan sha256 filled in, committed after the wiring smoke and before the first measured run. Every parameter below is a proposal.",
+ "item": "SP04: piece read overlapped with sending. C0 = RELAY_PIECE_READ_LOOKAHEAD_BYTES=0 (today's path: the read of piece N+1 starts only after every chunk of piece N was sent); C4 = 16777216 (candidate: when piece N's data arrives, the read of piece N+1 starts too, through the shared get_piece_data task, if the piece size is at most the limit and piece N+1 is already local; at most 1 lookahead per stream; its error surfaces only at its turn; on disconnect only the stream's own reference is dropped). Same image, the arms differ only by this env value.",
+ "plan_reference": [
+  "docs/feature/stream-performance/implementation-plan.md#sp04 (GSP04 kapu: H1)",
+  "docs/feature/stream-performance/implementation-plan.md#doc-23-meroeszkozok (H1)",
+  "docs/feature/stream-performance/implementation-plan.md#doc-24-kozos-meresi-protokoll-es-kapu",
+  "docs/feature/stream-performance/evidence/gsp02-v4-protocol.json (bootstrap/Holm rule used here)"
+ ],
+ "source": {
+  "branch": "claude/sp04-read-overlap-33db7a (SP04 on feature/stream-performance @ 06b790d)",
+  "commit": "TBD at registration",
+  "server_app_manifest_sha256": "TBD at registration",
+  "manifest_method": "sha256 over 'path:git-blob-id' lines of git ls-tree -r HEAD server/app (as gsp02-v4)",
+  "candidate_contents": "feature/stream-performance @ 06b790d (live defaults: edges start + upstream deadlines, breaker K=2, Tech Info prefetch on) + SP04 behind config.relay_piece_read_lookahead_bytes (default 0 = today's path). SP03 and SP10 not included."
+ },
+ "harness": {
+  "what_is_real": "the product image and its normal start, TLS, API-key auth, playback limit, relay and libtorrent (download, hash check, disk write, read_piece and its alert), the real stream endpoint with Range, in both arms.",
+  "what_is_synthetic": "the swarm (sp_seed_service.py: 8 local seeders + local tracker on an --internal Docker network; used only by the warm-up and stopped before the measured part), the file content (block-index payload: every 16 KiB block repeats an 8-byte word of its index, so order, duplication, skips and non-8-byte shifts are visible), the user/indexer/torrent rows and the signed token (sp_app_fixture.py), the reader (benchmark_sp_bulk_read.py) and the player (benchmark_sp_playback.py).",
+  "files": [
+   "scripts/benchmark_sp_playback_controller.py",
+   "scripts/benchmark_sp_bulk_read.py",
+   "scripts/benchmark_sp_playback.py",
+   "scripts/sp_app_fixture.py",
+   "scripts/sp_seed_service.py",
+   "scripts/fixtures/local_bt_seed.py",
+   "scripts/fixtures/local_tracker.py",
+   "scripts/fixtures/synthetic_torrent.py",
+   "scripts/summarize_sp_playback.py",
+   "scripts/decide_sp_gate_bootstrap.py"
+  ],
+  "sha256": "TBD at registration",
+  "draft_written_against_sha256": {
+   "scripts/benchmark_sp_playback_controller.py": "f8130b5f42d92ec62e326027f25f76d57f0c3ff09e93d65d49b5752387790b13",
+   "scripts/benchmark_sp_bulk_read.py": "8e9be5c2c2c3680086a07440fef332d2b81c5847ed5172248e3a04f53830d21c",
+   "scripts/benchmark_sp_playback.py": "06a97427c914e61dc280f2efffcd6c60311305fd8f167ecaf1833a656e7c3df6",
+   "scripts/sp_app_fixture.py": "be5c4157ffc0a3984597524f577349fcfb08db6f7b610e824f927c848bbc97e2",
+   "scripts/sp_seed_service.py": "8a46a0f04c001ce27e7b8d715401ca71530ca3bffd88b8923638625cc447e542",
+   "scripts/fixtures/local_bt_seed.py": "a27f9b2c8807d88d005cdb5557b777a15cce7619fc9d12c29789cbb93823528d",
+   "scripts/fixtures/local_tracker.py": "fb538616f86e0b36ec3ae6d46cc031a9aaf4ff81b3ab738ef7baab50ddb32050",
+   "scripts/fixtures/synthetic_torrent.py": "41848c836a3620e7d636f501ebfda021ff056164015d87f555771dcdab81dcf0",
+   "scripts/summarize_sp_playback.py": "3a02326cbdfec28f6f1d4d7718cc54b484d157360b4443b0c9be145230648cf0",
+   "scripts/decide_sp_gate_bootstrap.py": "c9cf563896f5c000f4465fd1f643b8e6d0c67ebc022935ef9961e592ff4a7171"
+  },
+  "new_for_gsp04": "benchmark_sp_bulk_read.py is new. Opt-in additions only: the controller (plan keys 'payload', 'downloaded', 'downloaded_settle_s', 'bulk_read_args'), synthetic_torrent.py (payload='block-index', payload_bytes), local_bt_seed.py (payloads), sp_seed_service.py (torrent 'payload'), decide_sp_gate_bootstrap.py ('hard_checks'). The decider and the summariser also carry the SP03 branch's opt-ins ('guard_metrics', 'zero_required', named cells; 7032eb9) byte for byte, so merging either branch first is clean there.",
+  "static_checks_done_without_docker": [
+   "server/tests/test_relay_piece_read_lookahead.py (67 cases): with 0 and with a limit below the piece size the event trace (priority update, disconnect check, read, chunk) equals today's serial order, checked against the unchanged code first; with the limit on: byte order kept (also with reads completing in random order), at most one piece read ahead of the piece being sent, never past the range, no lookahead for a piece still downloading, no new read after the disconnect is seen, a lookahead error only at its turn (and silently dropped when the stream ends first), PieceReadAbortedError on torrent removal (lookahead and awaited piece), no task left after the stream while the shared read runs to its own end. Five code mutants (no have_piece check, no drop, two pieces ahead, lookahead before the disconnect check, early error) each fail at least one test.",
+   "loopback functional check, not a measurement (scratch script, product RelayService + libtorrent 2.1.1.0 + LocalSeed with the block-index payload, 256 KiB/8 MiB+16 KiB and 1 MiB/16 MiB): the download stream is byte-exact, then the local file streamed with lookahead 0 and on, full range and a partial range (both ends mid-piece), twice each: all byte-exact; no seed bytes after the download; no piece fetch task or pending read left.",
+   "old vs new decide_sp_gate_bootstrap.py and summarize_sp_playback.py on the committed gsp02-v4 evidence (10 000 resamples): decision, summary and complete output byte-identical to the committed files (also a test in server/tests/test_sp_gsp04_harness.py).",
+   "synthetic_torrent.build with the default zero payload: identical to the pre-GSP04 version for 1 MiB/8 MiB, 256 KiB/5 MiB+16 KiB and 16 MiB/1 GiB (golden digest test).",
+   "controller run_one with a fake docker (commands recorded, outputs simulated): gsp02-v4 plan, two cells x C0/C2: identical docker command lists and run records old vs new. This draft's plan: warm-up bulk read (--payload block-index) -> seeds stopped -> cgroup CPU read -> measured bulk read -> cgroup CPU read -> player emulator; record['warm'] and record['result']['bulk'] present, payload in the seed spec.",
+   "server/tests/test_sp_gsp04_harness.py: the bulk reader accepts only a byte-exact body (swapped blocks, a 1-byte shift, a repeated block, a short body and a non-zero byte in a zero file are flagged); hard_checks fail the gate on a failed run, a payload error in either arm or a missing value, where the rule without them would pass."
+  ]
+ },
+ "arms": {
+  "C0": {
+   "env": {
+    "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "0"
+   },
+   "role": "baseline (today's behaviour, also the code default)"
+  },
+  "C4": {
+   "env": {
+    "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "16777216"
+   },
+   "role": "candidate (covers both piece sizes of this gate)"
+  }
+ },
+ "scenario": {
+  "downloaded_file": "per run, a fresh 512 MiB single-file torrent with the block-index payload. After the fixture, a warm-up client reads the whole file (Range bytes=0-) through the product from the local swarm (8 seeders x 25 MB/s, 2 ms latency); not a sample. A warm-up that is not complete and byte-exact fails the run. Then the seeds are stopped, so every later byte comes from the product's own disk (all pieces local; a missing piece would time out instead of downloading).",
+  "bulk_read": "after 2 s settle, one measured Range bytes=0- read of the whole file, straight to the app (no proxy), consumed as fast as it arrives (no player back-pressure): time to the first byte, to 64 MiB and to the last byte, MiB/s, every byte compared with the synthetic content; app cgroup CPU seconds over the read and a docker-stats window.",
+  "playback": "then the H1 player emulator on the same token at the cell's bitrate (8, 30 or 60 Mbit/s, the user's UX bitrates): Range bytes=0- with the 1 MiB tail probe, 2 s start buffer, 30 s max buffer, 10 s play; seek to 50 %, 8 s play. Guards: TTFB, start, stalls, seek resume.",
+  "piece_sizes": "1 MiB (small) and 16 MiB (large); C4's limit covers both.",
+  "cache": "the 512 MiB file fits the app container's page cache (1 GiB limit) after the warm-up, so the bulk read measures the per-piece read and alert round trip, not the disk; a cold-cache read would need dropping caches (privileged) and is out of scope."
+ },
+ "plan": {
+  "tool_image": "stremhu-source:sp-base-9984678",
+  "images": {
+   "C0": "stremhu-source:sp-cand-<sp04 tip>",
+   "C4": "stremhu-source:sp-cand-<sp04 tip>"
+  },
+  "app_env": {
+   "C0": {
+    "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "0"
+   },
+   "C4": {
+    "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "16777216"
+   }
+  },
+  "payload": "block-index",
+  "downloaded": true,
+  "downloaded_settle_s": 2,
+  "bulk_read_args": [
+   "--start",
+   "0",
+   "--length",
+   "0",
+   "--mark-bytes",
+   "67108864"
+  ],
+  "series": [
+   {
+    "labels": [
+     "C0",
+     "C4"
+    ],
+    "reps": 5
+   },
+   {
+    "labels": [
+     "C0",
+     "C4"
+    ],
+    "reps": 5
+   }
+  ],
+  "reps": 10,
+  "total_size": 536870912,
+  "client_args": [
+   "--play-s",
+   "10",
+   "--seek-play-s",
+   "8",
+   "--start-buffer-s",
+   "2",
+   "--rebuffer-s",
+   "1",
+   "--max-buffer-s",
+   "30"
+  ],
+  "cells": [
+   {
+    "name": "dl/1MiB/8Mbit",
+    "profile": "local",
+    "piece_size": 1048576,
+    "bitrate_mbit": 8
+   },
+   {
+    "name": "dl/1MiB/30Mbit",
+    "profile": "local",
+    "piece_size": 1048576,
+    "bitrate_mbit": 30
+   },
+   {
+    "name": "dl/1MiB/60Mbit",
+    "profile": "local",
+    "piece_size": 1048576,
+    "bitrate_mbit": 60
+   },
+   {
+    "name": "dl/16MiB/8Mbit",
+    "profile": "local",
+    "piece_size": 16777216,
+    "bitrate_mbit": 8
+   },
+   {
+    "name": "dl/16MiB/30Mbit",
+    "profile": "local",
+    "piece_size": 16777216,
+    "bitrate_mbit": 30
+   },
+   {
+    "name": "dl/16MiB/60Mbit",
+    "profile": "local",
+    "piece_size": 16777216,
+    "bitrate_mbit": 60
+   }
+  ],
+  "profiles": {
+   "local": {
+    "peers": 8,
+    "profiles": [
+     {
+      "rate_bytes_per_s": 25000000,
+      "latency_s": 0.002,
+      "jitter_s": 0.001
+     }
+    ]
+   }
+  },
+  "capture_tracebacks": true
+ },
+ "metrics": [
+  "bulk.read_s",
+  "bulk.mark_s",
+  "bulk.ttfb_s",
+  "bulk.mib_per_s",
+  "bulk.app_cpu_s",
+  "bulk.app_cpu_s_per_gib",
+  "bulk.app_stats.cpu_pct_mean",
+  "bulk.app_stats.mem_mib_max",
+  "bulk.payload_errors",
+  "warm.read_s",
+  "warm.payload_errors",
+  "start.ttfb_s",
+  "start.time_to_start_s",
+  "start.stalls",
+  "start.stall_s",
+  "start.time_to_full_buffer_s",
+  "seek.ttfb_s",
+  "seek.resume_s",
+  "seek.stalls",
+  "seek.stall_s",
+  "app_stats.cpu_pct_mean",
+  "app_stats.mem_mib_max",
+  "app_log.tracebacks",
+  "app_log.app_tracebacks",
+  "failed"
+ ],
+ "expected_mechanism": {
+  "bulk": "today every piece costs a serial gap after its last chunk: priority update, disconnect check, read_piece, libtorrent disk job (a page-cache copy), read_piece_alert, alert-fd wake-up, process_alerts, future, shared task, stream. With the lookahead the gap of piece N+1 runs while piece N is sent, so the gain per piece is at most min(gap, send time of a piece). 1 MiB pieces have 16x more gaps than 16 MiB pieces; a 16 MiB piece has a longer read.",
+  "limit": "if the TLS send path (Hypercorn, 2 CPUs) bounds the throughput, the gap is hidden by the kernel socket buffer already and the gain is small: a FAIL is a valid, kept outcome.",
+  "playback": "at 8/30/60 Mbit/s the player stops reading at its 30 s buffer, so the read path is not the bottleneck: no change is expected in TTFB, start, stalls or seek resume (guards); time_to_full_buffer_s may improve slightly (descriptive).",
+  "memory": "at most one extra piece per stream (16 MiB at the large piece size, the main stream and the tail probe are separate streams): descriptive, expected within one or two pieces."
+ },
+ "decision_rule": {
+  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 at registration)",
+  "primary_metric": "bulk.read_s (seconds from the bulk request to the last byte of the whole 512 MiB file, all pieces local)",
+  "candidates": [
+   "C4"
+  ],
+  "key_cells": [
+   "dl/1MiB/8Mbit",
+   "dl/1MiB/30Mbit",
+   "dl/1MiB/60Mbit",
+   "dl/16MiB/8Mbit",
+   "dl/16MiB/30Mbit",
+   "dl/16MiB/60Mbit"
+  ],
+  "improved_required": 3,
+  "guard_metrics": [
+   "bulk.read_s",
+   "bulk.ttfb_s",
+   "start.ttfb_s",
+   "start.time_to_start_s",
+   "start.stall_s",
+   "seek.ttfb_s",
+   "seek.resume_s",
+   "seek.stall_s"
+  ],
+  "hard_checks": {
+   "max_failed_runs": 0,
+   "zero_every_run": [
+    "warm.payload_errors",
+    "warm.error_count",
+    "result.bulk.payload_errors",
+    "result.bulk.error_count"
+   ]
+  },
+  "pooling": "both series pooled: n = 10 runs per arm and cell; failed runs excluded and counted",
+  "statistic": "difference of means (C4 - C0); 10 000 bootstrap resamples per test, seed 20261113; one-sided bootstrap p-values",
+  "alpha": 0.05,
+  "resamples": 10000,
+  "seed": 20261113,
+  "improvement": "primary metric in a key cell: H0 'difference >= 0' rejected by Holm over the 6 key cells",
+  "regression": "any guard test (bulk.read_s, bulk.ttfb_s, start.ttfb_s, start.time_to_start_s, start.stall_s, seek.ttfb_s, seek.resume_s, seek.stall_s in all 6 cells, 48 tests): H0 'difference <= 0' rejected by Holm over the 48 tests",
+  "pass_if_all": [
+   "at least 3 of 6 key cells improved",
+   "no guard regression",
+   "hard checks over C0 and C4 together: no failed run; warm-up and bulk read byte-exact and without client error in every run (a missing value counts as a violation)",
+   "tracebacks with an application frame: C4 <= C0"
+  ],
+  "traceback_counter": "app_tracebacks",
+  "tie_break": "C4",
+  "descriptive_only": [
+   "bulk.mark_s, bulk.mib_per_s, bulk.ttfb_s beyond its guard test",
+   "bulk.app_cpu_s, bulk.app_cpu_s_per_gib, bulk.app_stats.*, app_stats.* (CPU and RSS)",
+   "start.time_to_full_buffer_s, start.stalls and seek.stalls (counts; stall_s is the guard)",
+   "warm.read_s (warm-up, not a sample)"
+  ],
+  "otherwise": "FAIL: relay_piece_read_lookahead_bytes stays 0 (the SP04 code stays switched off; removing it is a separate package)."
+ },
+ "open_choices_for_registration": [
+  "piece sizes: 1 MiB and 16 MiB (proposal, 'small and large'); the implementation plan names 1 and 4 MiB. Adding 4 MiB = 3 more cells, +60 runs (about +1.2 h).",
+  "C4 limit 16 MiB (proposal, both sizes get the lookahead) vs 4 MiB (memory cap: the 16 MiB cells would then run without a lookahead and act as an in-gate control).",
+  "improved_required 3 of 6 (proposal: the bulk read does not depend on the cell's bitrate, so the three cells of one piece size are three independent replicates; 3 = e.g. every small-piece cell).",
+  "primary bulk.read_s (whole file) vs bulk.mark_s (first 64 MiB): the whole file has more pieces and less start-up share.",
+  "memory is descriptive; a numeric margin (e.g. mean bulk.app_stats.mem_mib_max(C4) - C0 <= 2 pieces) would need a margin rule in the decider.",
+  "the player emulator's own error list (result.errors) is not machine-checked (as in gsp02-v4); the smoke shows it.",
+  "warm cache only (see scenario.cache)."
+ ],
+ "runner_draft": {
+  "where": "host PowerShell in the repository root, local Docker Desktop, after the queued measurements on this machine have finished (sequential measurements only). Placeholders: <work> = an empty scratch folder outside the repo; <sha> = the SP04 branch tip that is built.",
+  "build": "docker build -t stremhu-source:sp-cand-<sha> .  (image id -> protocol 'image'; both arms use it)",
+  "wiring_check": "docker run --rm -e HOST_IP=10.255.255.1 -e RELAY_PIECE_READ_LOOKAHEAD_BYTES=16777216 -w /app -e PYTHONPATH=/app --entrypoint python stremhu-source:sp-cand-<sha> -c \"from app.config import config; print(config.relay_piece_read_lookahead_bytes)\"  -> 16777216 (and 0 without the variable)",
+  "smoke_plan": "copy 'plan' to <work>/gsp04-smoke-plan.json with images set to the built tag and series [{labels [C0, C4], reps 1}], reps 1",
+  "smoke": "python scripts/benchmark_sp_playback_controller.py --plan <work>/gsp04-smoke-plan.json --out <work>/gsp04-smoke.jsonl --workdir <work>/gsp04-smoke",
+  "smoke_checks": "12 runs (2 arms x 6 cells), not samples: no 'failed'; warm complete, payload_errors 0; result.bulk complete, payload_errors 0, error_count 0, bytes_received 536870912, app_cpu_s present; result.errors empty; app_log.app_tracebacks 0; warm-up and run time per run (budget below)",
+  "register": "write evidence/gsp04-v1-plan.json (the plan with the built tag) and evidence/gsp04-v1-protocol.json (this rule, source commit/manifest, image id, harness and plan sha256), commit, then measure",
+  "measure": "python scripts/benchmark_sp_playback_controller.py --plan docs/feature/stream-performance/evidence/gsp04-v1-plan.json --out <work>/gsp04-v1-results.jsonl --workdir <work>/gsp04-v1",
+  "summarize": "python scripts/summarize_sp_playback.py <work>/gsp04-v1-results.jsonl docs/feature/stream-performance/evidence/gsp04-v1-protocol.json docs/feature/stream-performance/evidence/gsp04-v1-summary.json docs/feature/stream-performance/evidence/gsp04-v1-complete.json",
+  "decide": "python scripts/decide_sp_gate_bootstrap.py docs/feature/stream-performance/evidence/gsp04-v1-protocol.json docs/feature/stream-performance/evidence/gsp04-v1-complete.json docs/feature/stream-performance/evidence/gsp04-v1-decision.json",
+  "runs_and_time": "2 series x 5 reps x 6 cells x 2 arms = 120 runs, each with fresh network, volume and containers; about 70 s per run (start, warm-up of 512 MiB, bulk read, 10 s play + 8 s after the seek, teardown) -> about 2.3 h; label order rotates per repetition, the two arms of a cell run back to back."
+ }
+}

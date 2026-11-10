@@ -11,12 +11,16 @@ behaviour). With ``profiles`` each endpoint gets a deterministic network model:
 a per-connection upload rate, a one-way request latency with jitter (pipelined,
 so it is paid once per request, not serialised), or a stalled peer that accepts
 requests and never answers. Cancelled block requests are not sent.
+
+Opt-in ``payloads`` (info hash -> ``block(absolute_offset, length) -> bytes``) serve
+non-zero synthetic content (GSP04 byte-exact check); without it every block is zeros.
 """
 
 import asyncio
 import itertools
 import random
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 
@@ -53,8 +57,10 @@ class LocalSeed:
         max_connections=512,
         profiles: list[PeerProfile] | None = None,
         seed: int = 0,
+        payloads: dict[bytes, Callable[[int, int], bytes]] | None = None,
     ):
         self.torrents = torrents
+        self.payloads = payloads or {}
         self.max_connections = max_connections
         self.profiles = profiles
         self.seed = seed
@@ -109,6 +115,12 @@ class LocalSeed:
                 raise ValueError("Fixture accepts plain BitTorrent v1 only")
             info_hash = handshake[28:48]
             piece_size, total_size = self.torrents[info_hash]
+            payload = self.payloads.get(info_hash)
+
+            def block(index: int, offset: int, length: int) -> bytes:
+                if payload is None:
+                    return _ZERO_BLOCK[:length]
+                return payload(index * piece_size + offset, length)
             piece_count = (total_size + piece_size - 1) // piece_size
             bitfield = bytearray(b"\xff" * ((piece_count + 7) // 8))
             if piece_count % 8:
@@ -124,7 +136,7 @@ class LocalSeed:
             cancelled: set[tuple[int, int, int]] = set()
             if profile is not None and not profile.stall:
                 queue = asyncio.Queue()
-                sender = asyncio.create_task(self._send_loop(writer, queue, cancelled, profile, rng))
+                sender = asyncio.create_task(self._send_loop(writer, queue, cancelled, profile, rng, block))
             loop = asyncio.get_running_loop()
             while True:
                 size = struct.unpack("!I", await reader.readexactly(4))[0]
@@ -146,7 +158,7 @@ class LocalSeed:
                 if index >= piece_count or not 0 < length <= 16384 or offset + length > remaining:
                     raise ValueError("Block request outside synthetic torrent")
                 if profile is None:
-                    writer.write(struct.pack("!IBII", length + 9, 7, index, offset) + _ZERO_BLOCK[:length])
+                    writer.write(struct.pack("!IBII", length + 9, 7, index, offset) + block(index, offset, length))
                     await writer.drain()
                     self.requests += 1
                     self.bytes_sent += length
@@ -170,7 +182,7 @@ class LocalSeed:
             except ConnectionError:
                 pass
 
-    async def _send_loop(self, writer, queue, cancelled, profile: PeerProfile, rng: random.Random):
+    async def _send_loop(self, writer, queue, cancelled, profile: PeerProfile, rng: random.Random, block):
         loop = asyncio.get_running_loop()
         next_free = loop.time()
         while True:
@@ -189,7 +201,7 @@ class LocalSeed:
                 delay = next_free - loop.time()
                 if delay > 0:
                     await asyncio.sleep(delay)
-            writer.write(struct.pack("!IBII", length + 9, 7, index, offset) + _ZERO_BLOCK[:length])
+            writer.write(struct.pack("!IBII", length + 9, 7, index, offset) + block(index, offset, length))
             await writer.drain()
             self.requests += 1
             self.bytes_sent += length

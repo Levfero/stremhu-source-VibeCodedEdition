@@ -11,7 +11,8 @@ Spec:
    "profiles": [{"rate_bytes_per_s": 2000000, "latency_s": 0.03, "jitter_s": 0.01, "stall": false}],
    "torrents": [{"id": "p4m", "name": "sp-p4m.mkv", "piece_size": 4194304, "total_size": 2147483648}]}
 
-Synthetic zero data only; no outbound connection.
+Synthetic zero data only, unless a torrent sets the opt-in ``"payload": "block-index"``
+(synthetic_torrent.py, GSP04 byte-exact check); no outbound connection.
 """
 
 import argparse
@@ -19,12 +20,13 @@ import asyncio
 import json
 import signal
 import sys
+from functools import partial
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
 from local_bt_seed import LocalSeed, PeerProfile
 from local_tracker import LocalTracker
-from synthetic_torrent import build
+from synthetic_torrent import build, payload_bytes
 
 
 async def main() -> None:
@@ -36,7 +38,11 @@ async def main() -> None:
     spec = json.loads(Path(args.spec).read_text(encoding="utf-8"))
     tracker_spec = spec.get("tracker")
     announce = f"http://{tracker_spec['advertise']}:{tracker_spec['port']}/announce" if tracker_spec else None
-    torrents = [build(t["name"], t["piece_size"], t["total_size"], announce) for t in spec["torrents"]]
+    torrents = [build(t["name"], t["piece_size"], t["total_size"], announce, t.get("payload", "zero"))
+                for t in spec["torrents"]]
+    payloads = {torrent.info_hash: partial(payload_bytes, item["payload"])
+                for item, torrent in zip(spec["torrents"], torrents, strict=True)
+                if item.get("payload", "zero") != "zero"}
     if args.torrent_dir:
         out = Path(args.torrent_dir)
         out.mkdir(parents=True, exist_ok=True)
@@ -47,7 +53,8 @@ async def main() -> None:
     peers = spec["peers"]
     ports = [spec["port_base"] + i for i in range(peers)] if spec.get("port_base") else None
     seed = await LocalSeed({t.info_hash: (t.piece_size, t.total_size) for t in torrents},
-                           profiles=profiles, seed=spec.get("seed", 0)).start(peers, host=host, ports=ports)
+                           profiles=profiles, seed=spec.get("seed", 0),
+                           payloads=payloads or None).start(peers, host=host, ports=ports)
     tracker = None
     if tracker_spec:
         # Real swarms have one address per peer (the product allows one connection per IP), so the

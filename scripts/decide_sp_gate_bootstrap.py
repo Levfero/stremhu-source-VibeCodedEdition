@@ -16,6 +16,12 @@ variant and cell) and compares means.
 - Failed runs and tracebacks with an application frame: candidate total <= C0 total.
 - Several passing candidates: larger total mean primary gain over the key cells; a tie goes
   to rule["tie_break"].
+
+Optional rule keys (absent = the gsp02-v4 behaviour, unchanged):
+- ``guard_metrics``: the guard metrics instead of GUARD_METRICS (GSP03: range-series TTFB).
+- ``zero_required``: dotted paths from the run record root (e.g. ``history_check.lost_writes``);
+  every non-failed candidate run must carry each value and its sum must be 0.
+- A cell with a ``name`` (GSP03: RTT and DB load per cell) is keyed by that name.
 """
 
 import json
@@ -28,6 +34,15 @@ GUARD_METRICS = ["start.time_to_start_s", "start.ttfb_s", "seek.resume_s", "star
 
 def metric(record: dict, dotted: str):
     value = record.get("result", {})
+    for part in dotted.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def record_value(record: dict, dotted: str):
+    value = record
     for part in dotted.split("."):
         if not isinstance(value, dict) or part not in value:
             return None
@@ -61,6 +76,26 @@ def holm(pvalues: dict, alpha: float) -> set:
     return rejected
 
 
+def hard_check(spec: dict, records: list[dict], labels: list[str]) -> dict:
+    """Optional rule key ``hard_checks`` (GSP04); absent = unchanged behaviour. Over every run of
+    ``labels`` (C0 and one candidate):
+
+    - ``max_failed_runs``: failed runs together at most this many;
+    - ``zero_every_run``: dotted paths from the run record root; every non-failed run must carry
+      a number there and it must be 0 (a missing value is a violation, never skipped).
+    """
+    runs = [r for r in records if r["label"] in labels]
+    failed = sum(1 for r in runs if r.get("failed"))
+    zero = {}
+    for path in spec.get("zero_every_run", []):
+        found = [record_value(r, path) for r in runs if not r.get("failed")]
+        numbers = [v for v in found if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        zero[path] = {"nonzero": sum(1 for v in numbers if v != 0), "missing": len(found) - len(numbers)}
+    passed = (failed <= spec.get("max_failed_runs", failed)
+              and all(entry["nonzero"] == 0 and entry["missing"] == 0 for entry in zero.values()))
+    return {"pass": passed, "labels": labels, "failed_runs": failed, "zero_every_run": zero}
+
+
 def main() -> None:
     protocol = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     records = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))["records"]
@@ -70,9 +105,13 @@ def main() -> None:
     resamples = rule.get("resamples", 10000)
     rng = random.Random(rule.get("seed", 20261110))
     ok = [r for r in records if not r.get("failed")]
+    hard = ({c: hard_check(rule["hard_checks"], records, ["C0", c]) for c in rule["candidates"]}
+            if "hard_checks" in rule else None)
 
     def cell_of(record: dict) -> str:
         cell = record["cell"]
+        if "name" in cell:
+            return cell["name"]
         return f"{cell['profile']}/{cell['piece_size'] >> 20}MiB/{cell['bitrate_mbit']}Mbit"
 
     cells = sorted({cell_of(r) for r in ok})
@@ -81,11 +120,22 @@ def main() -> None:
         return [float(v) for r in ok if r["label"] == label and cell_of(r) == cell
                 if (v := metric(r, name)) is not None]
 
+    guard_metrics = rule.get("guard_metrics", GUARD_METRICS)
+    zero_required = rule.get("zero_required", [])
+
+    def zero_check(label: str) -> dict:
+        report = {}
+        for path in zero_required:
+            found = [record_value(r, path) for r in ok if r["label"] == label]
+            numbers = [v for v in found if isinstance(v, (int, float))]
+            report[path] = {"sum": sum(numbers), "missing": len(found) - len(numbers)}
+        return report
+
     results = {}
     for candidate in rule["candidates"]:
         tests = {}
         for cell in cells:
-            for name in GUARD_METRICS:
+            for name in guard_metrics:
                 a, b = values("C0", cell, name), values(candidate, cell, name)
                 if len(a) >= 3 and len(b) >= 3:
                     diff, p_not_better, p_not_worse = bootstrap(a, b, rng, resamples)
@@ -104,13 +154,19 @@ def main() -> None:
                       for label in ("C0", candidate)}
         gain = round(-sum(tests[(c, primary)]["diff"] for c in rule["key_cells"] if (c, primary) in tests), 3)
         passed = (len(improved) >= rule.get("improved_required", 4) and not regressions
-                  and failed[candidate] <= failed["C0"] and tracebacks[candidate] <= tracebacks["C0"])
+                  and failed[candidate] <= failed["C0"] and tracebacks[candidate] <= tracebacks["C0"]
+                  and (hard is None or hard[candidate]["pass"]))
         results[candidate] = {
             "pass": passed, "improved_key_cells": sorted(improved), "improved_count": len(improved),
             "regressions": sorted(f"{cell} {name}" for cell, name in regressions),
             "failed_runs": failed, "tracebacks_total": tracebacks, "total_primary_gain_s": gain,
             "tests": {f"{cell} {name}": test for (cell, name), test in sorted(tests.items())},
         }
+        if zero_required:
+            zero = {"C0": zero_check("C0"), candidate: zero_check(candidate)}
+            results[candidate]["zero_required"] = zero
+            results[candidate]["pass"] = passed and all(
+                entry["sum"] == 0 and entry["missing"] == 0 for entry in zero[candidate].values())
     passing = [c for c in rule["candidates"] if results[c]["pass"]]
     if passing:
         tie_break = rule.get("tie_break", rule["candidates"][0])
@@ -118,8 +174,10 @@ def main() -> None:
         decision = f"PASS:{best}"
     else:
         decision = "FAIL"
-    Path(sys.argv[3]).write_text(json.dumps({"protocol": protocol["id"], "decision": decision, "candidates": results},
-                                            indent=1) + "\n", encoding="utf-8", newline="\n")
+    output = {"protocol": protocol["id"], "decision": decision, "candidates": results}
+    if hard is not None:
+        output["hard_checks"] = hard
+    Path(sys.argv[3]).write_text(json.dumps(output, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps({"decision": decision, **{c: {"pass": r["pass"], "improved": r["improved_count"],
                                                     "regressions": r["regressions"], "gain_s": r["total_primary_gain_s"],
                                                     "tracebacks": r["tracebacks_total"]}

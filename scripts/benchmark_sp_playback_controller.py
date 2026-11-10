@@ -10,6 +10,17 @@ a fresh data volume and fresh containers:
 The product finds the seed through its normal announce path. Raw product logs are
 never stored (they may contain request URLs); only traceback/error line counts are.
 
+Optional, GSP04 "fully downloaded" mode (absent = the run below, unchanged):
+  "payload": "block-index"   synthetic content with a per-block pattern (byte-exact checks)
+  "downloaded": true         after the fixture: a warm-up read of the whole file through the
+                             product (benchmark_sp_bulk_read.py, not a sample; incomplete or not
+                             byte-exact = failed run), then the seeds are stopped, so every later
+                             byte comes from the product's own disk: record["warm"]
+  "downloaded_settle_s": 2   pause after the seeds are stopped
+  "bulk_read_args": [...]    then one measured bulk read (benchmark_sp_bulk_read.py with these
+                             arguments, straight to the app, own stats window and app cgroup CPU
+                             time) before the player emulator: record["result"]["bulk"]
+
 Usage:
   python benchmark_sp_playback_controller.py --plan plan.json --out results.jsonl [--only N]
 
@@ -83,6 +94,24 @@ def wait_ready(app: str, address: str, deadline_s: float) -> float:
     raise TimeoutError("app not healthy before deadline")
 
 
+def app_cpu_usec(app: str) -> int | None:
+    """CPU time of the app container's cgroup (cgroup v2 cpu.stat), None when unavailable."""
+    out = sh("docker", "exec", app, "cat", "/sys/fs/cgroup/cpu.stat", check=False, timeout=30)
+    match = re.search(r"^usage_usec (\d+)$", out, re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
+def bulk_read(plan: dict, net: str, client_ip: str, mounts: list[str], app_ip: str, shared: Path, name: str,
+              args: list) -> dict:
+    """GSP04: one benchmark_sp_bulk_read.py run straight to the app; returns its JSON result."""
+    payload = ["--payload", plan["payload"]] if plan.get("payload") else []
+    sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5", *mounts,
+       "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_bulk_read.py",
+       "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{app_ip}:7070",
+       "--out", f"/sp/shared/{name}.json", *payload, *[str(a) for a in args], timeout=900)
+    return json.loads((shared / f"{name}.json").read_text(encoding="utf-8"))
+
+
 def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int, workdir: Path) -> dict:
     run_id = f"{label}-{cell['profile']}-{cell['piece_size'] >> 20}m-{rep}-{uuid.uuid4().hex[:6]}"
     shared = workdir / run_id
@@ -100,6 +129,8 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
     seeds = [f"sp-seed{i}-{run_id}" for i in range(len(peer_profiles))]
     torrent = {"id": "t", "name": f"sp-{cell['piece_size'] >> 10}k.mkv", "piece_size": cell["piece_size"],
                "total_size": plan["total_size"]}
+    if plan.get("payload"):
+        torrent["payload"] = plan["payload"]
     for i, peer_profile in enumerate(peer_profiles):
         # One peer per container (own address); peer 0 also runs the tracker advertising all of them.
         spec = {"peers": 1, "seed": rep * 100 + i, "host": "0.0.0.0", "port_base": 6900,
@@ -138,6 +169,30 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
                      "/sp/scripts/sp_app_fixture.py", "--torrent-dir", "/sp/shared/torrents",
                      "--out", "/sp/shared/targets.json")
         record["fixture"] = json.loads(fixture.strip().splitlines()[-1])
+        if plan.get("downloaded"):
+            # GSP04: the whole file through the product first (not a sample), then no peer is left.
+            warm = bulk_read(plan, net, client_ip, mounts, app_ip, shared, "warm", ["--mark-bytes", 1 << 20])
+            record["warm"] = warm
+            if not warm.get("complete") or warm.get("payload_errors") or warm.get("status") != 206:
+                raise RuntimeError("warm-up read not complete and byte-exact")
+            sh("docker", "stop", "-t", "15", *seeds, check=False)
+            time.sleep(plan.get("downloaded_settle_s", 2))
+            if plan.get("bulk_read_args") is not None:
+                bulk_sampler = StatsSampler(app)
+                cpu_before = app_cpu_usec(app)
+                bulk_sampler.start()
+                try:
+                    bulk = bulk_read(plan, net, client_ip, mounts, app_ip, shared, "bulk", plan["bulk_read_args"])
+                finally:
+                    bulk_sampler.halt.set()
+                    bulk_sampler.join(timeout=40)
+                cpu_after = app_cpu_usec(app)
+                if cpu_before is not None and cpu_after is not None:
+                    bulk["app_cpu_s"] = round((cpu_after - cpu_before) / 1e6, 3)
+                    if bulk["bytes_received"]:
+                        bulk["app_cpu_s_per_gib"] = round(bulk["app_cpu_s"] / (bulk["bytes_received"] / (1 << 30)), 3)
+                bulk["app_stats"] = bulk_sampler.summary()
+                record["bulk"] = bulk
         base_ip = app_ip
         if proxy:
             # H3: fixed one-way latency between player and product (both directions).
@@ -164,6 +219,8 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
         sampler.halt.set()
         sh("docker", "stop", "-t", "15", *seeds, check=False)
         record["result"] = json.loads((shared / "result.json").read_text(encoding="utf-8"))
+        if "bulk" in record:
+            record["result"]["bulk"] = record.pop("bulk")  # GSP04: the decider reads result.*
         per_peer = []
         for i in range(len(seeds)):
             path = shared / f"seed-stats{i}.json"

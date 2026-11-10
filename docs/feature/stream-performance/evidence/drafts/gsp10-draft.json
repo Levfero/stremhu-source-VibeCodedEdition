@@ -1,74 +1,274 @@
 {
  "id": "gsp10-draft",
- "status": "Session draft for gate GSP10 (SP10 stalled peers); NOT registered, no measured run. Registration copies the plan and rule into gsp10-v1-plan.json / gsp10-v1-protocol.json with the source manifest, image ids and harness hashes, after the prerequisites below (harness ban counter, image, non-measurement wiring smoke).",
+ "status": "Session draft for gate GSP10 (SP10 stalled peers); NOT registered, no measured run. Registration copies the plan and rule into gsp10-v1-plan.json / gsp10-v1-protocol.json with the source manifest, image ids and harness hashes, after the image build and a non-measurement wiring smoke.",
  "item": "SP10: C0 = today's defaults (edges start + upstream deadlines since gsp02-v4 PASS:C2; relay_stall_policy legacy) vs CW = the same + relay_stall_policy watchdog (every 0.5 s during an active stream: a peer with outstanding requests and no payload for 2 s, while another peer of the same torrent progressed, is put on the session ip_filter for 120 s).",
  "supersedes_draft": "The earlier stream-scoped piece_timeout candidate (C10) is withdrawn: G0 v2 showed it only moves the delay from piece 0 to the last piece (upstream/mixed 16 MiB edges 13.34 s with 2 s vs 11.82 s with today's 10 s).",
  "basis": {
   "g0": "docs/feature/stream-performance/evidence/g0-sp10-stalled-probe-v2.json (252 runs, 0 failed; raw libtorrent, synthetic swarm; not a measurement). upstream/mixed, time until both boundary pieces are done ('edges'), median [min-max]: 16 MiB ctrl 4.78 [4.78-6.83], two stalled peers 11.82 [11.22-12.30], probe watchdog 6.34 [6.30-7.62] (n=3), keep-alive stalled peers + watchdog 6.35; 4 MiB ctrl 2.40, stalled 5.76, watchdog 4.05 [4.04-4.11]. 12 bans, 0 false; 0 bans without stalled peers.",
-  "gsp02_v4_mixed_means_C2": {"mixed/4MiB/30Mbit": {"start.time_to_start_s": 10.96, "start.ttfb_s": 9.52}, "mixed/16MiB/30Mbit": {"start.time_to_start_s": 19.14, "start.ttfb_s": 15.28}, "note": "today's default start in the 8-peer mixed profile with 2 stalled peers, n=10 each; descriptive context, not part of this gate"}
+  "gsp02_v4_mixed_means_C2": {
+   "mixed/4MiB/30Mbit": {
+    "start.time_to_start_s": 10.96,
+    "start.ttfb_s": 9.52
+   },
+   "mixed/16MiB/30Mbit": {
+    "start.time_to_start_s": 19.14,
+    "start.ttfb_s": 15.28
+   },
+   "note": "today's default start in the 8-peer mixed profile with 2 stalled peers, n=10 each; descriptive context, not part of this gate"
+  }
  },
  "prerequisites": {
-  "harness_ban_counter": "scripts/benchmark_sp_playback_controller.py must count the app log lines 'Relay stall watchdog: banned=<n> ...' into record['app_log']['stall_bans'] (sum of n), so the false-ban hard check is machine-readable. Not implemented in this session (the controller is shared with running gates); a small change with its own test before registration.",
   "image": "build stremhu-source:sp-cand-<commit> from the registered commit (both arms use the same image, they differ only in app_env)",
-  "wiring_smoke": "Non-measurement: one CW run in mixed/16MiB/30Mbit with --only 1: the app log contains 'Relay stall watchdog: banned=' lines with banned >= 1; one C0 run: no such line. Also check there is no 'duplicate peer-id' disconnect (pb0-v2 seed containers each start their peer-id sequence at 1)."
+  "wiring_smoke": "Non-measurement: one CW run in mixed/16MiB/30Mbit with --only 1: record app_log.stall_bans >= 1 and <= 2; one C0 run: app_log.stall_bans == 0. Also check there is no 'duplicate peer-id' disconnect (pb0-v2 seed containers each start their peer-id sequence at 1).",
+  "harness_ban_counter": "Implemented on claude/sp10-stalled-peers-b6b89d (opt-in, absent = byte-identical H1 chain): controller plan key count_stall_bans -> record app_log.stall_bans (sum of 'banned=<n>' over the product's 'Relay stall watchdog: ...' lines, counts only); decider rule key stall_ban_check (scripts/sp_gate_stall_bans.py); the summarizer reports app_log.stall_bans per cell as a count. Checked without Docker: on gsp02-v4 data the new decider reproduces the committed gsp02-v4-decision.json byte for byte, old and new decider/summarizer are byte-identical at 300 resamples, and the controller with a fake docker adds the counter only when opted in.",
+  "log_level": "The image runs NODE_ENV=prod, where the product logs at WARNING: a new ban is logged at WARNING (counts only, never an address), expiry-only changes at INFO (not visible, not needed)."
  },
  "plan": {
   "tool_image": "stremhu-source:sp-base-9984678",
-  "images": {"C0": "stremhu-source:sp-cand-<commit>", "CW": "stremhu-source:sp-cand-<commit>"},
-  "app_env": {
-   "C0": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "legacy"},
-   "CW": {"RELAY_START_POLICY": "edges", "RELAY_READAHEAD_POLICY": "upstream", "RELAY_STALL_POLICY": "watchdog", "RELAY_STALL_WATCHDOG_SECONDS": "2.0", "RELAY_STALL_BAN_SECONDS": "120", "RELAY_STALL_BAN_MAX": "64"}
+  "images": {
+   "C0": "stremhu-source:sp-cand-<commit>",
+   "CW": "stremhu-source:sp-cand-<commit>"
   },
-  "series": [{"labels": ["C0", "CW"], "reps": 5}, {"labels": ["C0", "CW"], "reps": 5}],
+  "app_env": {
+   "C0": {
+    "RELAY_START_POLICY": "edges",
+    "RELAY_READAHEAD_POLICY": "upstream",
+    "RELAY_STALL_POLICY": "legacy"
+   },
+   "CW": {
+    "RELAY_START_POLICY": "edges",
+    "RELAY_READAHEAD_POLICY": "upstream",
+    "RELAY_STALL_POLICY": "watchdog",
+    "RELAY_STALL_WATCHDOG_SECONDS": "2.0",
+    "RELAY_STALL_BAN_SECONDS": "120",
+    "RELAY_STALL_BAN_MAX": "64"
+   }
+  },
+  "series": [
+   {
+    "labels": [
+     "C0",
+     "CW"
+    ],
+    "reps": 5
+   },
+   {
+    "labels": [
+     "C0",
+     "CW"
+    ],
+    "reps": 5
+   }
+  ],
   "reps": 10,
   "total_size": 1073741824,
-  "client_args": ["--play-s", "10", "--seek-play-s", "8", "--start-buffer-s", "2", "--rebuffer-s", "1", "--max-buffer-s", "30"],
+  "client_args": [
+   "--play-s",
+   "10",
+   "--seek-play-s",
+   "8",
+   "--start-buffer-s",
+   "2",
+   "--rebuffer-s",
+   "1",
+   "--max-buffer-s",
+   "30"
+  ],
   "capture_log_prefix": "Relay stall watchdog",
   "cells": [
-   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 8},
-   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 30},
-   {"profile": "mixed", "piece_size": 4194304, "bitrate_mbit": 60},
-   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 8},
-   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 30},
-   {"profile": "mixed", "piece_size": 16777216, "bitrate_mbit": 60},
-   {"profile": "mixed", "piece_size": 1048576, "bitrate_mbit": 30},
-   {"profile": "fast", "piece_size": 4194304, "bitrate_mbit": 30},
-   {"profile": "fast", "piece_size": 16777216, "bitrate_mbit": 30},
-   {"profile": "thin", "piece_size": 4194304, "bitrate_mbit": 30},
-   {"profile": "thin", "piece_size": 16777216, "bitrate_mbit": 30},
-   {"profile": "slowlive", "piece_size": 4194304, "bitrate_mbit": 30},
-   {"profile": "slowlive", "piece_size": 16777216, "bitrate_mbit": 30}
+   {
+    "profile": "mixed",
+    "piece_size": 4194304,
+    "bitrate_mbit": 8
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 4194304,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 4194304,
+    "bitrate_mbit": 60
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 16777216,
+    "bitrate_mbit": 8
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 16777216,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 16777216,
+    "bitrate_mbit": 60
+   },
+   {
+    "profile": "mixed",
+    "piece_size": 1048576,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "fast",
+    "piece_size": 4194304,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "fast",
+    "piece_size": 16777216,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "thin",
+    "piece_size": 4194304,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "thin",
+    "piece_size": 16777216,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "slowlive",
+    "piece_size": 4194304,
+    "bitrate_mbit": 30
+   },
+   {
+    "profile": "slowlive",
+    "piece_size": 16777216,
+    "bitrate_mbit": 30
+   }
   ],
   "profiles": {
-   "fast": {"peers": 8, "profiles": [{"rate_bytes_per_s": 4000000, "latency_s": 0.02, "jitter_s": 0.01}]},
-   "mixed": {"peers": 8, "profiles": [
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"stall": true},
-    {"stall": true}]},
-   "thin": {"peers": 2, "profiles": [{"rate_bytes_per_s": 2500000, "latency_s": 0.06, "jitter_s": 0.02}]},
-   "slowlive": {"peers": 8, "why": "no stalled peer, but slow and high-latency live peers: every ban here is a false ban", "profiles": [
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 3000000, "latency_s": 0.03, "jitter_s": 0.01},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"rate_bytes_per_s": 500000, "latency_s": 0.1, "jitter_s": 0.05},
-    {"rate_bytes_per_s": 250000, "latency_s": 0.8, "jitter_s": 0.4},
-    {"rate_bytes_per_s": 250000, "latency_s": 0.8, "jitter_s": 0.4}]}
+   "fast": {
+    "peers": 8,
+    "profiles": [
+     {
+      "rate_bytes_per_s": 4000000,
+      "latency_s": 0.02,
+      "jitter_s": 0.01
+     }
+    ]
+   },
+   "mixed": {
+    "peers": 8,
+    "profiles": [
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "stall": true
+     },
+     {
+      "stall": true
+     }
+    ]
+   },
+   "thin": {
+    "peers": 2,
+    "profiles": [
+     {
+      "rate_bytes_per_s": 2500000,
+      "latency_s": 0.06,
+      "jitter_s": 0.02
+     }
+    ]
+   },
+   "slowlive": {
+    "peers": 8,
+    "why": "OWN CHOICE of this draft, not derived from real swarms: no stalled peer, but slow and high-latency live peers (2 x 0.25 MB/s at 0.8 +- 0.4 s one-way latency); every ban here is a false ban.",
+    "profiles": [
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 3000000,
+      "latency_s": 0.03,
+      "jitter_s": 0.01
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "rate_bytes_per_s": 500000,
+      "latency_s": 0.1,
+      "jitter_s": 0.05
+     },
+     {
+      "rate_bytes_per_s": 250000,
+      "latency_s": 0.8,
+      "jitter_s": 0.4
+     },
+     {
+      "rate_bytes_per_s": 250000,
+      "latency_s": 0.8,
+      "jitter_s": 0.4
+     }
+    ]
+   }
   },
   "capture_tracebacks": true,
-  "runs": "13 cells x 2 arms x 10 = 260 runs; at the gsp02-v4 pace (~50 s per run) about 3.6 h"
+  "runs": "13 cells x 2 arms x 10 = 260 runs; at the gsp02-v4 pace (~50 s per run) about 3.6 h",
+  "count_stall_bans": true
  },
  "decision_rule": {
-  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 at registration) plus the hard checks below",
+  "machine_rule": "scripts/decide_sp_gate_bootstrap.py with rule key stall_ban_check (scripts/sp_gate_stall_bans.py); sha256 of both at registration",
   "primary_metric": "start.time_to_start_s (playback start: includes the TTFB, the parallel tail probe of the last piece and the 2 s buffer, i.e. waits for both boundary pieces)",
-  "candidates": ["CW"],
-  "key_cells": ["mixed/4MiB/8Mbit", "mixed/4MiB/30Mbit", "mixed/4MiB/60Mbit", "mixed/16MiB/8Mbit", "mixed/16MiB/30Mbit", "mixed/16MiB/60Mbit"],
+  "candidates": [
+   "CW"
+  ],
+  "key_cells": [
+   "mixed/4MiB/8Mbit",
+   "mixed/4MiB/30Mbit",
+   "mixed/4MiB/60Mbit",
+   "mixed/16MiB/8Mbit",
+   "mixed/16MiB/30Mbit",
+   "mixed/16MiB/60Mbit"
+  ],
   "pooling": "both series pooled: n = 10 runs per arm and cell; failed runs excluded and counted",
   "statistic": "difference of means (CW - C0); 10 000 bootstrap resamples per test, fixed seed (set at registration); one-sided bootstrap p-values",
   "alpha": 0.05,
@@ -77,13 +277,31 @@
   "improvement": "primary metric in a key cell: H0 'difference >= 0' rejected by Holm over the 6 key cells",
   "regression": "any guard test (start.time_to_start_s, start.ttfb_s, seek.resume_s, start.stall_s in all 13 cells, 52 tests): H0 'difference <= 0' rejected by Holm over the 52 tests; guards cover the swarms without stalled peers (fast, thin, slowlive), the seek and the 1 MiB cell",
   "hard_checks": [
-   "false bans: app_log.stall_bans == 0 in every fast, thin and slowlive run (no stalled peer there, so every ban is false); a single false ban fails the gate",
-   "CW bans at least once in every mixed 4/16 MiB run (otherwise the mechanism did not run and the result is not attributable)",
+   "(a) false bans: app_log.stall_bans == 0 in every non-failed CW run of the fast, thin and slowlive cells (no stalled peer there); a single ban fails the gate",
+   "(b) stalled cells: in every non-failed CW run of a mixed cell app_log.stall_bans <= 2 (the profile's stalled peers)",
+   "(c) wiring: app_log.stall_bans == 0 in every non-failed C0 run (switch off)",
+   "a missing counter in any non-failed C0 or CW run fails the check",
    "failed runs and tracebacks with an application frame: CW <= C0"
   ],
-  "pass_if_all": ["at least 4 of 6 key cells improved", "no regression", "all hard checks"],
+  "pass_if_all": [
+   "at least 4 of 6 key cells improved",
+   "no regression",
+   "stall_ban_check pass ((a), (b), (c))",
+   "failed runs and application tracebacks: CW <= C0"
+  ],
   "traceback_counter": "app_tracebacks",
-  "otherwise": "FAIL: relay_stall_policy stays legacy."
+  "otherwise": "FAIL: relay_stall_policy stays legacy.",
+  "stall_ban_check": {
+   "counter": "app_log.stall_bans",
+   "bounded_profiles": [
+    "mixed"
+   ]
+  },
+  "reported_not_required": [
+   "CW runs with at least one ban in the mixed cells (attribution of an improvement to the watchdog)",
+   "bans_total per arm"
+  ],
+  "count_limit": "Counts cannot tell a stalled peer's ban from a serving peer's ban inside a mixed cell: (b) bounds that case, (a) is the false-ban check. A seed-side check (was a serving seeder disconnected by a ban) would need a change to the seed fixture whose hash earlier protocols pin; not done."
  },
  "expected_mechanism": {
   "mixed 4/16 MiB": "Stalled peers hold blocks of the boundary pieces (16 MiB: piece 0 and the last piece, 4 MiB: mostly the last); CW bans them about 2 s after their first request and their blocks go to live peers at once (G0: 16 MiB edges 11.8 -> 6.3 s, 4 MiB 5.8 -> 4.1 s).",
@@ -99,8 +317,30 @@
   "A real outage of our own link does not ban anybody (a peer is banned only while another peer of the same torrent progresses); not exercised by H1."
  ],
  "open_questions": [
-  "Harness ban counter (prerequisite) and the slowlive profile: both new; the slowlive latency is a choice, not derived from real swarms.",
+  "The slowlive profile is this draft's own choice (latency and rate not derived from real swarms).",
   "Real swarms: the frequency of stalled peers is unknown (implementation plan, SP10 row); a PASS shows the synthetic mechanism, not its real-world prevalence.",
-  "Whether 120 s is the right ban length is not measured by this gate (only one value is run); it is a technical default."
+  "Whether 120 s is the right ban length is not measured by this gate (only one value is run); it is a technical default.",
+  "The harness changes (controller/summarizer/decider hooks) overlap files that the SP03 branch also changed; the merge into the feature branch must keep both opt-in sets."
+ ],
+ "metrics": [
+  "start.ttfb_s",
+  "ttfb_after_first_handshake_s",
+  "start.tail_probe_s",
+  "start.time_to_start_s",
+  "start.stalls",
+  "start.stall_s",
+  "start.buffer_s_p10",
+  "start.buffer_s_median",
+  "start.time_to_full_buffer_s",
+  "seek.ttfb_s",
+  "seek.resume_s",
+  "seek.stalls",
+  "seek.stall_s",
+  "unused_downloaded_bytes",
+  "app_stats.cpu_pct_mean",
+  "app_stats.mem_mib_max",
+  "app_log.tracebacks",
+  "app_log.stall_bans",
+  "failed"
  ]
 }

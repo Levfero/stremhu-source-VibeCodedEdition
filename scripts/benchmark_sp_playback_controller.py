@@ -203,6 +203,10 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
                                                                     start + 80)]))
         record["app_log"] = {"tracebacks": len(starts), "app_tracebacks": app_tracebacks,
                              "error_lines": sum(1 for line in lines if "ERROR" in line)}
+        if plan.get("count_stall_bans"):
+            # GSP10 (opt-in): the stall watchdog's ban count from its count-only log lines.
+            from sp_gate_stall_bans import count_stall_bans
+            record["app_log"]["stall_bans"] = count_stall_bans(text)
         if plan.get("capture_log_prefix"):
             # Diagnostics only: lines with the opt-in prefix (relay-level fields, no URLs; masked anyway).
             prefix = plan["capture_log_prefix"]

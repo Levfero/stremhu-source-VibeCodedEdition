@@ -529,7 +529,9 @@ peer ennyi ideig tőlünk sem kap feltöltést, minden torrentben (session-szint
 **GSP10 kapu (H1), vázlat:** [`drafts/gsp10-draft.json`](evidence/drafts/gsp10-draft.json). C0 (mai
 alap) a watchdog ellen; fő metrika az indulási idő (mindkét határdarabra várva), kulcscellák a mixed profil 4 és
 16 MiB-on 8/30/60 Mbit/s-on. Őrök: fast és thin (nincs beragadó peer), egy lassú, de élő peeres profil (minden
-tiltás téves: 0 megengedett), tekerés, 1 MiB. Előfeltétel: a H1-vezérlő számolja a tiltásokat az app-logból.
+tiltás téves: 0 megengedett), tekerés, 1 MiB. A H1-lánc opt-in tiltásszámlálója kész (`sp_gate_stall_bans.py`):
+kemény ellenőrzés, hogy beragadó peer nélküli cellában 0, a mixed cellákban futásonként legfeljebb 2 tiltás legyen,
+C0-ban pedig 0. A termék az új tiltást WARNING szinten naplózza (csak darabszám), mert az image prod módban fut.
 
 **Függés:** az SP02 döntése után, mert az indulási sorrend és a beragadó blokkok hatása összeadódik.
 

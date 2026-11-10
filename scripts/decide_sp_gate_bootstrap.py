@@ -16,6 +16,8 @@ variant and cell) and compares means.
 - Failed runs and tracebacks with an application frame: candidate total <= C0 total.
 - Several passing candidates: larger total mean primary gain over the key cells; a tie goes
   to rule["tie_break"].
+- Optional ``stall_ban_check`` (GSP10): count-based ban hard checks (sp_gate_stall_bans.py);
+  absent = unchanged behaviour.
 """
 
 import json
@@ -111,6 +113,12 @@ def main() -> None:
             "failed_runs": failed, "tracebacks_total": tracebacks, "total_primary_gain_s": gain,
             "tests": {f"{cell} {name}": test for (cell, name), test in sorted(tests.items())},
         }
+        if "stall_ban_check" in rule:
+            # GSP10 (opt-in): count-based ban hard checks, see sp_gate_stall_bans.py.
+            from sp_gate_stall_bans import stall_ban_check
+            check = stall_ban_check(protocol, records, candidate, cell_of)
+            results[candidate]["stall_ban_check"] = check
+            results[candidate]["pass"] = passed and check["pass"]
     passing = [c for c in rule["candidates"] if results[c]["pass"]]
     if passing:
         tie_break = rule.get("tie_break", rule["candidates"][0])

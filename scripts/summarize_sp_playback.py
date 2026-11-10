@@ -34,7 +34,7 @@ def get(record: dict, dotted: str):
 def kind(metric: str) -> str:
     if "bytes" in metric:
         return "bytes"
-    if metric.endswith(("stalls", "tracebacks")):
+    if metric.endswith(("stalls", "tracebacks", "bans")):
         return "count"
     if "cpu_pct" in metric:
         return "pct"

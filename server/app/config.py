@@ -146,6 +146,15 @@ class Config(BaseSettings):
     subtitle_max_source_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
     # Feliratcache összesített bájtkerete (folyamaton belüli memória)
     subtitle_cache_max_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
+    # SP06/b Tech Info előtöltés: a megosztott keresésben, a trackerfázis után indul, háttérben.
+    # Kikapcsolva (alapérték) a mai viselkedés marad, amíg a GSP06 kapu nem PASS.
+    tech_info_prefetch: bool = False
+    # A Tech Info-t adó indexerek találataiból seederszám szerint ennyit tölt elő egy keresés.
+    tech_info_prefetch_top_n: int = Field(default=5, ge=1)
+    # Folyamatszinten egyszerre futó háttérlekérések felső határa; a többlet kimarad.
+    tech_info_prefetch_max_in_flight: int = Field(default=20, ge=1)
+    # Egy háttérlekérés teljes felső határa (szemaforvárakozással együtt); lejárat = sikertelen.
+    tech_info_prefetch_timeout_seconds: float = Field(default=10.0, gt=0)
     # Indexerről letöltött .torrent dekódolt törzsének felső határa.
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).

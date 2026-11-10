@@ -70,6 +70,10 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         return True
 
     @property
+    def provides_tech_info(self) -> bool:
+        return True
+
+    @property
     def url(self) -> str:
         return "https://ncore.pro"
 

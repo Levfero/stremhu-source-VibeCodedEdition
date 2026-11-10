@@ -156,10 +156,11 @@ class Config(BaseSettings):
     tech_info_prefetch_max_in_flight: int = Field(default=20, ge=1)
     # Egy háttérlekérés teljes felső határa (szemaforvárakozással együtt); lejárat = sikertelen.
     tech_info_prefetch_timeout_seconds: float = Field(default=10.0, gt=0)
-    # SP03 lejátszási előzmény: bekapcsolva playbackenként egyszer, a válaszfejlécek útján kívül
-    # íródik (háttértask, korlátos függő halmaz, szinkron tartalék). Kikapcsolva (alapérték) a mai
-    # viselkedés marad: minden GET/HEAD kérés megvárja a zárolt, szálon futó írást, amíg a GSP03 nem PASS.
-    playback_history_background: bool = False
+    # SP03 lejátszási előzmény: playbackenként egyszer, a válaszfejlécek útján kívül íródik
+    # (háttértask, korlátos függő halmaz, szinkron tartalék). Alapból bekapcsolva (gsp03-v1 PASS:C3);
+    # PLAYBACK_HISTORY_BACKGROUND=false visszaállítja a korábbi utat, ahol minden GET/HEAD kérés
+    # megvárja a zárolt, szálon futó írást.
+    playback_history_background: bool = True
     # Indexerről letöltött .torrent dekódolt törzsének felső határa.
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).

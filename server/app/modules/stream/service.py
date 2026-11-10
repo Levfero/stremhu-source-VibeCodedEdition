@@ -213,10 +213,10 @@ class StreamService:
     ) -> None:
         """Rögzíti a lejátszást a lejátszási előzményben.
 
-        Kikapcsolt ``playback_history_background`` mellett (alapérték) a mai út fut: minden
-        GET/HEAD kérés a válaszfejlécek előtt megvárja a zárolt, szálon futó ``get_or_create``-t.
+        Kikapcsolt ``playback_history_background`` mellett a korábbi út fut: minden GET/HEAD
+        kérés a válaszfejlécek előtt megvárja a zárolt, szálon futó ``get_or_create``-t.
 
-        Bekapcsolva (SP03-jelölt) playbackenként egyszer, a válaszfejlécek útján kívül íródik:
+        Bekapcsolva (SP03, alapérték) playbackenként egyszer, a válaszfejlécek útján kívül íródik:
         az ismételt Range/HEAD kérések nem nyúlnak a DB-hez, az első írás a háttérben fut
         (a lifespan ``background-db`` lépése lezárja), teli függő halmaznál szinkron tartalék,
         hogy előzmény ne vesszen el.

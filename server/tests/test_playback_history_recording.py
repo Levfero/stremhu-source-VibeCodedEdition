@@ -1,7 +1,7 @@
 """SP03: playback history recording in both ``playback_history_background`` states.
 
-Off (the default) is today's path: every GET/HEAD request awaits the locked,
-threaded write before its headers. On (the SP03 candidate): one write per
+Off is the earlier path: every GET/HEAD request awaits the locked, threaded
+write before its headers. On (SP03, the default since gsp03-v1): one write per
 playback, off the response path; a failed write is retried by the next request,
 a full pending set falls back to a synchronous write, the recorded set is
 bounded, and shutdown drains pending writes (see test_lifespan_cleanup).
@@ -308,3 +308,10 @@ async def test_playback_limit_counts_relay_streams_not_history(monkeypatch, hist
     assert same.status_code == 206
     assert other.status_code == 403
     assert writes.calls == ["same-p"]
+
+
+def test_default_is_the_gate_passed_background_write():
+    from app.config import Config
+
+    assert Config.model_fields["playback_history_background"].default is True
+    assert Config.model_validate({"playback_history_background": "false"}).playback_history_background is False

@@ -1,0 +1,98 @@
+{
+ "id": "gsp07-draft",
+ "status": "Session draft for gate GSP07 (SP07 stale tracker cache, background refresh); NOT registered, no measured run. Registration copies the plan and rule into gsp07-v1-plan.json / gsp07-v1-protocol.json with source manifest and script hashes, after a non-measurement wiring smoke on the candidate image. Open questions below must be settled first.",
+ "item": "SP07: C0 = legacy (indexer_cache_hard_ttl_seconds 0 = today's cache; breaker off, Tech Info prefetch off) vs C7 = swr (hard TTL 86400 s = 24 h, the user's UX/SLO decision, row 5; indexer_cache_refresh_max_in_flight 4; breaker off, prefetch off). The soft TTL is the product's 1800 s, shortened in-process by the harness (--imdb-cache-ttl).",
+ "plan": {
+  "image": "stremhu-source:sp-cand-<commit of the SP07 merge>",
+  "arms": {"C0": "legacy", "C7": "swr"},
+  "series": 2,
+  "reps_per_series": 5,
+  "harness_args": ["--scenarios", "S1", "--requests", "24", "--interval", "6", "--time-scale", "1",
+                   "--trackers", "3", "--results-per-tracker", "4", "--latency", "0.4", "--jitter", "0.25",
+                   "--download-latency", "0.2", "--tech-info-latency", "0.2",
+                   "--imdb-cache-ttl", "20", "--stale-after", "30", "--hard-ttl", "86400",
+                   "--steady-from", "2"],
+  "seed_base": 20261112,
+  "variants": {
+   "m": ["--new-upload", "none"],
+   "mu": ["--new-upload", "movie"],
+   "ep": ["--new-upload", "episode"]
+  },
+  "cpuset": "0,1",
+  "cpus": 2,
+  "memory": "1g"
+ },
+ "runner": "scripts/run_sp_search_gate.py unchanged: one fresh --network none container per run (cpuset 0,1, 2 CPU, 1 GiB); per repetition the variant order and the arm order rotate; repetition r uses --seed 20261112 + r for both arms; 2 series x 5 repetitions x 3 variants x 2 arms = 60 runs.",
+ "time_note": "Time scale 1 (the product's 1.5 s Tech Info budget is an unscaled code constant). 24 cold requests every 6 s, each with an immediate warm pair; the stale request for cold i is due 30 s after it (soft TTL 20 s, so the entry is soft-expired), then a followup once the background refreshes settled. Last stale event at ~168 s: ~3 min per run with container start, ~3 h in total.",
+ "harness_semantics": {
+  "stale": "same IMDb id (ep: S01E02) S seconds after the cold request, stream response cache invalidated; tracker IMDb cache entry soft-expired (age >= --imdb-cache-ttl), far below the hard TTL",
+  "followup": "same request again after every SP07 background refresh settled (C0 has none)",
+  "tracker_calls": "synthetic tracker searches from the request start until its background refreshes settled",
+  "new_upload_visible": "mu: a stream of the extra '-new' release is in the response; ep: an S01E02 stream is in the response",
+  "variants": "m = static trackers; mu = every tracker lists one more release of the movie after the warm request; ep = series requests, trackers list 4 S01E01 releases each, one S01E02 release each appears after the warm request, stale/followup ask S01E02"
+ },
+ "why_seed_per_rep": "As in GSP06: both arms of a repetition see the same per-tracker jitter sequence (the background refresh of C7 takes the draw that the synchronous refresh of C0 takes, in the same order), repetitions sample different sequences.",
+ "expected_mechanism": {
+  "m": "C0: the soft-expired entry is dropped, the stale request waits a full tracker search (~0.4 s + jitter); C7: the old list at once (~warm path), one background refresh per tracker. Same tracker calls (3 per stale request), identical sources in every row.",
+  "mu": "C0: the stale request refetches, sees the new release and downloads its .torrent; C7: the old list at once (no new release, by design), the refresh lands it, the followup shows it and downloads it. Stale rows differ by design; followup rows must show the new release in both arms.",
+  "ep": "C0: synchronous refetch finds S01E02. C7: the old list has 0 playable streams for S01E02, so find_by_imdb asks a forced (allow_stale=False) refresh before the name fallback; it joins the background refresh started by the same request, so still 3 tracker calls. Identical sources; latency about the same (one extra DB/resolve pass in C7)."
+ },
+ "wiring_smoke": "Not a measurement (worktree code, in-process, no Docker; --smoke --scenarios S1 --requests 3 --interval 2 --time-scale 0.2 --imdb-cache-ttl 3 --stale-after 4 --steady-from 0, legacy vs swr; n = 3, ms in unscaled units): m stale p50 568 -> 41 ms (warm 42/43), stale tracker calls 3/3, total calls 18/18; mu stale p50 669 -> 45 ms, new release visible stale 1.0 -> 0.0, followup 1.0/1.0; ep stale p50 778 -> 870 ms, S01E02 visible in every stale and followup row of both arms, stale tracker calls 3/3. 0 external HTTP attempts. Note: mu followup Tech Info enrichment differs between arms (the product enriches the first 5 torrents in source order and the new release lands at a different position), so mu is excluded from enrichment identity.",
+ "decision_rule": {
+  "machine_rule": "scripts/decide_sp_search_gate.py (unchanged; the hard checks marked 'needs_decide_extension' below require a new, separately hashed checker at registration)",
+  "baseline": "C0",
+  "candidate": "C7",
+  "statistic": "per-run steady-window (cold requests 2..23 and their warm/stale/followup rows) latency p50/p95 (ms), mean tracker calls per request and mean new-release visibility; pooled n = 10 runs per arm and variant; difference of means; 10 000 bootstrap resamples, seed 20261113; one-sided p-values; Holm per family at alpha 0.05",
+  "improve": [
+   ["m:S1", "stale", "p50"],
+   ["mu:S1", "stale", "p50"]
+  ],
+  "guard": [
+   ["m:S1", "cold", "p50"], ["m:S1", "cold", "p95"], ["m:S1", "warm", "p50"], ["m:S1", "warm", "p95"],
+   ["m:S1", "stale", "p95"], ["m:S1", "followup", "p50"], ["m:S1", "followup", "p95"],
+   ["m:S1", "stale", "mean", "steady_tracker_calls", "lower"], ["m:S1", "followup", "mean", "steady_tracker_calls", "lower"],
+   ["mu:S1", "cold", "p50"], ["mu:S1", "cold", "p95"], ["mu:S1", "warm", "p50"], ["mu:S1", "warm", "p95"],
+   ["mu:S1", "stale", "p95"],
+   ["mu:S1", "stale", "mean", "steady_tracker_calls", "lower"], ["mu:S1", "followup", "mean", "steady_tracker_calls", "lower"],
+   ["mu:S1", "followup", "mean", "steady_new_upload_visible", "higher"],
+   ["ep:S1", "cold", "p50"], ["ep:S1", "cold", "p95"], ["ep:S1", "warm", "p50"], ["ep:S1", "warm", "p95"],
+   ["ep:S1", "followup", "p50"], ["ep:S1", "followup", "p95"],
+   ["ep:S1", "stale", "mean", "steady_tracker_calls", "lower"], ["ep:S1", "followup", "mean", "steady_tracker_calls", "lower"],
+   ["ep:S1", "stale", "mean", "steady_new_upload_visible", "higher"],
+   ["ep:S1", "followup", "mean", "steady_new_upload_visible", "higher"]
+  ],
+  "guard_margin": {},
+  "identical_sources": ["m:S1", "ep:S1"],
+  "identical_enrichment": ["m:S1"],
+  "needs_decide_extension": [
+   "ep:S1 every stale and followup row of both arms has new_upload_visible = true (S01E02 found: new-episode protection)",
+   "mu:S1 every followup row of both arms has new_upload_visible = true (the background refresh landed)",
+   "mu:S1 identical source digests in cold, warm and followup rows (stale rows differ by design)",
+   "C7 stale + followup tracker calls per index <= C0's (no refresh storm): per-row, not only the bootstrap mean"
+  ],
+  "alpha": 0.05,
+  "resamples": 10000,
+  "seed": 20261113,
+  "pass_if_all": [
+   "both improvements significant after Holm: m and mu stale steady p50 lower",
+   "no guard regression after Holm over the guard family (latency, tracker calls, new-release visibility)",
+   "identical per-request source digests in m and ep, and identical rendered streams in m, across all runs of both arms",
+   "every 'needs_decide_extension' hard check holds",
+   "no failed run"
+  ],
+  "descriptive_only": [
+   "ep stale latency p50/p95 (C7 adds the forced refresh step; see open question 2)",
+   "mu stale new-release visibility (0 in C7 by design: the accepted SWR staleness, bounded by the next request and the hard TTL)",
+   "mu followup latency and Tech Info enrichment",
+   "run-level tracker_requests.search_calls_total, cpu_seconds"
+  ],
+  "otherwise": "FAIL: indexer_cache_hard_ttl_seconds stays 0."
+ },
+ "open_questions": [
+  "1. Run time vs time scale: ~3 h at time scale 1 (as GSP06); time scale 0.5 would halve it but inflates the unscaled CPU share (synthetic .torrent build) in the reported ms equally for both arms.",
+  "2. ep stale latency: guard with a margin (needs per-entry margins in a new decide-script version; the current one only has per-metric guard_margin) or descriptive only (this draft). C7 does one extra DB/resolve pass before joining the refresh.",
+  "3. Hard checks in 'needs_decide_extension': a new checker (e.g. decide_sp_search_gate_v2.py) instead of editing decide_sp_search_gate.py, whose hash is registered in gsp06-v1.",
+  "4. A subject-down variant (S2) would show the largest C7 gain (stale list instead of a 12.5 s tracker timeout) but drifts the 6 s schedule in C0; left out, the breaker (SP05/b, on by default) already shortens that case.",
+  "5. Torznab: the product passes allow_stale=False there (Sonarr/Radarr get no stale list when SP07 is on; identical to today when off). Confirm as product behaviour; not measured by this gate."
+ ]
+}

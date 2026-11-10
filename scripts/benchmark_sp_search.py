@@ -1,4 +1,4 @@
-"""H2 keresési harness (stream-performance: SP05, később SP06/SP07/SP08).
+"""H2 keresési harness (stream-performance: SP05, SP06, SP07, később SP08).
 
 The real Stremio -> provider -> repository HTTP path runs in-process over
 ``httpx.ASGITransport``: API-key/DB auth, ``IndexerSearchService`` (per-tracker
@@ -20,6 +20,18 @@ stored .torrent files and stream response cache are all cold), one every ``--int
 each is followed by a warm request for the same id with the user's stream response cache
 invalidated (tracker cache, stored files and Tech Info cache stay warm), after ``--warm-delay`` s
 (default 0: immediately; a background Tech Info fetch may then still be in flight).
+
+GSP07 (SP07 stale tracker cache), only with ``--stale-after S`` (> ``--imdb-cache-ttl``): each cold
+request i is also followed, S seconds after it starts, by a "stale" request for the same id (the
+tracker IMDb cache entry is then soft-expired), and, once every background cache refresh has
+settled, by a "followup" request; both with the user's stream response cache invalidated. The
+``swr`` policy is ``legacy`` plus the SP07 hard TTL (``--hard-ttl``, default 24 h). With
+``--new-upload movie`` every tracker gets one more release of the movie after the warm request;
+with ``--new-upload episode`` the requests are series requests, cold/warm ask S01E01 and the
+trackers list only S01E01 releases until the warm request, then one S01E02 release each, which
+the stale/followup requests ask for (SP07 new-episode protection). Rows then carry
+``tracker_calls`` (synthetic tracker searches during the request, plus its background refreshes)
+and, with a new upload, ``new_upload_visible``. Without ``--stale-after`` the output is unchanged.
 
 ``--time-scale`` multiplies every product and fixture duration (per-tracker search timeout,
 source search deadline, breaker cooldowns, tracker/download/Tech Info latencies, interval,
@@ -100,7 +112,7 @@ SCENARIOS = {
     "S3": "egy tracker lassú, de válaszol",
     "S4": "egy tracker ingadozik (le/fel periódusok)",
 }
-POLICIES = ("legacy", "candidate", "prefetch", "default")
+POLICIES = ("legacy", "candidate", "prefetch", "default", "swr")
 BASE_URL = "https://fixture.invalid"
 ERROR_STREAM_NAME = "⚠️ [StremHU] Hiba"
 DEADLINE_ERROR = getattr(provider_module, "DEADLINE_ERROR", "A keresés elérte az időkorlátot; a találatok részlegesek.")
@@ -110,7 +122,9 @@ PRODUCT_DEADLINE = float(config.source_search_deadline_seconds)
 # The image's own settings (code default or env), for the "default" policy.
 PRODUCT_SETTINGS = {name: getattr(config, name) for name in (
     "indexer_breaker_threshold", "indexer_breaker_cooldown_seconds", "indexer_breaker_cooldown_max_seconds",
-    "tech_info_prefetch") if hasattr(config, name)}
+    "tech_info_prefetch", "indexer_cache_hard_ttl_seconds") if hasattr(config, name)}
+# GSP07 options: left out of the reported parameters at these defaults (older outputs unchanged).
+GSP07_DEFAULTS: dict[str, Any] = {"stale_after": 0.0, "new_upload": "none", "hard_ttl": 86400.0}
 TECH_INFO_MARKER = "Felirat"  # stremio/schemas.py renders "Felirat" when has_hungarian_sub
 NFO_TEXT = "General\nVideo #1\nFormat : HEVC\nAudio #1\nLanguage : Hungarian\nText #1\nLanguage : Hungarian\n"
 TORRENT_SIZE = 100 * 1024 * 1024
@@ -120,7 +134,7 @@ PIECE_SIZE = 1024 * 1024
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--smoke", action="store_true", help="tiny wiring run (seconds); never a measurement")
-    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate,prefetch,default (default: legacy; smoke: legacy,candidate); default = the image's own breaker/prefetch settings (code default or env), durations scaled")
+    parser.add_argument("--policies", default=None, help="comma list of legacy,candidate,prefetch,default,swr (default: legacy; smoke: legacy,candidate); default = the image's own breaker/prefetch/hard-TTL settings (code default or env), durations scaled; swr = legacy + SP07 hard TTL")
     parser.add_argument("--scenarios", default="S1,S2,S3,S4")
     parser.add_argument("--requests", type=int, default=None, help="cold requests per scenario (default 30; smoke 6)")
     parser.add_argument("--interval", type=float, default=10.0, help="seconds between cold request starts")
@@ -143,6 +157,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--imdb-cache-ttl", type=float, default=None, help="tracker IMDb cache TTL override, s (SP07)")
     parser.add_argument("--steady-from", type=int, default=2, help="first cold request index of the steady window")
     parser.add_argument("--warm-delay", type=float, default=0.0, help="seconds between a cold request and its warm pair")
+    parser.add_argument("--stale-after", type=float, default=GSP07_DEFAULTS["stale_after"],
+                        help="GSP07: seconds from each cold request start to its stale request (0 = off)")
+    parser.add_argument("--new-upload", choices=["none", "movie", "episode"], default=GSP07_DEFAULTS["new_upload"],
+                        help="GSP07: what appears on every tracker after the warm request")
+    parser.add_argument("--hard-ttl", type=float, default=GSP07_DEFAULTS["hard_ttl"],
+                        help="GSP07 swr policy: SP07 hard TTL, s (scaled)")
     parser.add_argument("--seed", type=int, default=20261109)
     parser.add_argument("--out", default=None, help="write the JSON here instead of stdout")
     args = parser.parse_args(argv)
@@ -175,6 +195,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--tech-info-failure-rate must be within [0, 1]")
     if args.slow_latency >= PRODUCT_SEARCH_TIMEOUT:
         parser.error("S3 must stay below the per-tracker search timeout (slow but answering)")
+    if args.stale_after < 0 or args.hard_ttl <= 0:
+        parser.error("--stale-after must not be negative and --hard-ttl must be positive")
+    if args.stale_after > 0 and (args.imdb_cache_ttl is None
+                                 or not args.warm_delay < args.imdb_cache_ttl < args.stale_after):
+        parser.error("--stale-after needs --warm-delay < --imdb-cache-ttl < --stale-after (soft expiry before stale)")
+    if args.new_upload != "none" and args.stale_after <= 0:
+        parser.error("--new-upload needs --stale-after")
     return args
 
 
@@ -249,6 +276,9 @@ class SyntheticTracker:
         self.tech_info_calls = 0
         self.tech_info_failures = 0
         self.states: Counter[str] = Counter()
+        # GSP07: IMDb ids whose new release is already on the tracker; explicit release names.
+        self.uploads: set[str] = set()
+        self.names: dict[str, str] = {}
 
     def state(self) -> str:
         if self.behaviour == "down":
@@ -290,7 +320,28 @@ class SyntheticTracker:
 
     async def find_torrents_by_imdb_id(self, imdb_id: str) -> list[IndexerDefinitionTorrent]:
         await self._transport()
-        return self._torrents(f"{self.id}-{imdb_id}", imdb_id)
+        key = f"{self.id}-{imdb_id}"
+        if self.args.new_upload == "episode":
+            torrents = self._episode_torrents(key, imdb_id, 1, self.args.results_per_tracker)
+            if imdb_id in self.uploads:
+                torrents += self._episode_torrents(key, imdb_id, 2, 1)
+            return torrents
+        torrents = self._torrents(key, imdb_id)
+        if imdb_id in self.uploads:
+            torrents.append(IndexerDefinitionTorrent(
+                torrent_id=f"{key}-new", download_url=f"https://{self.id}.fixture.invalid/download/{key}-new",
+                imdb_id=imdb_id, seeders=5, attribute_ids=[]))
+        return torrents
+
+    def _episode_torrents(self, key: str, imdb_id: str, episode: int, count: int) -> list[IndexerDefinitionTorrent]:
+        torrents = []
+        for index in range(count):
+            torrent_id = f"{key}-ep{episode}-{index:02d}"
+            self.names[torrent_id] = f"SP.Search.{torrent_id}.S01E{episode:02d}.1080p.mkv"
+            torrents.append(IndexerDefinitionTorrent(
+                torrent_id=torrent_id, download_url=f"https://{self.id}.fixture.invalid/download/{torrent_id}",
+                imdb_id=imdb_id, seeders=10 + (index * 7 + len(self.id)) % 40, attribute_ids=[]))
+        return torrents
 
     async def find_torrents_by_query(self, query: str, media_type: str | None = None) -> list[IndexerDefinitionTorrent]:
         await self._transport()
@@ -305,7 +356,8 @@ class SyntheticTracker:
         self.download_calls += 1
         await asyncio.sleep(self.clock.scaled(self.args.download_latency))
         torrent_id = download_url.rsplit("/", 1)[-1]
-        return build(f"SP.Search.{torrent_id}.2024.1080p.mkv", PIECE_SIZE, TORRENT_SIZE).torrent_bytes
+        name = self.names.get(torrent_id, f"SP.Search.{torrent_id}.2024.1080p.mkv")
+        return build(name, PIECE_SIZE, TORRENT_SIZE).torrent_bytes
 
     async def fetch_tech_info(self, torrent_id: str) -> tuple[str | None, str | None]:
         return None, None
@@ -356,6 +408,9 @@ def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError("Candidate policy needs SP05/b (IndexerHealth) in the image under test")
     if policy == "prefetch" and not has_prefetch:
         raise RuntimeError("Prefetch policy needs SP06/b (tech_info_prefetch) in the image under test")
+    has_swr = hasattr(config, "indexer_cache_hard_ttl_seconds") and hasattr(search, "_refresher")
+    if policy == "swr" and not has_swr:
+        raise RuntimeError("SWR policy needs SP07 (indexer_cache_hard_ttl_seconds) in the image under test")
     # "prefetch" = SP06/b Tech Info prefetch on, breaker off; "default" = the image's settings;
     # the others keep prefetch off.
     prefetch_info: dict[str, Any] = {"tech_info_prefetch": "N/A"}
@@ -371,6 +426,17 @@ def apply_policy(policy: str, args: argparse.Namespace) -> dict[str, Any]:
     config.source_search_deadline_seconds = PRODUCT_DEADLINE * args.time_scale
     if args.imdb_cache_ttl is not None:
         search._IMDB_TRACKER_CACHE_TTL = args.imdb_cache_ttl * args.time_scale
+    # SP07: only "swr" (and "default" with a non-zero image setting) has a hard TTL; the others keep
+    # the legacy cache and report nothing new.
+    if has_swr:
+        hard_ttl = {"swr": args.hard_ttl,
+                    "default": PRODUCT_SETTINGS.get("indexer_cache_hard_ttl_seconds", 0.0)}.get(policy, 0.0)
+        config.indexer_cache_hard_ttl_seconds = hard_ttl * args.time_scale
+        if policy == "swr" and not search.stale_imdb_cache_enabled():
+            raise RuntimeError("SWR policy needs the scaled hard TTL above the soft TTL (--imdb-cache-ttl)")
+        if hard_ttl:
+            prefetch_info = {**prefetch_info, "indexer_cache_hard_ttl_seconds": hard_ttl,
+                             "indexer_cache_refresh_max_in_flight": config.indexer_cache_refresh_max_in_flight}
     if not has_breaker:
         return {"name": policy, "breaker": "N/A", **prefetch_info}
     if policy == "default":
@@ -396,6 +462,17 @@ async def settle_tech_info_prefetch() -> None:
     flights = prefetcher().flights
     while flights:
         await asyncio.gather(*(flight.task for flight in tuple(flights.values())), return_exceptions=True)
+        await asyncio.sleep(0)
+
+
+async def settle_imdb_refreshes() -> None:
+    """GSP07: let SP07 background tracker-cache refreshes finish (none before SP07 or when off)."""
+    refresher = getattr(search, "_refresher", None)
+    if refresher is None:
+        return
+    tasks = refresher().tasks
+    while tasks:
+        await asyncio.gather(*tuple(tasks), return_exceptions=True)
         await asyncio.sleep(0)
 
 
@@ -457,7 +534,8 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
 
             settings = SimpleNamespace(get_app_url=lambda: BASE_URL)
             inventory = SimpleNamespace(is_file_downloaded=lambda **kwargs: False, get_torrents=lambda: [])
-            resolver = SimpleNamespace(get_alternate_imdb_ids=_no_aliases, get_title_by_imdb=_no_title)
+            resolver = SimpleNamespace(get_alternate_imdb_ids=_no_aliases, get_title_by_imdb=_no_title,
+                                       get_episode_mappings=_no_mappings)
 
             def stremio_service(db: Annotated[Session, Depends(get_db, scope="function")]):
                 indexers = IndexerSearchService(registry)  # type: ignore[arg-type]
@@ -480,11 +558,12 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
             cpu_before = time.process_time()
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE_URL) as client:
 
-                async def request(kind: str, index: int, imdb_id: str) -> None:
+                async def request(kind: str, index: int, imdb_id: str, stream_id: str | None = None,
+                                  media: str = "movie") -> dict[str, Any]:
                     subject_state = trackers[subject_id].state()
                     offset = clock.elapsed_unscaled()
                     began = time.perf_counter()
-                    response = await client.get(f"/api/{api_key}/stremio/stream/movie/{imdb_id}.json")
+                    response = await client.get(f"/api/{api_key}/stremio/stream/{media}/{stream_id or imdb_id}.json")
                     latency_ms = (time.perf_counter() - began) * 1000 / args.time_scale
                     if response.status_code != 200:
                         raise RuntimeError(f"Synthetic stream request failed with status {response.status_code}")
@@ -503,7 +582,7 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                             if f".{indexer_id}-" in file_name:
                                 by_tracker[indexer_id] += 1
                     error_kinds = classify_errors(errors)
-                    rows.append({
+                    row = {
                         "kind": kind, "index": index, "offset_s": round(offset, 3), "latency_ms": round(latency_ms, 3),
                         "subject_state": subject_state, "sources": len(playable), "sources_by_tracker": dict(by_tracker),
                         "source_digest": hashlib.sha256("\n".join(files).encode()).hexdigest(),
@@ -511,22 +590,34 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
                         "enrichment_digest": hashlib.sha256("\n".join(rendered).encode()).hexdigest(),
                         "tech_info_calls_total": sum(t.tech_info_calls for t in trackers.values()),
                         "errors": error_kinds, "partial": bool(error_kinds.get("deadline")),
-                    })
+                    }
+                    if args.new_upload != "none":
+                        marker = ".S01E02." if args.new_upload == "episode" else "-new."
+                        row["new_upload_visible"] = any(marker in file_name for file_name in files)
+                    rows.append(row)
+                    return row
 
-                for index in range(args.requests):
-                    due = clock.scaled(index * args.interval) - (time.perf_counter() - clock.started)
-                    if due > 0:
-                        await asyncio.sleep(due)
-                    imdb_id = f"tt{9_000_000 + run_index * 100_000 + index:07d}"
-                    await request("cold", index, imdb_id)
-                    await drain_background_tasks()
-                    streams.invalidate_stream_cache(user_id)
-                    if args.warm_delay > 0:
-                        await asyncio.sleep(clock.scaled(args.warm_delay))
-                    await request("warm", index, imdb_id)
-                    await drain_background_tasks()
+                def search_calls() -> int:
+                    return sum(t.search_calls for t in trackers.values())
+
+                if args.stale_after <= 0:
+                    for index in range(args.requests):
+                        due = clock.scaled(index * args.interval) - (time.perf_counter() - clock.started)
+                        if due > 0:
+                            await asyncio.sleep(due)
+                        imdb_id = f"tt{9_000_000 + run_index * 100_000 + index:07d}"
+                        await request("cold", index, imdb_id)
+                        await drain_background_tasks()
+                        streams.invalidate_stream_cache(user_id)
+                        if args.warm_delay > 0:
+                            await asyncio.sleep(clock.scaled(args.warm_delay))
+                        await request("warm", index, imdb_id)
+                        await drain_background_tasks()
+                else:
+                    await run_stale_schedule(args, clock, request, search_calls, trackers, user_id, run_index)
             elapsed_unscaled = clock.elapsed_unscaled()
             await settle_tech_info_prefetch()
+            await settle_imdb_refreshes()
             cpu_seconds = time.process_time() - cpu_before
             if engine.pool.checkedout():
                 raise RuntimeError("Synthetic search fixture left a checked-out connection")
@@ -541,7 +632,8 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
     summary: dict[str, Any] = {"scenario": scenario, "description": SCENARIOS[scenario], "policy": policy_info,
                                "subject_tracker": subject_id, "elapsed_unscaled_s": round(elapsed_unscaled, 3),
                                "cpu_seconds": round(cpu_seconds, 3)}
-    for kind in ("cold", "warm"):
+    kinds = ("cold", "warm") if args.stale_after <= 0 else ("cold", "warm", "stale", "followup")
+    for kind in kinds:
         selected = [row for row in rows if row["kind"] == kind]
         steady = [row for row in selected if row["index"] >= args.steady_from]
         summary[kind] = {
@@ -557,6 +649,12 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
             "skipped_rate": sum(bool(row["errors"].get("skipped")) for row in selected) / len(selected),
             "timeout_error_rate": sum(bool(row["errors"].get("timeout")) for row in selected) / len(selected),
         }
+        if args.stale_after > 0:
+            summary[kind]["steady_tracker_calls"] = distribution([float(row["tracker_calls"]) for row in steady])
+            summary[kind]["tracker_calls_total"] = sum(row["tracker_calls"] for row in selected)
+        if args.new_upload != "none":
+            summary[kind]["steady_new_upload_visible"] = distribution(
+                [float(row["new_upload_visible"]) for row in steady])
     minutes = elapsed_unscaled / 60
     summary["subject_requests"] = {
         "search_calls": subject.search_calls,
@@ -564,6 +662,9 @@ async def run_scenario(policy: str, scenario: str, args: argparse.Namespace, run
         "states_seen": dict(subject.states),
         "download_calls": subject.download_calls,
     }
+    if args.stale_after > 0:
+        summary["tracker_requests"] = {"search_calls_total": sum(t.search_calls for t in trackers.values()),
+                                       "per_tracker": {t.id: t.search_calls for t in trackers.values()}}
     summary["breaker"] = ({"openings": health.openings[subject_id], "probes": health.probes[subject_id],
                            "opened_at_s": health.opened_at.get(subject_id, []),
                            "openings_other_trackers": sum(n for t, n in health.openings.items() if t != subject_id)}
@@ -583,6 +684,49 @@ async def _no_title(*args: Any, **kwargs: Any) -> None:
     return None
 
 
+async def _no_mappings(*args: Any, **kwargs: Any) -> tuple[list[int], list[int]]:
+    return [], []
+
+
+async def run_stale_schedule(args: argparse.Namespace, clock: ScenarioClock, request: Any, search_calls: Any,
+                             trackers: dict[str, SyntheticTracker], user_id: str, run_index: int) -> None:
+    """GSP07: cold/warm pairs every --interval, each with a stale + followup pair --stale-after later.
+
+    Events run sequentially in due order (a pair before a stale event due at the same time). Every
+    request starts with the user's stream response cache invalidated; tracker calls are counted
+    from the request start until its background refreshes settled.
+    """
+    episode = args.new_upload == "episode"
+    media = "series" if episode else "movie"
+    events = sorted([(index * args.interval, 0, index) for index in range(args.requests)]
+                    + [(index * args.interval + args.stale_after, 1, index) for index in range(args.requests)])
+
+    async def counted(kind: str, index: int, imdb_id: str, episode_no: int) -> None:
+        streams.invalidate_stream_cache(user_id)
+        before = search_calls()
+        row = await request(kind, index, imdb_id, f"{imdb_id}:1:{episode_no}" if episode else None, media)
+        await settle_imdb_refreshes()
+        await drain_background_tasks()
+        row["tracker_calls"] = search_calls() - before
+
+    for at, phase, index in events:
+        due = clock.scaled(at) - (time.perf_counter() - clock.started)
+        if due > 0:
+            await asyncio.sleep(due)
+        imdb_id = f"tt{9_000_000 + run_index * 100_000 + index:07d}"
+        if phase == 0:
+            await counted("cold", index, imdb_id, 1)
+            if args.warm_delay > 0:
+                await asyncio.sleep(clock.scaled(args.warm_delay))
+            await counted("warm", index, imdb_id, 1)
+            if args.new_upload != "none":
+                for tracker in trackers.values():
+                    tracker.uploads.add(imdb_id)
+        else:
+            await counted("stale", index, imdb_id, 2)
+            await counted("followup", index, imdb_id, 2)
+
+
 async def main(args: argparse.Namespace) -> dict[str, Any]:
     attempted_external = 0
     original_send = httpx.AsyncClient.send
@@ -597,7 +741,8 @@ async def main(args: argparse.Namespace) -> dict[str, Any]:
     imdb_cache_ttl = getattr(search, "_IMDB_TRACKER_CACHE_TTL", None)
     defaults = {name: getattr(config, name) for name in (
         "source_search_deadline_seconds", "indexer_breaker_threshold", "tech_info_prefetch",
-        "indexer_breaker_cooldown_seconds", "indexer_breaker_cooldown_max_seconds") if hasattr(config, name)}
+        "indexer_breaker_cooldown_seconds", "indexer_breaker_cooldown_max_seconds",
+        "indexer_cache_hard_ttl_seconds") if hasattr(config, name)}
     httpx.AsyncClient.send = offline_send  # type: ignore[method-assign]
     runs = []
     try:
@@ -620,7 +765,8 @@ async def main(args: argparse.Namespace) -> dict[str, Any]:
         "is_measurement": not args.smoke,
         "script_sha256": hashlib.sha256(script.read_bytes()).hexdigest(),
         "python": platform.python_version(),
-        "parameters": {key: value for key, value in vars(args).items() if key != "out"},
+        "parameters": {key: value for key, value in vars(args).items()
+                       if key != "out" and not (key in GSP07_DEFAULTS and value == GSP07_DEFAULTS[key])},
         "product_defaults": {"indexer_search_timeout_seconds": PRODUCT_SEARCH_TIMEOUT,
                              "source_search_deadline_seconds": PRODUCT_DEADLINE},
         "runs": runs,

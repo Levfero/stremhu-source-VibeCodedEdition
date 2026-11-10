@@ -102,8 +102,11 @@
   "time_scale": "1, as GSP06: the Tech Info budget is unscaled and the reported ms stay comparable with gsp06; ~2 h 55 min.",
   "ep_stale_latency": "guarded with a 50 ms per-entry margin (reason above), not descriptive.",
   "hard_checks": "opt-in keys in scripts/decide_sp_search_gate.py; with those keys absent gsp05-v1 and gsp06-v1 decide exactly as before (gsp06-v1 byte-identical to the committed decision; gsp05-v1 decision, lists and all n/p-values identical, the committed file predating the 622d802 output format).",
-  "subject_down_variant": "excluded: an S2 variant makes every C0 stale request wait the 12.5 s tracker timeout and drifts the 6 s schedule; the breaker (SP05/b, on by default) already shortens that case.",
-  "torznab": "allow_stale=False stays (user decision: no change requested); identical to today when SP07 is off; not measured here."
+  "subject_down_variant": "excluded: an S2 variant makes every C0 stale request wait the 12.5 s tracker timeout and drifts the 6 s schedule; the breaker (SP05/b, on by default) already shortens that case."
+ },
+ "user_decisions": {
+  "hard_ttl": "24 h (86400 s): UX/SLO frame row 5 in docs/feature/stream-performance.md.",
+  "torznab_always_fresh": "Decided by the user on 2026-11-10 ('Mindig friss legyen'), UX/SLO frame row 5b: the torznab path (Sonarr/Radarr) always gets a fresh list, also with SP07 on. Final, not an open question: TorznabService passes allow_stale=False (commit 1af09cb); with SP07 off the flag is ignored, so torznab behaves as today. Outside this gate's measurement (the H2 harness drives the Stremio path only)."
  },
  "commands": {
   "build (main session, clean checkout of source.commit)": "docker build -t stremhu-source:sp-cand-<short commit> .",

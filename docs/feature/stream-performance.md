@@ -2,13 +2,13 @@
 doc_id: "feature-stream-performance"
 title: "Streamgyorsítás — branch-összefoglaló"
 kind: "feature-overview"
-status: "implementation-in-progress"
+status: "implemented"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "relay", "search", "playback"]
-source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
+source_commit: "8157b515c81b9409054379e4c831cf568becab4a"
 baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR)"
-verification: "static source reading at source_commit; execution record below"
-structure_reviewed: "2026-11-08"
+verification: "source at source_commit; pre-registered gates on local Docker (synthetic swarm and trackers); user's manual client test; execution record below"
+structure_reviewed: "2026-11-11"
 related_docs: ["docs/feature/stream-performance/README.md", "docs/feature/stream-performance/implementation-plan.md", "docs/AI-INDEX.md"]
 source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "server/app/modules/indexers/search.py", "server/app/modules/torrent_source_provider/service.py", "server/app/modules/torrent_streams/service.py", "server/app/modules/indexer_definitions/integrations/ncore.py", "server/app/modules/stremio/service.py", "server/app/config.py", "scripts/fixtures/local_bt_seed.py"]
 ---
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../README.md) · [AI-index](../AI-INDEX.md)
 
-> **Státusz:** Implementáció folyamatban (2026-11-11). A csomagonkénti eredmény a [végrehajtási állapotban](#execution-status).
+> **Státusz:** Kész, PR a `main` felé (2026-11-11). A csomagonkénti eredmény a [végrehajtási állapotban](#execution-status).
 
 **Kapcsolódó:** [README.md](stream-performance/README.md) · [implementation-plan.md](stream-performance/implementation-plan.md)
 
@@ -27,7 +27,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 
 - [Cél és tényleges státusz](#doc-cel-es-tenyleges-statusz)
 - [Kanonikus dokumentumok](#doc-kanonikus-dokumentumok)
-- [Upstream-diffmátrix (tervezett)](#doc-upstream-diffmatrix-tervezett)
+- [Upstream-diffmátrix](#doc-upstream-diffmatrix-tervezett)
 - [Érintett modulok és kritikus invariánsok](#doc-erintett-modulok-es-kritikus-invariansok)
 - [Végrehajtási állapot](#execution-status)
 - [UX/SLO-keret (felhasználói döntés, 2026-11-09)](#doc-ux-slo-keret)
@@ -48,7 +48,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - A/B/C és C előtte/utána mérés;
 - dokumentált döntés.
 
-**Státusz (2026-11-11):** minden csomag lezárva; a záró dokumentáció és a PR van hátra. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be), a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`), a `gsp05-v1` PASS alapján a tracker-rövidzár (`INDEXER_BREAKER_THRESHOLD=2`), a `gsp06-v2` PASS alapján a Tech Info előtöltés (`TECH_INFO_PREFETCH=true`), a `gsp03-v1` PASS:C3 alapján a háttérben írt lejátszási előzmény (`PLAYBACK_HISTORY_BACKGROUND=true`), valamint a `gsp07-v2` PASS alapján a lejárt trackercache azonnali kiszolgálása háttérfrissítéssel (`INDEXER_CACHE_HARD_TTL_SECONDS=86400`). Mérve, változtatás nélkül lezárva: SP04 (`gsp04-v1` FAIL, nincs nyereség), SP08 (leíró mérés: a jelölt felső korlátja sem lényeges), SP10 (beragadó peerek: `gsp10-v1` és a nagyobb mintás `gsp10-v2` is FAIL) SP01 (bájtalapú előtöltési ablak: a `sp01-probe-v1` leíró mérés előre rögzített feltétele nem teljesült, kapu nem készült) és SP09 (keep-alive a streamválaszokon: a `gsp09-v1` PASS és a kézi kliensteszt után a felhasználó elvetette, mert kicsi és bizonytalan a nyereség, az upstream #274-nek pedig lehetett oka). Hátra van: a záró dokumentáció és a PR a `main` felé. A nem beolvasztott jelöltek és bizonyítékaik a saját munkamenet-águkon vannak. A részletek a [végrehajtási állapotban](#execution-status).
+**Státusz (2026-11-11):** minden csomag lezárva, a branch PR-ral a `main` felé. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be), a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`), a `gsp05-v1` PASS alapján a tracker-rövidzár (`INDEXER_BREAKER_THRESHOLD=2`), a `gsp06-v2` PASS alapján a Tech Info előtöltés (`TECH_INFO_PREFETCH=true`), a `gsp03-v1` PASS:C3 alapján a háttérben írt lejátszási előzmény (`PLAYBACK_HISTORY_BACKGROUND=true`), valamint a `gsp07-v2` PASS alapján a lejárt trackercache azonnali kiszolgálása háttérfrissítéssel (`INDEXER_CACHE_HARD_TTL_SECONDS=86400`). Mérve, változtatás nélkül lezárva: SP04 (`gsp04-v1` FAIL, nincs nyereség), SP08 (leíró mérés: a jelölt felső korlátja sem lényeges), SP10 (beragadó peerek: `gsp10-v1` és a nagyobb mintás `gsp10-v2` is FAIL), SP01 (bájtalapú előtöltési ablak: a `sp01-probe-v1` leíró mérés előre rögzített feltétele nem teljesült, kapu nem készült) és SP09 (keep-alive a streamválaszokon: a `gsp09-v1` PASS és a kézi kliensteszt után a felhasználó elvetette, mert kicsi és bizonytalan a nyereség, az upstream #274-nek pedig lehetett oka). A nem beolvasztott jelöltek és bizonyítékaik a saját munkamenet-águkon vannak. A részletek a [végrehajtási állapotban](#execution-status).
 
 <!-- doc-anchor:doc-kanonikus-dokumentumok -->
 <a id="doc-kanonikus-dokumentumok"></a>
@@ -113,7 +113,7 @@ flowchart TD
     F --> G[Fájlfeloldás, szűrés, rendezés]
     T --> G
     G --> H{0 stream?}
-    H -- igen --> I[Név szerinti tartalék<br/>SP08]
+    H -- igen --> I[Név szerinti tartalék<br/>SP08: változatlan]
     H -- nem --> Z
     I --> Z
 ```
@@ -126,9 +126,9 @@ sequenceDiagram
     P->>R: GET Range (indulás, fájlvég-próba, tekerés)
     R->>R: auth, limit, prepare_for_stream
     R-->>R: SP03: előzménymentés a háttérben
-    R->>L: darabprioritások (SP02 indulás, SP01 ablak)
+    R->>L: darabprioritások (SP02: edges indulás + upstream ablak)
     L-->>R: darab kész → read_piece
-    R-->>P: 206 + darabok (SP04 átfedő olvasás)
+    R-->>P: 206 + darabok (soros olvasás, SP04 változatlan)
     Note over R,P: SP09: Connection: close kérésenként (változatlan, a keep-alive elvetve)
 ```
 
@@ -191,5 +191,6 @@ A felhasználó írásban rögzítette, a kapcsolódó kapuk (GSP01, GSP02, GSP0
 <a id="doc-korlatok"></a>
 ## Korlátok
 
-- **Csak kódolvasás:** a terv a `0515d98` forrásának olvasásán alapul. Lejátszási sebességmérés a projektben még nem készült.
-- **Szintetikus mérés:** a swarm és a trackerek mérése szintetikus, belső Docker-hálózaton fut. A valós trackerekkel és natív kliensekkel végzett végső ellenőrzés a felhasználó kézi tesztje.
+- **Szintetikus mérés:** minden alapérték-váltás előre regisztrált kapun ment át, helyi Docker Desktopon, szintetikus swarmmal és trackerrel, belső Docker-hálózaton (az alkalmazás 2 CPU / 1 GiB kerettel). A számszerű nyereség valós trackerekkel, valós swarmmal és távoli kapcsolaton nincs mérve.
+- **Kézi teszt:** a felhasználó az SP09 tesztpéldányán (a branch alapértékei + bekapcsolt keep-alive) valódi tartalommal a Nuvio (Windows) és az Android TV klienst próbálta ki, hiba nélkül. iOS, Stremio asztali, Kodi és VLC nem lett kipróbálva.
+- **Upstream-eltérés:** az indulás (SP02) az upstream képletét veszi át; a többi élő változás (SP03, SP05/b, SP06/b, SP07) a fork saját, upstreamben nem létező működése.

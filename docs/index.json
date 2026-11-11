@@ -1495,7 +1495,7 @@
       "doc_id": "feature-stream-performance-readme",
       "title": "Streamgyorsítás — munkacsomag",
       "kind": "navigation",
-      "status": "planning-only",
+      "status": "navigation",
       "audience": [
         "developer",
         "ai-agent"
@@ -1509,7 +1509,7 @@
       "source_commit": "0515d989c764bb4103d6f7286d703b98ec859ce6",
       "baseline": null,
       "verification": "structure-only",
-      "structure_reviewed": "2026-11-08",
+      "structure_reviewed": "2026-11-11",
       "related_docs": [
         "docs/feature/stream-performance/implementation-plan.md",
         "docs/feature/stream-performance.md"
@@ -1719,7 +1719,7 @@
       "doc_id": "feature-stream-performance",
       "title": "Streamgyorsítás — branch-összefoglaló",
       "kind": "feature-overview",
-      "status": "planning-only",
+      "status": "implemented",
       "audience": [
         "developer",
         "ai-agent"
@@ -1731,10 +1731,10 @@
         "search",
         "playback"
       ],
-      "source_commit": "0515d989c764bb4103d6f7286d703b98ec859ce6",
+      "source_commit": "8157b515c81b9409054379e4c831cf568becab4a",
       "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@0515d98 (PR)",
-      "verification": "static source reading at source_commit; execution record below",
-      "structure_reviewed": "2026-11-08",
+      "verification": "source at source_commit; pre-registered gates on local Docker (synthetic swarm and trackers); user's manual client test; execution record below",
+      "structure_reviewed": "2026-11-11",
       "related_docs": [
         "docs/feature/stream-performance/README.md",
         "docs/feature/stream-performance/implementation-plan.md",

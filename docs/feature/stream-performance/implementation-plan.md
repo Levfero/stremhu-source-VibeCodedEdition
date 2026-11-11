@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Tervezési munkakör, nem igazolt implementáció. A mérési kapuk és a konkrét feladat engedélye érvényes.
+> **Státusz:** Terv (a `0515d98` forrásán). Végrehajtva; mi került be és mi nem, azt a [végrehajtási állapot](../stream-performance.md#execution-status) rögzíti, nem ez a dokumentum.
 
 **Kapcsolódó:** [README.md](README.md) · [stream-performance.md](../stream-performance.md)
 

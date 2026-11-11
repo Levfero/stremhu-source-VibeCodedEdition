@@ -2,13 +2,13 @@
 doc_id: "feature-stream-performance-readme"
 title: "Streamgyorsítás — munkacsomag"
 kind: "navigation"
-status: "planning-only"
+status: "navigation"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "implementation-plan", "evidence"]
 source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
 baseline: null
 verification: "structure-only"
-structure_reviewed: "2026-11-08"
+structure_reviewed: "2026-11-11"
 related_docs: ["docs/feature/stream-performance/implementation-plan.md", "docs/feature/stream-performance.md"]
 source_paths: []
 ---
@@ -18,7 +18,7 @@ source_paths: []
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../../README.md) · [AI-index](../../AI-INDEX.md)
 
-> **Státusz:** Terv; implementáció és mérés még nem történt. Az aktuális eredmény a [végrehajtási állapotban](../stream-performance.md#execution-status) olvasható.
+> **Státusz:** A terv végrehajtva, minden csomag lezárva (2026-11-11). Az eredmény a [végrehajtási állapotban](../stream-performance.md#execution-status) olvasható.
 
 **Kapcsolódó:** [implementation-plan.md](implementation-plan.md) · [stream-performance.md](../stream-performance.md)
 
@@ -41,9 +41,9 @@ source_paths: []
    - a kilenc tétel (SP01–SP09) forrásból igazolt ténnyel és hipotézissel;
    - mérőeszközök (H1–H3), mérési kapuk és munkacsomag-sorrend;
    - nyitott döntések.
-3. `evidence/`: a regisztrált protokollok és mérési eredmények. Még üres; az első csomaggal jön létre.
+3. `evidence/`: a regisztrált protokollok és mérési eredmények (protokoll, terv, döntés, értékelés, összesítés, minden futás).
 
-**Státusz:** terv, a `main` `0515d989c764bb4103d6f7286d703b98ec859ce6` forrásán. Implementáció, teszt és mérés még nem történt.
+**Státusz:** a terv a `main` `0515d989c764bb4103d6f7286d703b98ec859ce6` forrásán készült; végrehajtva, az eredmény a [végrehajtási állapotban](../stream-performance.md#execution-status).
 
 <!-- doc-anchor:doc-a-terv-szerepe -->
 <a id="doc-a-terv-szerepe"></a>

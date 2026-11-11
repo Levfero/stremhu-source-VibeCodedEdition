@@ -9,11 +9,15 @@ Runs in its own container on the internal measurement network, like
    sequential bounded Range requests (``--read-bytes`` each, ``--gap-ms`` apart):
    request 1 starts at 0, request 2 is the tail probe, the rest are spread over the
    file (fixed golden-ratio sequence, 64 KiB aligned), as a player's start, tail
-   probe and seeks. Every stream response carries ``Connection: close``, so every
-   request opens a new connection, as players see it.
+   probe and seeks. The series uses its own client (a fresh connection pool), so its
+   first request always opens a new connection. With ``Connection: close`` (the default)
+   every request opens a new connection; with STREAM_KEEP_ALIVE (SP09) an HTTP/1.1 client
+   reuses one. ``--http2`` negotiates HTTP/2 (ALPN) for both clients.
 
 Per request: time to response headers and to the first body byte, from the request
-start (connection setup included). Per series: p50/p95 (median / nearest rank) of
+start (connection setup included), the HTTP version, the ``Connection`` header and the
+index of the connection that carried it. Per series also the number of distinct
+connections (``connections``; ``extra_connections`` = connections - 1). Per series: p50/p95 (median / nearest rank) of
 all requests, of the repeats (2..N) and the first request alone, plus the count of
 non-206 responses and errors. The API key and the tokens are read from ``--targets``
 (``sp_app_fixture.py --playbacks 2``) and never printed.
@@ -61,7 +65,8 @@ def offsets(size: int, count: int, read_bytes: int) -> list[int]:
     return result[:count]
 
 
-async def timed_get(client: httpx.AsyncClient, url: str, start: int, end: int | None) -> dict:
+async def timed_get(client: httpx.AsyncClient, url: str, start: int, end: int | None,
+                    connections: list | None = None) -> dict:
     header = f"bytes={start}-" if end is None else f"bytes={start}-{end}"
     mark: dict = {"start": start}
     t0 = time.monotonic()
@@ -69,6 +74,16 @@ async def timed_get(client: httpx.AsyncClient, url: str, start: int, end: int | 
         mark["headers_s"] = time.monotonic() - t0
         mark["status"] = response.status_code
         mark["content_range"] = response.headers.get("content-range")
+        mark["http_version"] = response.http_version
+        mark["connection_header"] = response.headers.get("connection")
+        if connections is not None:
+            # The references are kept for the whole series, so an id cannot be recycled.
+            stream = response.extensions.get("network_stream")
+            index = next((i for i, known in enumerate(connections) if known is stream), None)
+            if index is None:
+                connections.append(stream)
+                index = len(connections) - 1
+            mark["conn"] = index
         total = 0
         async for chunk in response.aiter_raw(65536):
             if "ttfb_s" not in mark:
@@ -79,8 +94,8 @@ async def timed_get(client: httpx.AsyncClient, url: str, start: int, end: int | 
     return mark
 
 
-async def run(client: httpx.AsyncClient, warm_url: str, series_url: str, requests: int, read_bytes: int,
-              gap_s: float, settle_s: float) -> dict:
+async def run(client: httpx.AsyncClient, series_client: httpx.AsyncClient, warm_url: str, series_url: str,
+              requests: int, read_bytes: int, gap_s: float, settle_s: float) -> dict:
     result: dict = {"mode": "range-series", "errors": []}
     t_warm = time.monotonic()
     try:
@@ -98,12 +113,13 @@ async def run(client: httpx.AsyncClient, warm_url: str, series_url: str, request
         result["errors"].append("warm:incomplete")
     await asyncio.sleep(settle_s)
     marks = []
+    connections: list = []
     for index, start in enumerate(offsets(size or 0, requests, read_bytes)):
         if index:
             await asyncio.sleep(gap_s)
         end = min(start + read_bytes, size or start + read_bytes) - 1
         try:
-            mark = await timed_get(client, series_url, start, end)
+            mark = await timed_get(series_client, series_url, start, end, connections)
         except Exception as error:  # noqa: BLE001 - recorded; counted in error_count
             result["errors"].append(f"series{index}:{type(error).__name__}")
             mark = {"start": start, "error": type(error).__name__}
@@ -122,6 +138,9 @@ async def run(client: httpx.AsyncClient, warm_url: str, series_url: str, request
         "ttfb_s_p50": rounded(median(ttfb)), "ttfb_s_p95": rounded(p95(ttfb)),
         "repeat_ttfb_s_p50": rounded(median(repeats)), "repeat_ttfb_s_p95": rounded(p95(repeats)),
         "headers_s_p50": rounded(median(headers)), "headers_s_p95": rounded(p95(headers)),
+        "connections": len(connections), "extra_connections": max(0, len(connections) - 1),
+        "http_versions": sorted({m["http_version"] for m in marks if "http_version" in m}),
+        "connection_close_responses": sum(1 for m in marks if (m.get("connection_header") or "").lower() == "close"),
         "requests": [{k: rounded(v) if k.endswith("_s") else v for k, v in m.items() if k != "content_range"}
                      for m in marks],
     }
@@ -141,6 +160,7 @@ async def main() -> None:
     parser.add_argument("--settle-s", type=float, default=2.0)
     parser.add_argument("--warm-playback", type=int, default=0)
     parser.add_argument("--series-playback", type=int, default=1)
+    parser.add_argument("--http2", action="store_true")
     args = parser.parse_args()
 
     data = json.loads(Path(args.targets).read_text(encoding="utf-8"))
@@ -152,8 +172,9 @@ async def main() -> None:
 
     timeout = httpx.Timeout(120.0, connect=30.0)
     t_start = time.monotonic()
-    async with httpx.AsyncClient(verify=False, trust_env=False, timeout=timeout, http2=False) as client:
-        result = await run(client, url(args.warm_playback), url(args.series_playback), args.requests,
+    async with (httpx.AsyncClient(verify=False, trust_env=False, timeout=timeout, http2=args.http2) as client,
+                httpx.AsyncClient(verify=False, trust_env=False, timeout=timeout, http2=args.http2) as series_client):
+        result = await run(client, series_client, url(args.warm_playback), url(args.series_playback), args.requests,
                            args.read_bytes, args.gap_ms / 1000.0, args.settle_s)
     result = {"target": args.target_id, **result, "t_start_monotonic": t_start, "t_end_monotonic": time.monotonic()}
     Path(args.out).write_text(json.dumps(result), encoding="utf-8")

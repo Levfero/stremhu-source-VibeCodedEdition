@@ -27,7 +27,8 @@ Optional, for the GSP03 range series (absent = the playback run above, unchanged
   "db_write_load_args": [...]   arguments of sp_db_write_load.py
   per cell: "name" (cell key in summary/decision), "latency_proxy_one_way_ms" (overrides the
   plan value), "db_write_load": true (synthetic SQLite write load in the app container while
-  the client runs: record["db_write_load"])
+  the client runs: record["db_write_load"]), "client_args": [...] (appended to the plan's
+  client_args for this cell only; GSP09: the HTTP/2 cell)
 """
 
 import argparse
@@ -184,13 +185,13 @@ def run_one(plan: dict, label: str, image: str, cell: dict, rep: int, order: int
             client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5",
                         *mounts, "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_range_series.py",
                         "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
-                        "--out", "/sp/shared/result.json", *[str(a) for a in plan.get("client_args", [])], timeout=900)
+                        "--out", "/sp/shared/result.json", *[str(a) for a in [*plan.get("client_args", []), *cell.get("client_args", [])]], timeout=900)
         else:
             client = sh("docker", "run", "--rm", "--network", net, "--ip", client_ip, "--cpuset-cpus", "4,5", *mounts,
                         "--entrypoint", "python", plan["tool_image"], "/sp/scripts/benchmark_sp_playback.py",
                         "--targets", "/sp/shared/targets.json", "--target-id", "t", "--base", f"https://{base_ip}:7070",
                         "--out", "/sp/shared/result.json", "--bitrate-mbit", str(cell["bitrate_mbit"]),
-                        *[str(a) for a in plan.get("client_args", [])], timeout=900)
+                        *[str(a) for a in [*plan.get("client_args", []), *cell.get("client_args", [])]], timeout=900)
         record["client_line"] = json.loads(client.strip().splitlines()[-1])
         sampler.halt.set()
         if db_load is not None:

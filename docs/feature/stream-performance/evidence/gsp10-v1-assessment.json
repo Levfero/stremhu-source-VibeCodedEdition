@@ -1,0 +1,241 @@
+{
+ "id": "gsp10-v1-assessment",
+ "protocol": "gsp10-v1",
+ "recorded_at_utc": "2026-11-11T01:50:51.408730+00:00",
+ "decision": "FAIL",
+ "consequence": "FAIL under the registered rule: relay_stall_policy stays legacy and SP10 is not merged. The hard checks pass; the failure is power: no key cell survives Holm.",
+ "checks": {
+  "improved_key_cells": [],
+  "improved_required": 4,
+  "regressions": [],
+  "failed_runs": {
+   "C0": 0,
+   "CW": 0
+  },
+  "tracebacks_total": {
+   "C0": 0,
+   "CW": 0
+  },
+  "stall_ban_check": {
+   "counter": "app_log.stall_bans",
+   "missing": 0,
+   "c0_runs_with_bans": 0,
+   "zero_cell_runs_with_bans": 0,
+   "bounded_cell_runs_over_limit": 0,
+   "bounded_cell_runs_with_a_ban": 70,
+   "bounded_cell_runs": 70,
+   "bans_total": {
+    "C0": 0,
+    "CW": 126
+   },
+   "violations": [],
+   "pass": true
+  },
+  "runs": 260,
+  "infra_retries": 0,
+  "image_ids": [
+   "sha256:a456e856705599e43c799462c61a54d7a9526832a569376df5c1f78f0e7af22a"
+  ]
+ },
+ "key_cells_time_to_start": {
+  "mixed/4MiB/8Mbit": {
+   "mean_c0_s": 12.37,
+   "mean_cw_s": 8.06,
+   "sd_c0_s": 7.51,
+   "sd_cw_s": 3.93,
+   "c0_sorted_s": [
+    4.4,
+    4.4,
+    4.5,
+    4.5,
+    9.3,
+    18.1,
+    18.8,
+    18.9,
+    20.4,
+    20.5
+   ],
+   "cw_sorted_s": [
+    4.0,
+    4.4,
+    4.4,
+    4.5,
+    8.7,
+    9.2,
+    9.2,
+    9.7,
+    9.7,
+    16.7
+   ],
+   "p_improvement_null": 0.0488,
+   "effect_size_d": 0.72
+  },
+  "mixed/4MiB/30Mbit": {
+   "mean_c0_s": 15.14,
+   "mean_cw_s": 9.5,
+   "sd_c0_s": 6.25,
+   "sd_cw_s": 5.25,
+   "c0_sorted_s": [
+    5.8,
+    5.8,
+    10.9,
+    12.5,
+    13.4,
+    20.3,
+    20.4,
+    20.6,
+    20.6,
+    21.2
+   ],
+   "cw_sorted_s": [
+    5.2,
+    5.7,
+    5.7,
+    5.8,
+    5.8,
+    5.8,
+    10.8,
+    16.7,
+    16.7,
+    16.8
+   ],
+   "p_improvement_null": 0.013,
+   "effect_size_d": 0.98
+  },
+  "mixed/4MiB/60Mbit": {
+   "mean_c0_s": 15.93,
+   "mean_cw_s": 11.86,
+   "sd_c0_s": 5.77,
+   "sd_cw_s": 3.99,
+   "c0_sorted_s": [
+    7.5,
+    8.5,
+    10.9,
+    12.3,
+    17.4,
+    18.6,
+    18.9,
+    19.0,
+    21.2,
+    24.9
+   ],
+   "cw_sorted_s": [
+    7.5,
+    8.5,
+    8.5,
+    9.2,
+    9.5,
+    11.2,
+    12.3,
+    17.2,
+    17.3,
+    17.3
+   ],
+   "p_improvement_null": 0.0275,
+   "effect_size_d": 0.82
+  },
+  "mixed/16MiB/8Mbit": {
+   "mean_c0_s": 16.91,
+   "mean_cw_s": 13.03,
+   "sd_c0_s": 6.78,
+   "sd_cw_s": 3.19,
+   "c0_sorted_s": [
+    10.3,
+    10.6,
+    12.0,
+    12.1,
+    12.6,
+    15.9,
+    16.7,
+    24.9,
+    26.9,
+    27.0
+   ],
+   "cw_sorted_s": [
+    10.3,
+    10.7,
+    10.7,
+    10.8,
+    11.3,
+    12.0,
+    12.0,
+    16.6,
+    16.7,
+    19.1
+   ],
+   "p_improvement_null": 0.0399,
+   "effect_size_d": 0.73
+  },
+  "mixed/16MiB/30Mbit": {
+   "mean_c0_s": 17.83,
+   "mean_cw_s": 15.37,
+   "sd_c0_s": 8.73,
+   "sd_cw_s": 4.89,
+   "c0_sorted_s": [
+    9.7,
+    10.4,
+    10.7,
+    10.7,
+    15.5,
+    17.4,
+    19.3,
+    21.1,
+    26.5,
+    37.0
+   ],
+   "cw_sorted_s": [
+    10.3,
+    10.7,
+    10.8,
+    12.0,
+    12.0,
+    16.4,
+    16.7,
+    20.4,
+    22.2,
+    22.3
+   ],
+   "p_improvement_null": 0.2131,
+   "effect_size_d": 0.35
+  },
+  "mixed/16MiB/60Mbit": {
+   "mean_c0_s": 18.25,
+   "mean_cw_s": 17.95,
+   "sd_c0_s": 6.94,
+   "sd_cw_s": 5.32,
+   "c0_sorted_s": [
+    10.4,
+    10.7,
+    10.7,
+    12.0,
+    16.7,
+    20.6,
+    22.4,
+    26.0,
+    26.1,
+    26.8
+   ],
+   "cw_sorted_s": [
+    10.7,
+    10.8,
+    12.0,
+    16.6,
+    17.0,
+    20.7,
+    21.4,
+    21.9,
+    24.1,
+    24.4
+   ],
+   "p_improvement_null": 0.4571,
+   "effect_size_d": 0.05
+  }
+ },
+ "analysis": [
+  "0 of 6 key cells improved after Holm (4 required). One-sided unadjusted p: mixed/4MiB/30Mbit 0.013, mixed/4MiB/60Mbit 0.0275, mixed/16MiB/8Mbit 0.0399, mixed/4MiB/8Mbit 0.0488, mixed/16MiB/30Mbit 0.2131, mixed/16MiB/60Mbit 0.4571; the smallest (0.013) is above the first Holm threshold 0.05/6 = 0.0083, so Holm stops there.",
+  "The mean start time is lower with the watchdog in every key cell, clearly in 5 of 6: mixed/4MiB/8Mbit 12.37 -> 8.06 s; mixed/4MiB/30Mbit 15.14 -> 9.5 s; mixed/4MiB/60Mbit 15.93 -> 11.86 s; mixed/16MiB/8Mbit 16.91 -> 13.03 s; mixed/16MiB/30Mbit 17.83 -> 15.37 s; mixed/16MiB/60Mbit 18.25 -> 17.95 s. C0 is bimodal (a fast start, or roughly 15-37 s when a stalled peer holds a boundary piece); CW removes many of the slow starts but not all (several 16-24 s remain), and with SD 3-9 s at n = 10 per arm no single cell is conclusive.",
+  "Hard checks pass: 0 bans in the 60 CW runs of the fast, thin and slowlive cells (no false ban); every CW run of a mixed cell banned 1-2 peers (70/70 runs, 126 bans, the profile has 2 stalled peers); 0 bans in C0; 0 failed runs, 0 app tracebacks, 0 infrastructure retries.",
+  "No guard regression after Holm over 52 tests. Unadjusted (descriptive, not significant after Holm): mixed/1MiB/30Mbit seek.resume_s (+0.43 s, p 0.044); mixed/4MiB/60Mbit seek.resume_s (+0.37 s, p 0.032); the mixed/1MiB/30Mbit start time 7.94 -> 9.11 s (n.s.). Small pieces deserve a guard in any repeat.",
+  "Planning number for a powered repeat (not a decision): at the median effect size d = 0.77 of the cells with a visible gain, one-sided alpha 0.05/6 and 80 % power need about 35 runs per arm and cell, i.e. about 420 runs (~5.6 h at this gate's 48 s per run) for the 6 mixed key cells alone. A repeat would be a new, pre-registered version on new data; v1 stays FAIL and is not pooled."
+ ]
+}

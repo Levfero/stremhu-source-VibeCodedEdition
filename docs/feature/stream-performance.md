@@ -2,7 +2,7 @@
 doc_id: "feature-stream-performance"
 title: "Streamgyorsítás — branch-összefoglaló"
 kind: "feature-overview"
-status: "planning-only"
+status: "implementation-in-progress"
 audience: ["developer", "ai-agent"]
 tags: ["SP01-SP09", "performance", "relay", "search", "playback"]
 source_commit: "0515d989c764bb4103d6f7286d703b98ec859ce6"
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../README.md) · [AI-index](../AI-INDEX.md)
 
-> **Státusz:** Csak terv (2026-11-08). A csomagonkénti eredmény a [végrehajtási állapotban](#execution-status) lesz.
+> **Státusz:** Implementáció folyamatban (2026-11-11). A csomagonkénti eredmény a [végrehajtási állapotban](#execution-status).
 
 **Kapcsolódó:** [README.md](stream-performance/README.md) · [implementation-plan.md](stream-performance/implementation-plan.md)
 
@@ -48,7 +48,7 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 - A/B/C és C előtte/utána mérés;
 - dokumentált döntés.
 
-**Státusz (2026-11-10):** implementáció folyamatban. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be), a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`), a `gsp05-v1` PASS alapján a tracker-rövidzár (`INDEXER_BREAKER_THRESHOLD=2`), a `gsp06-v2` PASS alapján a Tech Info előtöltés (`TECH_INFO_PREFETCH=true`), a `gsp03-v1` PASS:C3 alapján a háttérben írt lejátszási előzmény (`PLAYBACK_HISTORY_BACKGROUND=true`), valamint a `gsp07-v2` PASS alapján a lejárt trackercache azonnali kiszolgálása háttérfrissítéssel (`INDEXER_CACHE_HARD_TTL_SECONDS=86400`). A többi tétel kapcsoló mögött, alapból kikapcsolva, vagy külön `wip/`/munkamenet-branchen vár a kapujára. A részletek a [végrehajtási állapotban](#execution-status).
+**Státusz (2026-11-11):** implementáció folyamatban. Élő változások: SP06/a (Tech Info-hiba nem kerül 1 órára a cache-be), a `gsp02-v4` PASS:C2 alapján az upstream-szerű indulás (`RELAY_START_POLICY=edges`, `RELAY_READAHEAD_POLICY=upstream`), a `gsp05-v1` PASS alapján a tracker-rövidzár (`INDEXER_BREAKER_THRESHOLD=2`), a `gsp06-v2` PASS alapján a Tech Info előtöltés (`TECH_INFO_PREFETCH=true`), a `gsp03-v1` PASS:C3 alapján a háttérben írt lejátszási előzmény (`PLAYBACK_HISTORY_BACKGROUND=true`), valamint a `gsp07-v2` PASS alapján a lejárt trackercache azonnali kiszolgálása háttérfrissítéssel (`INDEXER_CACHE_HARD_TTL_SECONDS=86400`). Mérve, változtatás nélkül lezárva: SP04 (`gsp04-v1` FAIL, nincs nyereség) és SP08 (leíró mérés: a jelölt felső korlátja sem lényeges). Az SP10 (beragadó peerek) `gsp10-v1`-e kevés futás miatt FAIL, a `gsp10-v2` ismétlés fut. Hátra van: SP01, SP09 (natív kliensteszt). A nem beolvasztott jelöltek és bizonyítékaik a saját munkamenet-águkon vannak. A részletek a [végrehajtási állapotban](#execution-status).
 
 <!-- doc-anchor:doc-kanonikus-dokumentumok -->
 <a id="doc-kanonikus-dokumentumok"></a>
@@ -63,21 +63,22 @@ source_paths: ["server/app/modules/relay/", "server/app/modules/stream/", "serve
 
 <!-- doc-anchor:doc-upstream-diffmatrix-tervezett -->
 <a id="doc-upstream-diffmatrix-tervezett"></a>
-## Upstream-diffmátrix (tervezett)
+## Upstream-diffmátrix
 
-Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A harmadik oszlop terv, nem megvalósult állapot.
+Funkcióeredet-baseline: `s4pp1/stremhu-source@8c99c7d` (helyben elérhető). A harmadik oszlop a branch állapota 2026-11-11-én: az **Alapértelmezés** sorok élők (mért PASS után); a többi változatlan, jelölt vagy mérve elvetett.
 
-| Terület | Upstream `8c99c7d` | Fork `main` `0515d98` | `feature/stream-performance` (terv) |
+| Terület | Upstream `8c99c7d` | Fork `main` `0515d98` | `feature/stream-performance` (állapot) |
 |---|---|---|---|
 | Előtöltési ablak lejátszás közben | 4–8 hiányzó darab határidővel, a többi 0 prioritás; határidő `2000 + 1000·d` ms | Ugyanaz az ablak; határidő 0 / 300 / `1000 + 500·d` ms | **Alapértelmezés: az upstream képlete** (`RELAY_READAHEAD_POLICY=upstream`, `gsp02-v4` PASS:C2), ugyanazzal az ablakkal; a `legacy` visszaállítható. A bájtalapú ablak (SP01) nyitott. |
 | Indulási darabsorrend | A fájl első és utolsó darabja 0 ms (1+1) | Az első és utolsó 3 darab 0 ms (3+3) | **Alapértelmezés: az upstream 1+1** (`RELAY_START_POLICY=edges`, `gsp02-v4` PASS:C2): az indulás 5/6 kulcscellában gyorsabb (pl. 12,6 → 9,0 s); 16 MiB-nál a tekerés +0,2–0,7 s. A `legacy` (3+3) visszaállítható. |
 | Lejátszási előzmény | A válasz előtt, minden kérésnél | Ugyanaz, zárral és izolált sessionnel | **Alapértelmezés: playbackenként egyszer, a háttérben** (SP03, `gsp03-v1` PASS:C3); a `PLAYBACK_HISTORY_BACKGROUND=false` visszaállítja a kérésenkénti írást |
-| Darabolvasás | Soros | Soros, megosztott olvasási taskkal | Egy darab átfedő előreolvasás (SP04, kapus) |
+| Darabolvasás | Soros | Soros, megosztott olvasási taskkal | **Változatlan.** Az egy darabos átfedő előreolvasás (SP04) mérve nem gyorsít: a helyben lévő 512 MiB-os fájl mindkét karon ~1 s alatt olvasható ki (`gsp04-v1` FAIL); a jelölt csak a `claude/sp04-read-overlap-33db7a` ágon van |
 | `Connection: close` | Igen (#274) | Igen | Változatlan, hacsak a kompatibilitási kapu nem PASS (SP09) |
 | Trackerenkénti időkorlát | 12,5 s | 12,5 s, három másolatban | Egy segéd (SP05/a). **Alapértelmezés: rövidzár** nem válaszoló trackerre (SP05/b, `gsp05-v1` PASS): 2 egymás utáni időtúllépés vagy kapcsolódási hiba után 120 s kihagyás figyelmeztetéssel, ismétlődéskor duplázva, legfeljebb 600 s; `INDEXER_BREAKER_THRESHOLD=0` kikapcsolja. |
 | Trackercache | Nincs | 30 perc (IMDb), 5 perc (lekérdezés) | **Alapértelmezés: a 30 perces puha TTL után azonnali régi találat, háttérfrissítés, 24 órás kemény határ** (SP07, `gsp07-v2` PASS); a torznab mindig friss listát kap; `INDEXER_CACHE_HARD_TTL_SECONDS=0` visszaállítja a szinkron újrakeresést |
 | Tech Info | Nincs | Legfeljebb 1,5 s a keresés után, sorban | Hibák nem mérgezik a cache-t (SP06/a). **Alapértelmezés: előtöltés** (SP06/b, `gsp06-v2` PASS): a keresés a trackerfázis után a legtöbb seederű 5 Tech Info-adó találatra háttérlekérést indít (folyamatszinten legfeljebb 20, egyenként 10 s); a kérés a lekérés indulásától számított 1,5 s-ból csak a hátralévőt várja, a háttér befejezi és a következő kérés a cache-ből dúsít. A hideg kérés ~0,2 s-mal gyorsabb; lassú (2 s) Tech Info-nál a második kérés 1,5 s → 11 ms, és dúsított. `TECH_INFO_PREFETCH=false` visszaállítja a korábbi viselkedést. |
-| Név szerinti tartalékkeresés | Fork funkció | Soros | Várhatóan változatlan (SP08) |
+| Név szerinti tartalékkeresés | Fork funkció | Soros | **Változatlan.** A „két első lekérdezés párhuzamosan” jelölt mért felső korlátja sem lényeges, és megduplázná a trackerhívásokat (SP08 leíró mérés, a `claude/sp08-fallback-b2cca8` ágon) |
+| Beragadó peerek (kérést elfogad, adatot nem küld) | libtorrent `piece_timeout` | Ugyanaz | **Változatlan** (`legacy`). Az SP10 watchdog (2 s adat nélkül, miközben más peer halad → 120 s ip_filter-tiltás) a `claude/sp10-stalled-peers-b6b89d` ágon: `gsp10-v1` FAIL kevés futás miatt (a kemény ellenőrzések teljesültek), `gsp10-v2` ismétlés fut |
 
 <!-- doc-anchor:doc-erintett-modulok-es-kritikus-invariansok -->
 <a id="doc-erintett-modulok-es-kritikus-invariansok"></a>
@@ -161,6 +162,9 @@ Még nincs végrehajtott csomag. A csomagonkénti eredmény, a regisztrált prot
 | 8 — GSP07 | **`gsp07-v1`: FAIL** (59/60 futás, 0 külső HTTP), kizárólag a „nincs sikertelen futás” feltétel miatt. Egy futás (C7, 6. ismétlés, m) 8 s után a Docker saját hibájával állt le (`docker run` exit 125, „error waiting for container: unexpected EOF”); a következő futás konténere a Docker eseménynaplója szerint csak az előző törlése után indult, és értékei a többi futás tartományában vannak. Minden más feltétel teljesült: a puha TTL után érkező kérés steady p50-e m 466 → 9,5 ms, mu 671 → 9,5 ms (Holm után p 0,0001), 20 őrteszt, regresszió nincs, a torrentkészlet minden sorban azonos, az új kiadás minden előírt sorban látszik, trackerhívás kérésenként mindkét karon azonos (elavult 3, követő 0). Az `ep` epizódnál a régi lista nem tartalmazza a kért részt, ezért a C7 is szinkron frissít (870 vs 870 ms), ahogy terveztük. A kemény TTL alapértéke 0 marad; a `gsp07-v2` ugyanazt a tervet futtatja, egyetlen előre rögzített változtatással: a futtató a Docker saját hibáját (exit 125, eredményfájl nélkül) egyszer újrapróbálja. | [protokoll](stream-performance/evidence/gsp07-v1-protocol.json), [döntés](stream-performance/evidence/gsp07-v1-decision.json), [értékelés](stream-performance/evidence/gsp07-v1-assessment.json), [összesítés](stream-performance/evidence/gsp07-v1-summary.json), [minden futás](stream-performance/evidence/gsp07-v1-complete.json) |
 | 8 — GSP07 v2 | **`gsp07-v2`: PASS** (60/60 futás, 0 hiba, 0 Docker-újrapróbálás, 0 külső HTTP). Ugyanaz a terv, image, karok, magok, tesztek és keményellenőrzések, mint a v1-ben; csak a futtató próbálná újra egyszer a Docker saját hibáját, de erre nem volt szükség. A puha TTL után érkező kérés steady p50-e m 467 → 9,6 ms, mu 671 → 9,6 ms (Holm után p 0,0001); 20 őrteszt, regresszió nincs (a védett utak 0,6 ms-on belül); a torrentkészlet minden sorban azonos, az új kiadás minden előírt sorban látszik, a trackerhívások száma azonos. Minden összesített átlag 1,03 ms-on belül egyezik a v1-gyel, így a v1 bukását egyedül az elveszett futás okozta. A kemény TTL (24 óra) alapértelmezésre állítása a feature ágba olvasztás után, külön committal. | [protokoll](stream-performance/evidence/gsp07-v2-protocol.json), [döntés](stream-performance/evidence/gsp07-v2-decision.json), [értékelés](stream-performance/evidence/gsp07-v2-assessment.json), [összesítés](stream-performance/evidence/gsp07-v2-summary.json), [minden futás](stream-performance/evidence/gsp07-v2-complete.json) |
 | 8 — SP07 alapérték | **bekapcsolva** (`8157b51`, a `591448c` beolvasztás után): `indexer_cache_hard_ttl_seconds` = 86400 (24 óra), a háttérfrissítések felső határa 4; `INDEXER_CACHE_HARD_TTL_SECONDS=0` visszaállítja a korábbi, szinkron újrakeresést. A torznab-kérések továbbra is friss listát kapnak. Ruff, basedpyright tiszta; pytest 835 passed / 64 snapshot. Helyi Docker-ellenőrzés (nem mérés, `sp-cand-8157b51`, H2 `default` policy, az összes élő alapértékkel): env nélkül a puhán lejárt filmkérés a régi listából ~10,5 ms alatt jön, env 0-val ~440 ms-ot vár a szinkron keresésre; a régi listából hiányzó epizódot mindkettő szinkron frissíti (~642 ms); minden elavult kérés 3 trackerhívás, 0 külső HTTP. | [Docker-ellenőrzés](stream-performance/evidence/default-swr-docker-smoke.json), `test_indexer_cache_swr.py` |
+| 9 — SP04 + GSP04 | **nincs változtatás** (`gsp04-v1` FAIL, 120/120 futás, 0 hiba). Az előreolvasás egyik kulcscellában sem gyorsít: a helyben lévő 512 MiB-os fájl kiolvasása mindkét karon ~0,95–0,98 s (~530–560 MiB/s), a különbség cellánként ±0,01 s; egy 60 Mbit/s-os stream ennek ~1/75-ét igényli. Regresszió nincs. A jelölt, a protokoll és a bizonyítékok a `claude/sp04-read-overlap-33db7a` ágon (`c9fa176`, `5d4331b`); nincs beolvasztva. | a munkamenet-ágon |
+| 10 — SP08 | **nincs változtatás** (leíró mérés). Az előre rögzített küszöb (a tökéletes jelölt felső korlátja ≥ 1 s és ≥ 20%) egyik cellában sem teljesül, ezért jelölt és kapu nem készült. A mérőeszköz és a bizonyíték a `claude/sp08-fallback-b2cca8` ágon (`001eaac`, `1ab5947`); nincs beolvasztva. | a munkamenet-ágon |
+| 5b — SP10 + GSP10 | **`gsp10-v1`: FAIL** (260/260 futás, 0 hiba) kevés futás miatt: a kemény ellenőrzések teljesültek (0 téves tiltás beragadt peer nélküli rajban, mixed rajban futásonként 1–2 tiltás, C0-ban 0), az indulás átlaga minden mixed kulcscellában kisebb (4 MiB: 15,1 → 9,5 s), de Holm után egyik cella sem szignifikáns. A `gsp10-v2` (ugyanaz az image és szabály, cellánként 36 futás, a 7 mixed cella) fut. A `relay_stall_policy` `legacy` marad. Bizonyítékok a `claude/sp10-stalled-peers-b6b89d` ágon (`9668e1e`, `a86b971`). | a munkamenet-ágon |
 
 Ellenőrzés a `b794167`-en: Ruff és basedpyright tiszta; pytest 738 passed / 64 snapshot.
 

@@ -1,0 +1,208 @@
+{
+ "id": "gsp09-v1-assessment",
+ "protocol": "gsp09-v1",
+ "recorded_at_utc": "2026-11-11T19:28:13.680445+00:00",
+ "decision": "PASS:CK",
+ "consequence": "PASS under the registered rule, which is necessary but not sufficient: STREAM_KEEP_ALIVE stays False. Next is the native client compatibility gate (G-kompat, the user's manual test on a local Docker build with the switch on); only after it passes does the user decide the default.",
+ "checks": {
+  "runs": 80,
+  "failed_runs": {
+   "C0": 0,
+   "CK": 0
+  },
+  "tracebacks_total": {
+   "C0": 0,
+   "CK": 0
+  },
+  "infra_retries": 0,
+  "image_ids": [
+   "sha256:338b616dcb6cafc221638935d6c133906afb7b32075bf0af1095808d6e322165"
+  ],
+  "improved_key_cells": [
+   "rtt20",
+   "rtt80"
+  ],
+  "regressions": [],
+  "zero_required": {
+   "C0": {
+    "result.series.non_206": {
+     "sum": 0,
+     "missing": 0
+    },
+    "result.series.error_count": {
+     "sum": 0,
+     "missing": 0
+    },
+    "result.series.extra_connections": {
+     "sum": 570,
+     "missing": 0
+    }
+   },
+   "CK": {
+    "result.series.non_206": {
+     "sum": 0,
+     "missing": 0
+    },
+    "result.series.error_count": {
+     "sum": 0,
+     "missing": 0
+    },
+    "result.series.extra_connections": {
+     "sum": 0,
+     "missing": 0
+    }
+   }
+  },
+  "measure_window_local": "2026-11-11 19:26:43 - 20:26:57 (chain log)"
+ },
+ "repeat_ttfb_p50_means": {
+  "rtt1": {
+   "repeat_ttfb_ms_c0": 14.0,
+   "repeat_ttfb_ms_ck": 9.0,
+   "p_improvement_null": 0.0001
+  },
+  "rtt20": {
+   "repeat_ttfb_ms_c0": 50.0,
+   "repeat_ttfb_ms_ck": 28.0,
+   "p_improvement_null": 0.0001
+  },
+  "rtt80": {
+   "repeat_ttfb_ms_c0": 170.0,
+   "repeat_ttfb_ms_ck": 87.0,
+   "p_improvement_null": 0.0001
+  },
+  "rtt80/h2": {
+   "repeat_ttfb_ms_c0": 88.0,
+   "repeat_ttfb_ms_ck": 88.0,
+   "p_improvement_null": 0.4464
+  }
+ },
+ "descriptive": {
+  "rtt1": {
+   "C0": {
+    "connections_per_series": [
+     20
+    ],
+    "connection_close_responses": [
+     20
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0171,
+    "app_cpu_pct_mean": 5.33,
+    "app_mem_mib_max_mean": 422.9
+   },
+   "CK": {
+    "connections_per_series": [
+     1
+    ],
+    "connection_close_responses": [
+     0
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0116,
+    "app_cpu_pct_mean": 5.11,
+    "app_mem_mib_max_mean": 415.1
+   }
+  },
+  "rtt20": {
+   "C0": {
+    "connections_per_series": [
+     20
+    ],
+    "connection_close_responses": [
+     20
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0535,
+    "app_cpu_pct_mean": 5.09,
+    "app_mem_mib_max_mean": 429.7
+   },
+   "CK": {
+    "connections_per_series": [
+     1
+    ],
+    "connection_close_responses": [
+     0
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0299,
+    "app_cpu_pct_mean": 5.09,
+    "app_mem_mib_max_mean": 424.2
+   }
+  },
+  "rtt80": {
+   "C0": {
+    "connections_per_series": [
+     20
+    ],
+    "connection_close_responses": [
+     20
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.1736,
+    "app_cpu_pct_mean": 4.86,
+    "app_mem_mib_max_mean": 429.6
+   },
+   "CK": {
+    "connections_per_series": [
+     1
+    ],
+    "connection_close_responses": [
+     0
+    ],
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0899,
+    "app_cpu_pct_mean": 4.8,
+    "app_mem_mib_max_mean": 420.8
+   }
+  },
+  "rtt80/h2": {
+   "C0": {
+    "connections_per_series": [
+     1
+    ],
+    "connection_close_responses": [
+     0
+    ],
+    "http_versions": [
+     "HTTP/2"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0949,
+    "app_cpu_pct_mean": 8.34,
+    "app_mem_mib_max_mean": 427.3
+   },
+   "CK": {
+    "connections_per_series": [
+     1
+    ],
+    "connection_close_responses": [
+     0
+    ],
+    "http_versions": [
+     "HTTP/2"
+    ],
+    "repeat_total_s_mean_of_medians": 0.0948,
+    "app_cpu_pct_mean": 8.24,
+    "app_mem_mib_max_mean": 418.9
+   }
+  }
+ },
+ "analysis": [
+  "Both key cells improve after Holm (p 0.0001 each): the median TTFB of requests 2-20 falls from 50.0 to 28.0 ms at 20 ms RTT and from 170.0 to 87.0 ms at 80 ms RTT, about one round trip per request, as expected (TCP handshake saved; TLS 1.3 sends the request with its Finished). At 1 ms RTT it falls from 14.0 to 9.0 ms (presumably mostly the TLS handshake work, not measured separately; not a key cell).",
+  "No guard regression over 12 tests. The first request of a series opens a new connection in both arms and is unchanged (rtt80 173.0 vs 173.0 ms). The HTTP/2 guard cell shows no difference (repeat 88.0 vs 88.0 ms): both arms use one connection there, since h2 strips the Connection header; this is the case of every client that negotiates HTTP/2 over the app's HTTPS today.",
+  "Wiring: every C0 HTTP/1.1 series used 20 connections and got 20 Connection: close headers; every CK series used one connection with no Connection header (extra connections 0 in all 40 CK runs). 0 non-206, 0 client errors, 0 failed runs, 0 app tracebacks and 0 infrastructure retries in both arms; app CPU and memory are the same between arms (the h2 cells use more app CPU in both arms, descriptive).",
+  "Limits: the gain exists only for an HTTP/1.1 client that reads a bounded response to its end and sends the next request on the same connection. A player that aborts an open-ended read to seek closes that connection in either arm. Which native clients do this is unknown; the compatibility test with a connection count is meant to show it."
+ ]
+}

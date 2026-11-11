@@ -1,0 +1,348 @@
+{
+ "protocol": "gsp10-v2",
+ "decision": "FAIL",
+ "candidates": {
+  "CW": {
+   "pass": false,
+   "improved_key_cells": [
+    "mixed/16MiB/8Mbit"
+   ],
+   "improved_count": 1,
+   "regressions": [],
+   "failed_runs": {
+    "C0": 0,
+    "CW": 0
+   },
+   "tracebacks_total": {
+    "C0": 0,
+    "CW": 0
+   },
+   "total_primary_gain_s": 7.568,
+   "tests": {
+    "mixed/16MiB/30Mbit seek.resume_s": {
+     "mean_c0": 7.173,
+     "mean_candidate": 6.219,
+     "diff": -0.954,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.034396560343965606,
+     "p_regression_null": 0.9657034296570343
+    },
+    "mixed/16MiB/30Mbit start.stall_s": {
+     "mean_c0": 1.643,
+     "mean_candidate": 0.038,
+     "diff": -1.606,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.00019998000199980003,
+     "p_regression_null": 0.9999000099990001
+    },
+    "mixed/16MiB/30Mbit start.time_to_start_s": {
+     "mean_c0": 17.209,
+     "mean_candidate": 16.958,
+     "diff": -0.251,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.43575642435756423,
+     "p_regression_null": 0.5643435656434357
+    },
+    "mixed/16MiB/30Mbit start.ttfb_s": {
+     "mean_c0": 13.541,
+     "mean_candidate": 13.631,
+     "diff": 0.09,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.5438456154384561,
+     "p_regression_null": 0.45625437456254375
+    },
+    "mixed/16MiB/60Mbit seek.resume_s": {
+     "mean_c0": 6.772,
+     "mean_candidate": 6.096,
+     "diff": -0.675,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.09529047095290472,
+     "p_regression_null": 0.9049095090490951
+    },
+    "mixed/16MiB/60Mbit start.stall_s": {
+     "mean_c0": 3.107,
+     "mean_candidate": 1.605,
+     "diff": -1.502,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.028897110288971104,
+     "p_regression_null": 0.9712028797120288
+    },
+    "mixed/16MiB/60Mbit start.time_to_start_s": {
+     "mean_c0": 19.767,
+     "mean_candidate": 16.455,
+     "diff": -3.312,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.017998200179982,
+     "p_regression_null": 0.9821017898210179
+    },
+    "mixed/16MiB/60Mbit start.ttfb_s": {
+     "mean_c0": 14.965,
+     "mean_candidate": 12.809,
+     "diff": -2.156,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0397960203979602,
+     "p_regression_null": 0.9603039696030397
+    },
+    "mixed/16MiB/8Mbit seek.resume_s": {
+     "mean_c0": 7.885,
+     "mean_candidate": 6.547,
+     "diff": -1.338,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.014898510148985102,
+     "p_regression_null": 0.9852014798520148
+    },
+    "mixed/16MiB/8Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "mixed/16MiB/8Mbit start.time_to_start_s": {
+     "mean_c0": 19.926,
+     "mean_candidate": 15.858,
+     "diff": -4.068,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0025997400259974,
+     "p_regression_null": 0.9975002499750025
+    },
+    "mixed/16MiB/8Mbit start.ttfb_s": {
+     "mean_c0": 16.167,
+     "mean_candidate": 12.808,
+     "diff": -3.359,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0040995900409959,
+     "p_regression_null": 0.996000399960004
+    },
+    "mixed/1MiB/30Mbit seek.resume_s": {
+     "mean_c0": 1.652,
+     "mean_candidate": 1.665,
+     "diff": 0.013,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.5484451554844516,
+     "p_regression_null": 0.45165483451654836
+    },
+    "mixed/1MiB/30Mbit start.stall_s": {
+     "mean_c0": 1.066,
+     "mean_candidate": 0.429,
+     "diff": -0.636,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0216978302169783,
+     "p_regression_null": 0.9784021597840216
+    },
+    "mixed/1MiB/30Mbit start.time_to_start_s": {
+     "mean_c0": 9.727,
+     "mean_candidate": 9.912,
+     "diff": 0.185,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.5582441755824418,
+     "p_regression_null": 0.44185581441855815
+    },
+    "mixed/1MiB/30Mbit start.ttfb_s": {
+     "mean_c0": 5.41,
+     "mean_candidate": 4.697,
+     "diff": -0.713,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.18238176182381763,
+     "p_regression_null": 0.8177182281771823
+    },
+    "mixed/4MiB/30Mbit seek.resume_s": {
+     "mean_c0": 2.626,
+     "mean_candidate": 2.53,
+     "diff": -0.096,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.400959904009599,
+     "p_regression_null": 0.5992400759924008
+    },
+    "mixed/4MiB/30Mbit start.stall_s": {
+     "mean_c0": 1.196,
+     "mean_candidate": 0.248,
+     "diff": -0.948,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0057994200579942,
+     "p_regression_null": 0.9943005699430058
+    },
+    "mixed/4MiB/30Mbit start.time_to_start_s": {
+     "mean_c0": 11.008,
+     "mean_candidate": 11.083,
+     "diff": 0.075,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.5202479752024798,
+     "p_regression_null": 0.47985201479852013
+    },
+    "mixed/4MiB/30Mbit start.ttfb_s": {
+     "mean_c0": 9.115,
+     "mean_candidate": 9.31,
+     "diff": 0.195,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.5637436256374363,
+     "p_regression_null": 0.4363563643635636
+    },
+    "mixed/4MiB/60Mbit seek.resume_s": {
+     "mean_c0": 2.934,
+     "mean_candidate": 2.85,
+     "diff": -0.084,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.3752624737526247,
+     "p_regression_null": 0.6248375162483751
+    },
+    "mixed/4MiB/60Mbit start.stall_s": {
+     "mean_c0": 3.867,
+     "mean_candidate": 2.737,
+     "diff": -1.13,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.0851914808519148,
+     "p_regression_null": 0.9149085091490851
+    },
+    "mixed/4MiB/60Mbit start.time_to_start_s": {
+     "mean_c0": 13.205,
+     "mean_candidate": 13.691,
+     "diff": 0.486,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.6372362763723628,
+     "p_regression_null": 0.3628637136286371
+    },
+    "mixed/4MiB/60Mbit start.ttfb_s": {
+     "mean_c0": 9.459,
+     "mean_candidate": 9.32,
+     "diff": -0.139,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.46015398460153983,
+     "p_regression_null": 0.53994600539946
+    },
+    "mixed/4MiB/8Mbit seek.resume_s": {
+     "mean_c0": 2.913,
+     "mean_candidate": 2.662,
+     "diff": -0.251,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.208979102089791,
+     "p_regression_null": 0.7913208679132087
+    },
+    "mixed/4MiB/8Mbit start.stall_s": {
+     "mean_c0": 0.092,
+     "mean_candidate": 0.0,
+     "diff": -0.092,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.36536346365363465,
+     "p_regression_null": 1.0
+    },
+    "mixed/4MiB/8Mbit start.time_to_start_s": {
+     "mean_c0": 9.86,
+     "mean_candidate": 9.362,
+     "diff": -0.498,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.36496350364963503,
+     "p_regression_null": 0.6351364863513649
+    },
+    "mixed/4MiB/8Mbit start.ttfb_s": {
+     "mean_c0": 9.224,
+     "mean_candidate": 8.355,
+     "diff": -0.869,
+     "n": [
+      36,
+      36
+     ],
+     "p_improvement_null": 0.24677532246775322,
+     "p_regression_null": 0.7533246675332467
+    }
+   },
+   "stall_ban_check": {
+    "counter": "app_log.stall_bans",
+    "missing": 0,
+    "c0_runs_with_bans": 0,
+    "zero_cell_runs_with_bans": 0,
+    "bounded_cell_runs_over_limit": 0,
+    "bounded_cell_runs_with_a_ban": 249,
+    "bounded_cell_runs": 252,
+    "bans_total": {
+     "C0": 0,
+     "CW": 444
+    },
+    "violations": [],
+    "pass": true
+   }
+  }
+ }
+}

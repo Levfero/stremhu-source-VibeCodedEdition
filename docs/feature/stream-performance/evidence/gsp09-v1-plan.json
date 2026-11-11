@@ -1,0 +1,89 @@
+{
+ "tool_image": "stremhu-source:sp-base-9984678",
+ "images": {
+  "C0": "stremhu-source:sp-cand-69b899a",
+  "CK": "stremhu-source:sp-cand-69b899a"
+ },
+ "app_env": {
+  "C0": {},
+  "CK": {
+   "STREAM_KEEP_ALIVE": "true"
+  }
+ },
+ "client": "range-series",
+ "fixture_playbacks": 2,
+ "series": [
+  {
+   "labels": [
+    "C0",
+    "CK"
+   ],
+   "reps": 5
+  },
+  {
+   "labels": [
+    "C0",
+    "CK"
+   ],
+   "reps": 5
+  }
+ ],
+ "reps": 10,
+ "total_size": 268435456,
+ "client_args": [
+  "--requests",
+  "20",
+  "--read-bytes",
+  "1048576",
+  "--gap-ms",
+  "200",
+  "--settle-s",
+  "2",
+  "--warm-playback",
+  "0",
+  "--series-playback",
+  "1"
+ ],
+ "cells": [
+  {
+   "name": "rtt1",
+   "profile": "fast",
+   "piece_size": 4194304,
+   "latency_proxy_one_way_ms": 0.5
+  },
+  {
+   "name": "rtt20",
+   "profile": "fast",
+   "piece_size": 4194304,
+   "latency_proxy_one_way_ms": 10
+  },
+  {
+   "name": "rtt80",
+   "profile": "fast",
+   "piece_size": 4194304,
+   "latency_proxy_one_way_ms": 40
+  },
+  {
+   "name": "rtt80/h2",
+   "profile": "fast",
+   "piece_size": 4194304,
+   "latency_proxy_one_way_ms": 40,
+   "client_args": [
+    "--http2"
+   ]
+  }
+ ],
+ "profiles": {
+  "fast": {
+   "peers": 8,
+   "profiles": [
+    {
+     "rate_bytes_per_s": 4000000,
+     "latency_s": 0.02,
+     "jitter_s": 0.01
+    }
+   ]
+  }
+ },
+ "capture_tracebacks": true
+}

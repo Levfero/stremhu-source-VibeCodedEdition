@@ -1,0 +1,293 @@
+{
+ "id": "gsp09-v1",
+ "registered_at_utc": "2026-11-11T18:26:20.336565+00:00",
+ "status": "Pre-registered before any measured run (only the 4-run wiring smoke below ran). The rule is fixed; a new attempt is a new version and the FAIL stays. A PASS is necessary, not sufficient: the default changes only after the native client compatibility gate (G-kompat, the user's manual test).",
+ "item": "SP09",
+ "plan_reference": "docs/feature/stream-performance/implementation-plan.md#sp09",
+ "question": "Does dropping Connection: close from 206 stream responses (STREAM_KEEP_ALIVE=true) shorten the time to first byte of repeated bounded Range requests for an HTTP/1.1 client over TLS at 20 and 80 ms RTT, without a regression at 1 ms RTT or for an HTTP/2 client?",
+ "findings_before_registration": {
+  "upstream_274": "Upstream 92fcb8d (#274, 'Kapcsolat zárása stream befejezésekor', 2026-09-06) adds only the header; the PR has no description, the commit no body, and no related issue was found. No documented rationale; the invariants it could protect are tested instead (below).",
+  "http2": "The app always serves HTTPS (settings/service.py play URLs), and Hypercorn negotiates h2 via ALPN. The h2 library strips connection-specific headers (normalize_outbound_headers), so HTTP/2 clients already keep one connection; only HTTP/1.1 clients pay a TCP+TLS handshake per Range request.",
+  "short_body": "Hypercorn 0.18 / h11 0.16: a response body shorter than its Content-Length (relay failure after the headers) leaves the server in ERROR and closes the connection at once; covered by server/tests/test_stream_keep_alive.py under a real Hypercorn.",
+  "behind_a_proxy": "Behind a reverse proxy the client-facing connection is the proxy's; the header only affects the proxy-to-app hop."
+ },
+ "source": {
+  "branch": "claude/sp09-keep-alive (not merged into feature/stream-performance)",
+  "image_commit": "69b899a",
+  "registration_commit": "69b899a2c23e8f4246960e653daa540a603a79f5",
+  "server_app_manifest_sha256": "d2d075725f54d015f803537f416d48782179d81d2be638feabc79f892fa98432",
+  "manifest_method": "sha256 over 'path:git-blob-id' lines of git ls-tree -r HEAD server/app (as gsp02-v4)",
+  "candidate_contents": "feature/stream-performance @ ecab461 + 098838e (config.stream_keep_alive, default False = today's Connection: close) + 69b899a (harness only).",
+  "note": "server/app at the registration commit equals the image source (checked)."
+ },
+ "image": {
+  "tag": "stremhu-source:sp-cand-69b899a",
+  "id": "sha256:338b616dcb6cafc221638935d6c133906afb7b32075bf0af1095808d6e322165",
+  "tool_image": "stremhu-source:sp-base-9984678",
+  "tool_image_id": "sha256:b4c7ea68202391962159de1cd7e14e7e82014402ea96999fccd918cf8ef77e10"
+ },
+ "harness": {
+  "what_is_real": "the product image and its normal start, TLS (self-signed, ALPN h2/http1.1), API-key auth, playback limit, relay and libtorrent, the real stream endpoint with Range, Hypercorn's HTTP/1.1 and HTTP/2 connection handling.",
+  "what_is_synthetic": "the swarm (8 local seeders + local tracker on an --internal Docker network), the fixture rows and signed tokens (sp_app_fixture.py --playbacks 2), the remote-viewer RTT (H3 latency_proxy.py), the client (httpx 0.28.1, a connection pool per client).",
+  "files_sha256": {
+   "scripts/benchmark_sp_playback_controller.py": "0d540ea8ce5128783ed1e46c93b1d0f35bc7473d640b53566951e6037b2e004d",
+   "scripts/benchmark_sp_range_series.py": "1c0bf47af497dd0fb2f02d8d7858e0e0c97222605b8c4cbaa297df0244af1f53",
+   "scripts/sp_app_fixture.py": "71c192048beb8fc2ccda0097065069d578db53054f495c2f8a4dc1d0461fd20c",
+   "scripts/sp_seed_service.py": "b670ba1ff04e889dd8e49cc3781f2dc0a3cf7cbe10de785a59309b977127d3ce",
+   "scripts/fixtures/local_bt_seed.py": "f89cb48ef0ad3337e07eea697a57fcce16e4e45e2008bcc5e01d18e03cf123b5",
+   "scripts/fixtures/local_tracker.py": "fb538616f86e0b36ec3ae6d46cc031a9aaf4ff81b3ab738ef7baab50ddb32050",
+   "scripts/fixtures/synthetic_torrent.py": "49d3640d7c9e105094ddccde829e5a301219089988f4a480fa7cd3363193e87c",
+   "scripts/fixtures/latency_proxy.py": "690b8611791ae6deb8d2f618725ae2fbe4c5212769711886b9c363c4dcc9c700",
+   "scripts/summarize_sp_playback.py": "3a02326cbdfec28f6f1d4d7718cc54b484d157360b4443b0c9be145230648cf0",
+   "scripts/decide_sp_gate_bootstrap.py": "6a9aee3a965d1f2fd5ce73bfc11136d6d2fb095dd468e8be14f5e71eeab7d23d"
+  }
+ },
+ "arms": {
+  "C0": {
+   "env": {},
+   "role": "baseline: image default, Connection: close on every stream response"
+  },
+  "CK": {
+   "env": {
+    "STREAM_KEEP_ALIVE": "true"
+   },
+   "role": "candidate: no Connection header on 206 responses"
+  }
+ },
+ "scenario": {
+  "warm_torrent": "per run, playback token 0 reads the whole 256 MiB file (Range bytes=0-) with its own client before the series, so every piece is local; not a sample.",
+  "series": "after 2 s settle, a fresh client (empty pool) and playback token 1 send 20 sequential bounded Range GETs of 1 MiB, 200 ms apart, read to the end: request 1 at 0, request 2 the tail probe, then 18 golden-ratio spread offsets (the same in every run). Request 1 always opens a new connection; in C0 every request does, in CK the HTTP/1.1 client reuses it.",
+  "cells": "rtt1, rtt20, rtt80: HTTP/1.1 client through the H3 proxy with 0.5/10/40 ms one-way delay; rtt80/h2: the same at 80 ms with --http2 (guard: no change expected)."
+ },
+ "plan_sha256": "4a6cbe8400842a8cce09d369a5af18f786592d6638c430ce911cd0444579220e",
+ "plan": {
+  "tool_image": "stremhu-source:sp-base-9984678",
+  "images": {
+   "C0": "stremhu-source:sp-cand-69b899a",
+   "CK": "stremhu-source:sp-cand-69b899a"
+  },
+  "app_env": {
+   "C0": {},
+   "CK": {
+    "STREAM_KEEP_ALIVE": "true"
+   }
+  },
+  "client": "range-series",
+  "fixture_playbacks": 2,
+  "series": [
+   {
+    "labels": [
+     "C0",
+     "CK"
+    ],
+    "reps": 5
+   },
+   {
+    "labels": [
+     "C0",
+     "CK"
+    ],
+    "reps": 5
+   }
+  ],
+  "reps": 10,
+  "total_size": 268435456,
+  "client_args": [
+   "--requests",
+   "20",
+   "--read-bytes",
+   "1048576",
+   "--gap-ms",
+   "200",
+   "--settle-s",
+   "2",
+   "--warm-playback",
+   "0",
+   "--series-playback",
+   "1"
+  ],
+  "cells": [
+   {
+    "name": "rtt1",
+    "profile": "fast",
+    "piece_size": 4194304,
+    "latency_proxy_one_way_ms": 0.5
+   },
+   {
+    "name": "rtt20",
+    "profile": "fast",
+    "piece_size": 4194304,
+    "latency_proxy_one_way_ms": 10
+   },
+   {
+    "name": "rtt80",
+    "profile": "fast",
+    "piece_size": 4194304,
+    "latency_proxy_one_way_ms": 40
+   },
+   {
+    "name": "rtt80/h2",
+    "profile": "fast",
+    "piece_size": 4194304,
+    "latency_proxy_one_way_ms": 40,
+    "client_args": [
+     "--http2"
+    ]
+   }
+  ],
+  "profiles": {
+   "fast": {
+    "peers": 8,
+    "profiles": [
+     {
+      "rate_bytes_per_s": 4000000,
+      "latency_s": 0.02,
+      "jitter_s": 0.01
+     }
+    ]
+   }
+  },
+  "capture_tracebacks": true
+ },
+ "metrics": [
+  "series.repeat_ttfb_s_p50",
+  "series.repeat_ttfb_s_p95",
+  "series.ttfb_s_p50",
+  "series.ttfb_s_p95",
+  "series.first_ttfb_s",
+  "series.headers_s_p50",
+  "series.connections",
+  "series.extra_connections",
+  "series.connection_close_responses",
+  "series.non_206",
+  "series.error_count",
+  "app_stats.cpu_pct_mean",
+  "app_stats.mem_mib_max",
+  "app_log.app_tracebacks",
+  "failed"
+ ],
+ "expected_mechanism": {
+  "http1": "C0: every request pays the TCP handshake (1 RTT) and the TLS 1.3 handshake, whose client Finished carries the request (1 RTT to the first byte), about 2 RTT through the proxy; CK: request 1 the same, requests 2-20 about 1 RTT -> expected repeat gain about 1 RTT (about 1, 20 and 80 ms; the smoke shows 172 vs 88 ms at 80 ms RTT), plus a warm TCP window for the 1 MiB body (total_s, descriptive).",
+  "http2": "both arms one connection (the header is stripped by h2): no difference expected."
+ },
+ "wiring_smoke": {
+  "note": "Not a measurement: this image and harness, series [{C0, CK} x 1] in rtt80 and rtt80/h2, 4 runs; the checks below are asserted at registration.",
+  "checks": "C0 HTTP/1.1: 20 connections, 20 Connection: close; CK HTTP/1.1: 1 connection, 0 Connection: close; h2: 1 connection in both arms; 0 non-206, 0 errors, 0 app tracebacks",
+  "runs": [
+   {
+    "label": "C0",
+    "cell": "rtt80",
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "connections": 20,
+    "connection_close_responses": 20,
+    "first_ttfb_s": 0.1734,
+    "repeat_ttfb_s_p50": 0.1716,
+    "non_206": 0,
+    "error_count": 0,
+    "app_tracebacks": 0,
+    "error_lines": 1
+   },
+   {
+    "label": "CK",
+    "cell": "rtt80",
+    "http_versions": [
+     "HTTP/1.1"
+    ],
+    "connections": 1,
+    "connection_close_responses": 0,
+    "first_ttfb_s": 0.1743,
+    "repeat_ttfb_s_p50": 0.0883,
+    "non_206": 0,
+    "error_count": 0,
+    "app_tracebacks": 0,
+    "error_lines": 1
+   },
+   {
+    "label": "C0",
+    "cell": "rtt80/h2",
+    "http_versions": [
+     "HTTP/2"
+    ],
+    "connections": 1,
+    "connection_close_responses": 0,
+    "first_ttfb_s": 0.1755,
+    "repeat_ttfb_s_p50": 0.0881,
+    "non_206": 0,
+    "error_count": 0,
+    "app_tracebacks": 0,
+    "error_lines": 1
+   },
+   {
+    "label": "CK",
+    "cell": "rtt80/h2",
+    "http_versions": [
+     "HTTP/2"
+    ],
+    "connections": 1,
+    "connection_close_responses": 0,
+    "first_ttfb_s": 0.1752,
+    "repeat_ttfb_s_p50": 0.0882,
+    "non_206": 0,
+    "error_count": 0,
+    "app_tracebacks": 0,
+    "error_lines": 1
+   }
+  ]
+ },
+ "decision_rule": {
+  "machine_rule": "scripts/decide_sp_gate_bootstrap.py (sha256 under harness)",
+  "primary_metric": "series.repeat_ttfb_s_p50 (per-run median TTFB of requests 2..20, seconds)",
+  "candidates": [
+   "CK"
+  ],
+  "key_cells": [
+   "rtt20",
+   "rtt80"
+  ],
+  "improved_required": 2,
+  "guard_metrics": [
+   "series.repeat_ttfb_s_p50",
+   "series.ttfb_s_p95",
+   "series.first_ttfb_s"
+  ],
+  "zero_required": [
+   "result.series.non_206",
+   "result.series.error_count",
+   "result.series.extra_connections"
+  ],
+  "pooling": "both series pooled: n = 10 runs per arm and cell; failed runs excluded and counted",
+  "statistic": "difference of means (CK - C0); 10 000 bootstrap resamples per test, seed 20261114; one-sided bootstrap p-values",
+  "alpha": 0.05,
+  "resamples": 10000,
+  "seed": 20261114,
+  "improvement": "primary metric in a key cell: H0 'difference >= 0' rejected by Holm over the 2 key cells",
+  "regression": "any guard test (3 guard metrics in all 4 cells, 12 tests): H0 'difference <= 0' rejected by Holm over the 12 tests",
+  "pass_if_all": [
+   "both key cells improved",
+   "no guard regression",
+   "CK: non-206 = 0, client errors = 0 and extra connections = 0 (one connection per series, also in the h2 cell) in every non-failed run, none missing",
+   "failed runs and tracebacks with an application frame: CK <= C0"
+  ],
+  "traceback_counter": "app_tracebacks",
+  "tie_break": "CK",
+  "descriptive_only": [
+   "series.repeat_ttfb_s_p95, ttfb_s_p50, headers_s_*, total_s per request",
+   "C0 connections and Connection: close counts (wiring, reported)",
+   "warm-up seconds, app CPU and memory"
+  ],
+  "otherwise": "FAIL: stream_keep_alive stays False and SP09 closes without change.",
+  "after_pass": "STREAM_KEEP_ALIVE stays False until the native client compatibility gate (G-kompat: Stremio desktop, Android, Android TV, iOS, Kodi, VLC; the user's manual test on a local Docker build) passes; then the user decides the default."
+ },
+ "infra_retry": "The controller reruns a run once when it failed by Docker itself (docker run exit 125, 'error waiting for container', 'error during connect', 'Cannot connect to the Docker daemon'); the record keeps the first failure as infra_retry.",
+ "runner": {
+  "where": "host shell in the SP09 worktree, local Docker Desktop, sequential with every other measurement (no build or other gate while it runs).",
+  "runs_and_time": "2 series x 5 reps x 4 cells x 2 arms = 80 runs, about 1 min each -> about 1.5 h"
+ },
+ "commands": {
+  "measure": "python scripts/benchmark_sp_playback_controller.py --plan docs/feature/stream-performance/evidence/gsp09-v1-plan.json --out <scratch>/gsp09v1/results.jsonl --workdir <scratch>/gsp09v1/runs",
+  "summarize": "python scripts/summarize_sp_playback.py <scratch>/gsp09v1/results.jsonl docs/feature/stream-performance/evidence/gsp09-v1-protocol.json docs/feature/stream-performance/evidence/gsp09-v1-summary.json docs/feature/stream-performance/evidence/gsp09-v1-complete.json",
+  "decide": "python scripts/decide_sp_gate_bootstrap.py docs/feature/stream-performance/evidence/gsp09-v1-protocol.json docs/feature/stream-performance/evidence/gsp09-v1-complete.json docs/feature/stream-performance/evidence/gsp09-v1-decision.json"
+ }
+}

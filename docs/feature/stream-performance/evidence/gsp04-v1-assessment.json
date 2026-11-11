@@ -1,0 +1,144 @@
+{
+ "id": "gsp04-v1-assessment",
+ "protocol": "gsp04-v1",
+ "recorded_at_utc": "2026-11-11T03:41:39.216090+00:00",
+ "decision": "FAIL",
+ "consequence": "FAIL under the registered rule: relay_piece_read_lookahead_bytes stays 0 and SP04 is not merged into the feature branch (the candidate lives only on its own branch).",
+ "checks": {
+  "improved_key_cells": [],
+  "regressions": [],
+  "failed_runs": {
+   "C0": 0,
+   "C4": 0
+  },
+  "tracebacks_total": {
+   "C0": 0,
+   "C4": 0
+  },
+  "hard_checks": {
+   "C4": {
+    "pass": true,
+    "labels": [
+     "C0",
+     "C4"
+    ],
+    "failed_runs": 0,
+    "zero_every_run": {
+     "warm.payload_errors": {
+      "nonzero": 0,
+      "missing": 0
+     },
+     "warm.error_count": {
+      "nonzero": 0,
+      "missing": 0
+     },
+     "result.bulk.payload_errors": {
+      "nonzero": 0,
+      "missing": 0
+     },
+     "result.bulk.error_count": {
+      "nonzero": 0,
+      "missing": 0
+     }
+    }
+   }
+  },
+  "runs": 120,
+  "infra_retries": 0,
+  "image_ids": [
+   "sha256:b5925981498895d052553e55fad0c5f562b5e5b2fb18ae59feb84e7e2fc3f3f5"
+  ]
+ },
+ "per_cell_bulk_means": {
+  "dl/16MiB/30Mbit": {
+   "C0": {
+    "read_s": 0.974,
+    "mib_per_s": 550.429,
+    "cpu_s": 0.486,
+    "mem_mib_max": 859.29
+   },
+   "C4": {
+    "read_s": 0.974,
+    "mib_per_s": 549.709,
+    "cpu_s": 0.486,
+    "mem_mib_max": 848.69
+   }
+  },
+  "dl/16MiB/60Mbit": {
+   "C0": {
+    "read_s": 0.978,
+    "mib_per_s": 549.05,
+    "cpu_s": 0.484,
+    "mem_mib_max": 851.36
+   },
+   "C4": {
+    "read_s": 0.973,
+    "mib_per_s": 551.087,
+    "cpu_s": 0.48,
+    "mem_mib_max": 855.19
+   }
+  },
+  "dl/16MiB/8Mbit": {
+   "C0": {
+    "read_s": 0.978,
+    "mib_per_s": 548.925,
+    "cpu_s": 0.517,
+    "mem_mib_max": 860.32
+   },
+   "C4": {
+    "read_s": 0.968,
+    "mib_per_s": 553.276,
+    "cpu_s": 0.491,
+    "mem_mib_max": 844.09
+   }
+  },
+  "dl/1MiB/30Mbit": {
+   "C0": {
+    "read_s": 0.952,
+    "mib_per_s": 555.953,
+    "cpu_s": 0.709,
+    "mem_mib_max": 590.07
+   },
+   "C4": {
+    "read_s": 0.959,
+    "mib_per_s": 551.684,
+    "cpu_s": 0.774,
+    "mem_mib_max": 578.66
+   }
+  },
+  "dl/1MiB/60Mbit": {
+   "C0": {
+    "read_s": 0.958,
+    "mib_per_s": 552.695,
+    "cpu_s": 0.735,
+    "mem_mib_max": 597.14
+   },
+   "C4": {
+    "read_s": 0.96,
+    "mib_per_s": 550.999,
+    "cpu_s": 0.779,
+    "mem_mib_max": 593.23
+   }
+  },
+  "dl/1MiB/8Mbit": {
+   "C0": {
+    "read_s": 0.957,
+    "mib_per_s": 552.914,
+    "cpu_s": 0.722,
+    "mem_mib_max": 576.44
+   },
+   "C4": {
+    "read_s": 0.951,
+    "mib_per_s": 556.454,
+    "cpu_s": 0.766,
+    "mem_mib_max": 596.35
+   }
+  }
+ },
+ "analysis": [
+  "0 of 6 key cells improved (3 required): the whole 512 MiB file is read in 0.952-0.978 s by C0 and 0.951-0.974 s by C4 (about 530-560 MiB/s); the per-cell difference C4 - C0 is dl/16MiB/30Mbit +0.000 s, dl/16MiB/60Mbit -0.005 s, dl/16MiB/8Mbit -0.010 s, dl/1MiB/30Mbit +0.007 s, dl/1MiB/60Mbit +0.002 s, dl/1MiB/8Mbit -0.006 s.",
+  "Mechanism: with every piece local, the serial read_piece round trip is not the bottleneck of the relay path at this throughput; overlapping one piece read with the send does not shorten the read. The SP04 hypothesis (serial reads limit downloaded high-bitrate playback) is not supported: a 60 Mbit/s stream needs ~7.5 MB/s, the measured rate is about 75 times that.",
+  "No guard regression after Holm over 48 tests; unadjusted (descriptive, above the Holm threshold 0.05/48 = 0.001): dl/16MiB/30Mbit seek.ttfb_s (+3 ms, p 0.0033). Hard checks pass: byte-exact warm-up and bulk read, 0 client errors, 0 failed runs, 0 app tracebacks, 0 infrastructure retries.",
+  "Memory: no consistent difference in app RSS during the bulk read (C4 - C0 mean +1.5 MiB at 1 MiB pieces, -7.7 MiB at 16 MiB pieces)."
+ ]
+}

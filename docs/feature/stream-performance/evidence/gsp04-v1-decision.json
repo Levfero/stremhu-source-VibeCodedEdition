@@ -1,0 +1,579 @@
+{
+ "protocol": "gsp04-v1",
+ "decision": "FAIL",
+ "candidates": {
+  "C4": {
+   "pass": false,
+   "improved_key_cells": [],
+   "improved_count": 0,
+   "regressions": [],
+   "failed_runs": {
+    "C0": 0,
+    "C4": 0
+   },
+   "tracebacks_total": {
+    "C0": 0,
+    "C4": 0
+   },
+   "total_primary_gain_s": 0.01,
+   "tests": {
+    "dl/16MiB/30Mbit bulk.read_s": {
+     "mean_c0": 0.974,
+     "mean_candidate": 0.974,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.48205179482051796,
+     "p_regression_null": 0.519048095190481
+    },
+    "dl/16MiB/30Mbit bulk.ttfb_s": {
+     "mean_c0": 0.044,
+     "mean_candidate": 0.042,
+     "diff": -0.002,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.23277672232776722,
+     "p_regression_null": 0.7679232076792321
+    },
+    "dl/16MiB/30Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/30Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/30Mbit seek.ttfb_s": {
+     "mean_c0": 0.014,
+     "mean_candidate": 0.017,
+     "diff": 0.003,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.9975002499750025,
+     "p_regression_null": 0.0032996700329967
+    },
+    "dl/16MiB/30Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/30Mbit start.time_to_start_s": {
+     "mean_c0": 0.121,
+     "mean_candidate": 0.106,
+     "diff": -0.015,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.0364963503649635,
+     "p_regression_null": 0.9696030396960303
+    },
+    "dl/16MiB/30Mbit start.ttfb_s": {
+     "mean_c0": 0.038,
+     "mean_candidate": 0.037,
+     "diff": -0.001,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.3033696630336966,
+     "p_regression_null": 0.7143285671432856
+    },
+    "dl/16MiB/60Mbit bulk.read_s": {
+     "mean_c0": 0.978,
+     "mean_candidate": 0.973,
+     "diff": -0.005,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.25317468253174685,
+     "p_regression_null": 0.7475252474752525
+    },
+    "dl/16MiB/60Mbit bulk.ttfb_s": {
+     "mean_c0": 0.046,
+     "mean_candidate": 0.044,
+     "diff": -0.002,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.1937806219378062,
+     "p_regression_null": 0.8074192580741926
+    },
+    "dl/16MiB/60Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/60Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/60Mbit seek.ttfb_s": {
+     "mean_c0": 0.029,
+     "mean_candidate": 0.029,
+     "diff": -0.001,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.4326567343265673,
+     "p_regression_null": 0.5820417958204179
+    },
+    "dl/16MiB/60Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/60Mbit start.time_to_start_s": {
+     "mean_c0": 0.111,
+     "mean_candidate": 0.116,
+     "diff": 0.005,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.7555244475552445,
+     "p_regression_null": 0.2725727427257274
+    },
+    "dl/16MiB/60Mbit start.ttfb_s": {
+     "mean_c0": 0.038,
+     "mean_candidate": 0.039,
+     "diff": 0.001,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.7356264373562644,
+     "p_regression_null": 0.28657134286571345
+    },
+    "dl/16MiB/8Mbit bulk.read_s": {
+     "mean_c0": 0.978,
+     "mean_candidate": 0.968,
+     "diff": -0.01,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.061493850614938506,
+     "p_regression_null": 0.9386061393860614
+    },
+    "dl/16MiB/8Mbit bulk.ttfb_s": {
+     "mean_c0": 0.044,
+     "mean_candidate": 0.042,
+     "diff": -0.002,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.11938806119388061,
+     "p_regression_null": 0.8811118888111189
+    },
+    "dl/16MiB/8Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/8Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/8Mbit seek.ttfb_s": {
+     "mean_c0": 0.016,
+     "mean_candidate": 0.016,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.5651434856514349,
+     "p_regression_null": 0.45335466453354667
+    },
+    "dl/16MiB/8Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/16MiB/8Mbit start.time_to_start_s": {
+     "mean_c0": 0.106,
+     "mean_candidate": 0.106,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.5102489751024898,
+     "p_regression_null": 0.5304469553044695
+    },
+    "dl/16MiB/8Mbit start.ttfb_s": {
+     "mean_c0": 0.036,
+     "mean_candidate": 0.037,
+     "diff": 0.001,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.6488351164883511,
+     "p_regression_null": 0.36836316368363164
+    },
+    "dl/1MiB/30Mbit bulk.read_s": {
+     "mean_c0": 0.952,
+     "mean_candidate": 0.959,
+     "diff": 0.008,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.8716128387161284,
+     "p_regression_null": 0.128987101289871
+    },
+    "dl/1MiB/30Mbit bulk.ttfb_s": {
+     "mean_c0": 0.03,
+     "mean_candidate": 0.031,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.8204179582041796,
+     "p_regression_null": 0.1872812718728127
+    },
+    "dl/1MiB/30Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/30Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/30Mbit seek.ttfb_s": {
+     "mean_c0": 0.01,
+     "mean_candidate": 0.01,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.8995100489951005,
+     "p_regression_null": 0.2104789521047895
+    },
+    "dl/1MiB/30Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/30Mbit start.time_to_start_s": {
+     "mean_c0": 0.101,
+     "mean_candidate": 0.1,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.031296870312968704,
+     "p_regression_null": 0.9912008799120088
+    },
+    "dl/1MiB/30Mbit start.ttfb_s": {
+     "mean_c0": 0.024,
+     "mean_candidate": 0.024,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.8917108289171083,
+     "p_regression_null": 0.1655834416558344
+    },
+    "dl/1MiB/60Mbit bulk.read_s": {
+     "mean_c0": 0.958,
+     "mean_candidate": 0.96,
+     "diff": 0.003,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.6442355764423557,
+     "p_regression_null": 0.35626437356264373
+    },
+    "dl/1MiB/60Mbit bulk.ttfb_s": {
+     "mean_c0": 0.031,
+     "mean_candidate": 0.031,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.43395660433956607,
+     "p_regression_null": 0.579042095790421
+    },
+    "dl/1MiB/60Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/60Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/60Mbit seek.ttfb_s": {
+     "mean_c0": 0.011,
+     "mean_candidate": 0.011,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.9719028097190281,
+     "p_regression_null": 0.08659134086591341
+    },
+    "dl/1MiB/60Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/60Mbit start.time_to_start_s": {
+     "mean_c0": 0.101,
+     "mean_candidate": 0.1,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.029597040295970403,
+     "p_regression_null": 0.9915008499150085
+    },
+    "dl/1MiB/60Mbit start.ttfb_s": {
+     "mean_c0": 0.024,
+     "mean_candidate": 0.024,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.3106689331066893,
+     "p_regression_null": 0.792020797920208
+    },
+    "dl/1MiB/8Mbit bulk.read_s": {
+     "mean_c0": 0.957,
+     "mean_candidate": 0.951,
+     "diff": -0.006,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.15508449155084492,
+     "p_regression_null": 0.8459154084591541
+    },
+    "dl/1MiB/8Mbit bulk.ttfb_s": {
+     "mean_c0": 0.031,
+     "mean_candidate": 0.03,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.023297670232976703,
+     "p_regression_null": 0.9796020397960205
+    },
+    "dl/1MiB/8Mbit seek.resume_s": {
+     "mean_c0": 0.05,
+     "mean_candidate": 0.05,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/8Mbit seek.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/8Mbit seek.ttfb_s": {
+     "mean_c0": 0.01,
+     "mean_candidate": 0.01,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.976002399760024,
+     "p_regression_null": 0.08349165083491651
+    },
+    "dl/1MiB/8Mbit start.stall_s": {
+     "mean_c0": 0.0,
+     "mean_candidate": 0.0,
+     "diff": 0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 1.0,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/8Mbit start.time_to_start_s": {
+     "mean_c0": 0.101,
+     "mean_candidate": 0.101,
+     "diff": -0.0,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.012998700129987,
+     "p_regression_null": 1.0
+    },
+    "dl/1MiB/8Mbit start.ttfb_s": {
+     "mean_c0": 0.024,
+     "mean_candidate": 0.023,
+     "diff": -0.001,
+     "n": [
+      10,
+      10
+     ],
+     "p_improvement_null": 0.0023997600239976003,
+     "p_regression_null": 0.9993000699930007
+    }
+   }
+  }
+ },
+ "hard_checks": {
+  "C4": {
+   "pass": true,
+   "labels": [
+    "C0",
+    "C4"
+   ],
+   "failed_runs": 0,
+   "zero_every_run": {
+    "warm.payload_errors": {
+     "nonzero": 0,
+     "missing": 0
+    },
+    "warm.error_count": {
+     "nonzero": 0,
+     "missing": 0
+    },
+    "result.bulk.payload_errors": {
+     "nonzero": 0,
+     "missing": 0
+    },
+    "result.bulk.error_count": {
+     "nonzero": 0,
+     "missing": 0
+    }
+   }
+  }
+ }
+}

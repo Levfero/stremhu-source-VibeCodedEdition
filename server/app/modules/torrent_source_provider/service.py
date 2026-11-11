@@ -12,7 +12,7 @@ from app.common.singleflight import AdmissionGate, Singleflight
 from app.config import config
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.indexers.schemas.internal import IndexerTorrent
-from app.modules.indexers.search import IndexerSearchService
+from app.modules.indexers.search import IndexerSearchService, stale_imdb_cache_enabled
 from app.modules.media_attributes import tech_info_cache
 from app.modules.stremio.cache import stream_cache_state
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
@@ -101,6 +101,27 @@ async def close_source_searches() -> None:
     await asyncio.gather(_sources_singleflight.aclose(), _single_source_singleflight.aclose(), _torrent_download_singleflight.aclose())
 
 
+class SourceSearchResult(tuple[list[TorrentSource], list[str]]):
+    """`(források, hibák)` pár; a kétértékes kicsomagolás és a tuple-egyenlőség változatlan.
+
+    SP07: a `stale` igaz, ha a források között puhán lejárt (régi) trackerlista is van.
+    """
+
+    stale: bool
+
+    def __new__(
+        cls, sources: list[TorrentSource], errors: list[str], *, stale: bool = False
+    ) -> "SourceSearchResult":
+        result = super().__new__(cls, (sources, errors))
+        result.stale = stale
+        return result
+
+
+def is_stale_result(result: object) -> bool:
+    """SP07: régi trackerlistából (is) készült-e a forráskeresés eredménye."""
+    return bool(getattr(result, "stale", False))
+
+
 class TorrentSourceProviderService:
     def __init__(
         self,
@@ -124,11 +145,25 @@ class TorrentSourceProviderService:
     async def find_by_imdb_id(
         self,
         imdb_id: str,
+        allow_stale: bool = True,
     ) -> tuple[list[TorrentSource], list[str]]:
+        """IMDb-forráskeresés; `allow_stale=False`: régi trackerlista helyett szinkron frissítés (SP07).
+
+        A jelző a singleflight-kulcs része. Kikapcsolt SP07-nél nincs régi lista, ezért a jelző
+        nem számít, és a kulcs a maival azonos.
+        """
+        if not stale_imdb_cache_enabled():
+            allow_stale = True
         search = self._shared_search()
+        if allow_stale:
+            return await _sources_singleflight.run(
+                f"{stream_cache_state.revision('')[0]}:imdb:{imdb_id}",
+                lambda: search.find_by_imdb_id(imdb_id),
+                _source_search_admission,
+            )
         return await _sources_singleflight.run(
-            f"{stream_cache_state.revision('')[0]}:imdb:{imdb_id}",
-            lambda: search.find_by_imdb_id(imdb_id),
+            f"{stream_cache_state.revision('')[0]}:imdb-fresh:{imdb_id}",
+            lambda: search.find_by_imdb_id(imdb_id, allow_stale=False),
             _source_search_admission,
         )
 
@@ -277,17 +312,23 @@ class _SourceSearch:
     async def find_by_imdb_id(
         self,
         imdb_id: str,
-    ) -> tuple[list[TorrentSource], list[str]]:
+        allow_stale: bool = True,
+    ) -> SourceSearchResult:
         self._start_deadline()
-        (
-            indexer_torrents,
-            indexer_errors,
-        ) = await self._search_stage(lambda: self._indexers.get_torrents_by_imdb_id(imdb_id))
+        indexers = self._indexers
+        found = await self._search_stage(
+            (lambda: indexers.get_torrents_by_imdb_id(imdb_id))
+            if allow_stale
+            else (lambda: indexers.get_torrents_by_imdb_id(imdb_id, allow_stale=False))
+        )
+        indexer_torrents, indexer_errors = found
 
         self._prefetch_tech_info(indexer_torrents)
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 
-        return torrent_files, self._errors(indexer_errors)
+        return SourceSearchResult(
+            torrent_files, self._errors(indexer_errors), stale=is_stale_result(found)
+        )
 
     async def find_by_query(
         self,

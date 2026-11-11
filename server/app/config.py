@@ -185,6 +185,14 @@ class Config(BaseSettings):
     indexer_breaker_threshold: int = Field(default=2, ge=0)
     indexer_breaker_cooldown_seconds: float = Field(default=120.0, gt=0)
     indexer_breaker_cooldown_max_seconds: float = Field(default=600.0, gt=0)
+    # SP07 tracker IMDb-cache: a mai 1800 s a puha TTL. A kemény TTL (s) felett a bejegyzés nem
+    # használható; a kettő között a régi lista azonnal jön, és a háttérben frissül. 0, vagy a puha
+    # TTL-nél nem nagyobb érték = kikapcsolva (a mai viselkedés), amíg a GSP07 kapu nem PASS.
+    # Jelölt érték: 86400 (24 óra, UX/SLO-keret 5. sor).
+    indexer_cache_hard_ttl_seconds: float = Field(default=0.0, ge=0)
+    # Folyamatszinten egyszerre futó háttérfrissítések felső határa; teli kapacitásnál a régi
+    # lista frissítés nélkül marad (a következő kérés újrapróbálja).
+    indexer_cache_refresh_max_in_flight: int = Field(default=4, ge=1)
     # Feldolgozott TorrentInfo-gyorsítótár fájlbejegyzés-kerete (~1,3 KiB/fájl, ~65 MiB).
     torrent_info_cache_max_files: int = Field(default=50_000, gt=0)
 

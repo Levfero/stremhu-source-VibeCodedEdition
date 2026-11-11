@@ -26,6 +26,10 @@ from app.config import NodeEnv, config
 from app.exceptions import setup_exception_handlers
 from app.modules.auth.bootstrap import initialize_bootstrap_state
 from app.modules.indexer_definitions.dependencies import get_indexer_definitions_service
+from app.modules.indexers.search import (
+    close_indexer_cache_refresh,
+    open_indexer_cache_refresh,
+)
 from app.modules.indexers.service import invalidate_indexer_cache
 from app.modules.media_attributes.tech_info_cache import (
     close_tech_info_prefetch,
@@ -82,6 +86,7 @@ async def lifespan(app: FastAPI):
         open_stream_searches()
         open_source_searches()
         open_tech_info_prefetch()
+        open_indexer_cache_refresh()
         if config.node_env == NodeEnv.DEV:
             config.openapi_dir.mkdir(parents=True, exist_ok=True)
             with (config.openapi_dir / "openapi.json").open("w", encoding="utf-8") as output:
@@ -156,6 +161,8 @@ async def lifespan(app: FastAPI):
             await step("source-searches", close_source_searches)
             # SP06/b: a keresések után nem indul új előtöltés; a futók az indexer-HTTP zárása előtt állnak le.
             await step("tech-info-prefetch", close_tech_info_prefetch)
+            # SP07: a trackercache háttérfrissítései is az indexer-HTTP zárása előtt állnak le.
+            await step("indexer-cache-refresh", close_indexer_cache_refresh)
             if definitions is not None:
                 await step("relogins", definitions.close_logins)
             await step("producers", lambda: _cancel_producers(producers))

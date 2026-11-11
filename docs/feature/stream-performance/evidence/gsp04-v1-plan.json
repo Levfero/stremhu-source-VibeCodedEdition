@@ -1,0 +1,107 @@
+{
+ "tool_image": "stremhu-source:sp-base-9984678",
+ "images": {
+  "C0": "stremhu-source:sp-cand-59fd718",
+  "C4": "stremhu-source:sp-cand-59fd718"
+ },
+ "app_env": {
+  "C0": {
+   "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "0"
+  },
+  "C4": {
+   "RELAY_PIECE_READ_LOOKAHEAD_BYTES": "16777216"
+  }
+ },
+ "payload": "block-index",
+ "downloaded": true,
+ "downloaded_settle_s": 2,
+ "bulk_read_args": [
+  "--start",
+  "0",
+  "--length",
+  "0",
+  "--mark-bytes",
+  "67108864"
+ ],
+ "series": [
+  {
+   "labels": [
+    "C0",
+    "C4"
+   ],
+   "reps": 5
+  },
+  {
+   "labels": [
+    "C0",
+    "C4"
+   ],
+   "reps": 5
+  }
+ ],
+ "reps": 10,
+ "total_size": 536870912,
+ "client_args": [
+  "--play-s",
+  "10",
+  "--seek-play-s",
+  "8",
+  "--start-buffer-s",
+  "2",
+  "--rebuffer-s",
+  "1",
+  "--max-buffer-s",
+  "30"
+ ],
+ "cells": [
+  {
+   "name": "dl/1MiB/8Mbit",
+   "profile": "local",
+   "piece_size": 1048576,
+   "bitrate_mbit": 8
+  },
+  {
+   "name": "dl/1MiB/30Mbit",
+   "profile": "local",
+   "piece_size": 1048576,
+   "bitrate_mbit": 30
+  },
+  {
+   "name": "dl/1MiB/60Mbit",
+   "profile": "local",
+   "piece_size": 1048576,
+   "bitrate_mbit": 60
+  },
+  {
+   "name": "dl/16MiB/8Mbit",
+   "profile": "local",
+   "piece_size": 16777216,
+   "bitrate_mbit": 8
+  },
+  {
+   "name": "dl/16MiB/30Mbit",
+   "profile": "local",
+   "piece_size": 16777216,
+   "bitrate_mbit": 30
+  },
+  {
+   "name": "dl/16MiB/60Mbit",
+   "profile": "local",
+   "piece_size": 16777216,
+   "bitrate_mbit": 60
+  }
+ ],
+ "profiles": {
+  "local": {
+   "peers": 8,
+   "profiles": [
+    {
+     "rate_bytes_per_s": 25000000,
+     "latency_s": 0.002,
+     "jitter_s": 0.001
+    }
+   ]
+  }
+ },
+ "capture_tracebacks": true
+}

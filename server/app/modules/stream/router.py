@@ -141,6 +141,10 @@ async def stream(
         headers["Content-Range"] = (
             f"bytes {parsed_range_header.start_byte}-{parsed_range_header.end_byte}/{file.size}"
         )
+        if config.stream_keep_alive:
+            # SP09: a teljesen kiszolgált 206-os válasz után a kapcsolat újrahasznosítható;
+            # a rövidebb törzs (relay-hiba a fejlécek után) esetén a Hypercorn zár.
+            del headers["Connection"]
 
     if request.method == "HEAD":
         return _apply_capitalized_headers(

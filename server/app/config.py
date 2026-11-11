@@ -161,6 +161,11 @@ class Config(BaseSettings):
     # PLAYBACK_HISTORY_BACKGROUND=false visszaállítja a korábbi utat, ahol minden GET/HEAD kérés
     # megvárja a zárolt, szálon futó írást.
     playback_history_background: bool = True
+    # SP09: a 206-os (Range) streamválasz nem kér kapcsolatzárást, így a HTTP/1.1 kliens a
+    # következő Range-kérést ugyanazon a kapcsolaton küldheti (TCP/TLS-kézfogás nélkül). A félbe-
+    # maradt választörzs után a szerver továbbra is zár (h11 Content-Length). Alapból kikapcsolva:
+    # a `Connection: close` (upstream #274) marad. HTTP/2-n a fejléc amúgy sem jut ki.
+    stream_keep_alive: bool = False
     # Indexerről letöltött .torrent dekódolt törzsének felső határa.
     # 48 MiB: a G15-ben natívan elfogadott legnagyobb metaadat (41,9 MB) felett;
     # felhasználói döntés 2026-11-07 (CR15a).

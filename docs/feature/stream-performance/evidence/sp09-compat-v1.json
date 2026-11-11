@@ -1,0 +1,66 @@
+{
+ "id": "sp09-compat-v1",
+ "type": "manual native-client compatibility test (G-kompat), partial; descriptive, not a gate",
+ "recorded_at_utc": "2026-11-11T20:38:26.683265+00:00",
+ "setup": {
+  "instance": "local Docker Desktop C service (docker-compose.local.yml stremhu-source), image stremhu-source:sp-cand-69b899a (098838e switch + 69b899a harness), STREAM_KEEP_ALIVE=true via a test-only compose override; reached over HTTPS on the LAN name <HOST_IP>.local-ip.medicmobile.org:7070",
+  "data": "real indexers configured by the local bootstrap from .env (nCore, HunTorrent, Majomparádé); the user's own titles and accounts",
+  "test_only_override": "SESSION_SECRET set empty for this start (the .env value is below the current 32-character minimum, so the container would not start; the app generated and stored its own key)",
+  "window_local": "2026-11-11 21:07 - 21:35"
+ },
+ "clients": [
+  {
+   "client": "Nuvio (Windows, on the host PC)",
+   "steps": "a 4K and a Full HD title: play, seek, pause, resume",
+   "result": "works (user report)",
+   "perceived_speed": "no difference the user could tell"
+  },
+  {
+   "client": "Android TV",
+   "steps": "playback (user report)",
+   "result": "works (user report)",
+   "perceived_speed": "no difference the user could tell"
+  }
+ ],
+ "not_tested": [
+  "iOS",
+  "Stremio desktop",
+  "Android phone",
+  "Kodi",
+  "VLC"
+ ],
+ "server_side": {
+  "connections_opened_per_minute_local": {
+   "21:08": 2,
+   "21:09": 3,
+   "21:11": 2,
+   "21:12": 3,
+   "21:13": 6,
+   "21:14": 7,
+   "21:15": 2,
+   "21:16": 1,
+   "21:18": 1,
+   "21:24": 1,
+   "21:25": 9,
+   "21:26": 7,
+   "21:27": 8,
+   "21:28": 3,
+   "21:29": 1,
+   "21:30": 7,
+   "21:31": 10,
+   "21:32": 4
+  },
+  "windows": {
+   "Nuvio 21:09-21:16": 24,
+   "Android TV 21:24-21:32": 50
+  },
+  "note": "TCP connections to port 7070 seen inside the container (no addresses recorded); they include the web UI and the add-on's catalog and stream-list requests. No run with the switch off was made, so whether these clients reuse connections is not determined.",
+  "app_log": "one asyncio-internal callback error at 21:13 (Broken pipe on client disconnect, no application frame; the known benign case from gsp02-v3); 0 tracebacks with an application frame"
+ },
+ "expectation_on_lan": "the saving is about one round trip per reused request, a few milliseconds on a LAN (gsp09-v1: 14 -> 9 ms at 1 ms RTT), so no perceptible difference was expected",
+ "decision": {
+  "by": "user, 2026-11-11",
+  "text": "Do not adopt keep-alive: the expected gain is small and uncertain (HTTP/2 clients gain nothing; a gain needs remote access and an HTTP/1.1 client that reuses connections), and upstream #274 may have closed connections for a reason that is not documented.",
+  "consequence": "SP09 closes without change: the switch is not merged into feature/stream-performance; the branch keeps the code, the gsp09-v1 evidence and this record."
+ }
+}

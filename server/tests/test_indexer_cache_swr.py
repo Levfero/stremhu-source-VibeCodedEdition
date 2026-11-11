@@ -3,7 +3,7 @@
 Mátrix (implementation-plan #sp07): friss találat; puhán lejárt → azonnal régi lista és pontosan
 egy frissítés; párhuzamos kérések egy frissítésen osztoznak; frissítési hiba → a régi marad a kemény
 TTL-ig; keményen lejárt → szinkron; invalidálás és epoch-váltás → nincs régi; új epizód → a
-kényszerített frissítés megtalálja; lezárás → nincs árva task; kikapcsolt állapot = mai út.
+kényszerített frissítés megtalálja; lezárás → nincs árva task; kikapcsolt állapot = a korábbi út. Alapérték: 24 órás kemény TTL (gsp07-v2).
 Valódi fájl-SQLite az account-sorokhoz; a tracker-adapterek szintetikusak.
 """
 
@@ -547,3 +547,11 @@ async def test_forced_refresh_overload_keeps_old_list_and_falls_back_by_name():
     assert streams == []
     assert provider.find_by_imdb_id.await_count == 2
     provider.find_by_query.assert_awaited()
+
+
+def test_default_is_the_gate_passed_24_hour_hard_ttl():
+    from app.config import Config
+
+    assert Config.model_fields["indexer_cache_hard_ttl_seconds"].default == 86400.0
+    assert Config.model_fields["indexer_cache_refresh_max_in_flight"].default == 4
+    assert Config.model_validate({"indexer_cache_hard_ttl_seconds": "0"}).indexer_cache_hard_ttl_seconds == 0.0

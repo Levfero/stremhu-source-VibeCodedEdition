@@ -11,6 +11,261 @@
   },
   "documents": [
     {
+      "path": "docs/UPSTREAM_PR_SPLIT_IMPLEMENTATION_PLAN.md",
+      "doc_id": "upstream-pr-split-implementation-plan",
+      "title": "StremHU Source: Upstream PR Split Implementation Plan",
+      "kind": "implementation-plan",
+      "status": "planning-only",
+      "audience": [
+        "developer",
+        "ai-agent",
+        "maintainer"
+      ],
+      "tags": [
+        "upstream",
+        "pr-split",
+        "planning",
+        "git",
+        "migration",
+        "dependency-dag"
+      ],
+      "source_commit": "863c1567eb1b9b8013d436be2bb4ab60806da501",
+      "baseline": "f3ffff3a5d65088b509f17a2eaef21d8a644eaf8",
+      "verification": "fixed-snapshot static audit; Docker Ruff/type/pytest on both snapshots; future PRs not built",
+      "structure_reviewed": "2026-11-11",
+      "related_docs": [
+        "docs/README.md",
+        "docs/AI-INDEX.md",
+        "docs/feature/stream-performance.md",
+        "docs/feature/stability-and-optimization.md"
+      ],
+      "source_paths": [
+        "server/app",
+        "server/alembic",
+        "server/tests",
+        "client/src",
+        "Dockerfile",
+        ".github/workflows"
+      ],
+      "sections": [
+        {
+          "title": "1. Executive Summary",
+          "anchor": "doc-01",
+          "level": 2
+        },
+        {
+          "title": "2. Evidence & Verified Repository Snapshot",
+          "anchor": "doc-02",
+          "level": 2
+        },
+        {
+          "title": "3. Git Divergence and Upstream-Only Changes",
+          "anchor": "doc-03",
+          "level": 2
+        },
+        {
+          "title": "4. Full Commit / File / Symbol / Hunk Inventory",
+          "anchor": "doc-04",
+          "level": 2
+        },
+        {
+          "title": "5. Cross-Feature Coupling Analysis",
+          "anchor": "doc-05",
+          "level": 2
+        },
+        {
+          "title": "6. PR Dependency DAG (Mermaid)",
+          "anchor": "doc-06",
+          "level": 2
+        },
+        {
+          "title": "7. PR Decomposition Principles and Exceptions",
+          "anchor": "doc-07",
+          "level": 2
+        },
+        {
+          "title": "8. Ordered PR Roadmap",
+          "anchor": "doc-08",
+          "level": 2
+        },
+        {
+          "title": "9. Detailed PR Implementation Runbooks",
+          "anchor": "doc-09",
+          "level": 2
+        },
+        {
+          "title": "10. Alembic Migration Ledger and Rebase Protocol",
+          "anchor": "doc-10",
+          "level": 2
+        },
+        {
+          "title": "11. Git Branching, Transplant and PR Update Strategy",
+          "anchor": "doc-11",
+          "level": 2
+        },
+        {
+          "title": "12. Test/CI Matrix and Current Baseline Results",
+          "anchor": "doc-12",
+          "level": 2
+        },
+        {
+          "title": "13. Merge Sequence, Stacked-PR Rules and Post-Merge Checks",
+          "anchor": "doc-13",
+          "level": 2
+        },
+        {
+          "title": "14. Risks, Rollback and Fork Reconciliation",
+          "anchor": "doc-14",
+          "level": 2
+        },
+        {
+          "title": "15. Change Coverage Matrix and Reconciliation",
+          "anchor": "doc-15",
+          "level": 2
+        },
+        {
+          "title": "16. Open Questions / Unverified Facts / Blockers",
+          "anchor": "doc-16",
+          "level": 2
+        },
+        {
+          "title": "17. Final Self-Audit and Definition of Done",
+          "anchor": "doc-17",
+          "level": 2
+        },
+        {
+          "title": "PR-01: Persist a strong installation-specific session signing key",
+          "anchor": "pr-01",
+          "level": 3
+        },
+        {
+          "title": "PR-02: Redact network failures and sensitive request targets",
+          "anchor": "pr-02",
+          "level": 3
+        },
+        {
+          "title": "PR-03: Bound asynchronous DNS propagation waits",
+          "anchor": "pr-03",
+          "level": 3
+        },
+        {
+          "title": "PR-04: Handle byte ranges and HEAD requests consistently",
+          "anchor": "pr-04",
+          "level": 3
+        },
+        {
+          "title": "PR-05: Make first-admin registration and pairing atomic",
+          "anchor": "pr-05",
+          "level": 3
+        },
+        {
+          "title": "PR-06: Revoke password sessions and enforce browser origins",
+          "anchor": "pr-06",
+          "level": 3
+        },
+        {
+          "title": "PR-07: Own asynchronous work through relay shutdown",
+          "anchor": "pr-07",
+          "level": 3
+        },
+        {
+          "title": "PR-08: Apply per-torrent connection limits consistently",
+          "anchor": "pr-08",
+          "level": 3
+        },
+        {
+          "title": "PR-09: Bound indexer downloads and credential scope",
+          "anchor": "pr-09",
+          "level": 3
+        },
+        {
+          "title": "PR-10: Isolate shared search results and bound search admission",
+          "anchor": "pr-10",
+          "level": 3
+        },
+        {
+          "title": "PR-11: Invalidate stream caches only after committed writes",
+          "anchor": "pr-11",
+          "level": 3
+        },
+        {
+          "title": "PR-12: Project torrent lists without loading resume blobs",
+          "anchor": "pr-12",
+          "level": 3
+        },
+        {
+          "title": "PR-13: Match anime episodes without selecting extras",
+          "anchor": "pr-13",
+          "level": 3
+        },
+        {
+          "title": "PR-14: Resolve TVDB Kitsu MAL and TMDB stream identifiers",
+          "anchor": "pr-14",
+          "level": 3
+        },
+        {
+          "title": "PR-15: Add text search and Torznab TVDB TMDB parity",
+          "anchor": "pr-15",
+          "level": 3
+        },
+        {
+          "title": "PR-16: Enrich stream languages from technical metadata",
+          "anchor": "pr-16",
+          "level": 3
+        },
+        {
+          "title": "PR-17: Mark only completed files and expose a marker preference",
+          "anchor": "pr-17",
+          "level": 3
+        },
+        {
+          "title": "PR-18: Deduplicate streams without double-counting swarm seeders",
+          "anchor": "pr-18",
+          "level": 3
+        },
+        {
+          "title": "PR-19: Search movie and series catalogs directly by title",
+          "anchor": "pr-19",
+          "level": 3
+        },
+        {
+          "title": "PR-20: Serve authenticated torrent subtitles as WebVTT",
+          "anchor": "pr-20",
+          "level": 3
+        },
+        {
+          "title": "PR-21: Match subtitle fallback to authenticated playback intent",
+          "anchor": "pr-21",
+          "level": 3
+        },
+        {
+          "title": "PR-22: Record playback history once outside response preparation",
+          "anchor": "pr-22",
+          "level": 3
+        },
+        {
+          "title": "PR-23: Prefetch technical metadata with bounded owned tasks",
+          "anchor": "pr-23",
+          "level": 3
+        },
+        {
+          "title": "PR-24: Share tracker deadlines and skip unreachable trackers",
+          "anchor": "pr-24",
+          "level": 3
+        },
+        {
+          "title": "PR-25: Serve stale tracker caches with bounded refresh",
+          "anchor": "pr-25",
+          "level": 3
+        },
+        {
+          "title": "PR-26: Document portable split-horizon deployment patterns",
+          "anchor": "pr-26",
+          "level": 3
+        }
+      ]
+    },
+    {
       "path": "docs/AI-INDEX.md",
       "doc_id": "ai-index",
       "title": "AI téma- és forrásindex",

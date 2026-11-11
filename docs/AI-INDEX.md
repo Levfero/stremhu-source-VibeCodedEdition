@@ -56,6 +56,7 @@ Az audit és a terv régi feladathatárai az eredeti készítés történetét �
 
 | Feladat / szinonimák | Dokumentum | Első kódtájékozódás |
 |---|---|---|
+| Upstream PR-felbontás, transplant, migration ledger | [26 PR megvalósítási terve és függőségi DAG](UPSTREAM_PR_SPLIT_IMPLEMENTATION_PLAN.md#doc-08) | Rögzített B/M audit, fájl-/szimbólumleltár, Git-runbookok, Alembic-protokoll és végrehajtási kapuk |
 | Anime, TVDB, Kitsu, MAL, TMDB, IMDb, alias, abszolút epizód | [anime](feature/anime-tvdb-kitsu-support.md), [search/filter](feature/search-filter-tmdb-tvdb.md) | `stremio/tvdb_resolver.py`, `stremio/utils.py`, `torrent_streams/utils/series_parser.py`, `stream_file_resolver.py` |
 | Katalógus, catalog, meta, movie/series, címkeresés | [catalog search](feature/stremio-catalog-search.md) | `stremio/catalogs_service.py`, `torrent_source_provider/service.py` |
 | Felirat, subtitle, SRT, ASS, SSA, VTT, konverzió, active playback | [torrent subtitles](feature/torrent-subtitles.md) | `stream/router.py`, `stream/utils/subtitles.py`, `stream/active_playback.py` |

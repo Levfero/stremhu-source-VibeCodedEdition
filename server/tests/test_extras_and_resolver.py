@@ -13,6 +13,7 @@ from app.modules.stremio.utils import parse_stream_id
 from app.modules.torrent_streams.utils.resolver_helpers import (
     is_extra_file,
     is_extra_folder,
+    is_sample,
 )
 from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
 
@@ -408,3 +409,85 @@ async def test_resolve_mal_via_kitsu_mapping():
     assert title == "One Piece"
 
 
+def test_menu_and_sample_words_in_titles_are_not_extras():
+    # Menü-/mintafájl: a szó a fájlnév végén áll
+    assert is_extra_file("BD Menu.mkv") is True
+    assert is_extra_file("Menu 01.mkv") is True
+    assert is_extra_file("[Group] Show Menü 2.mkv") is True
+    assert is_extra_file("Show - Sample.mkv") is True
+    assert is_sample("BD Menu.mkv") is True
+    assert is_sample("Feature.Film.2024-sample.mkv") is True
+
+    # Cím- vagy epizódcímszó: nem extra és nem minta
+    for name in (
+        "The.Menu.2022.1080p.BluRay.x264-GRP.mkv",
+        "A.menu.2022.1080p.WEB-DL.HUN-GRP.mkv",
+        "Show.S01E05.The.Menu.1080p.WEB.mkv",
+        "Show - S01E05 - The Menu.mkv",
+    ):
+        assert is_extra_file(name) is False, name
+        assert is_sample(name) is False, name
+
+
+def test_movie_with_menu_in_title_is_resolved():
+    t_folder = TorrentInfo(
+        info_hash="hash_the_menu",
+        name="The.Menu.2022.1080p.BluRay.x264-GRP",
+        size=10000,
+        piece_size=1000,
+        files=[
+            make_file(
+                "The.Menu.2022.1080p.BluRay.x264-GRP/The.Menu.2022.1080p.BluRay.x264-GRP.mkv",
+                0,
+                size=9000,
+            ),
+            make_file("The.Menu.2022.1080p.BluRay.x264-GRP/BD Menu.mkv", 1, size=9500),
+            make_file(
+                "The.Menu.2022.1080p.BluRay.x264-GRP/the.menu.2022.1080p-grp-sample.mkv",
+                2,
+                size=500,
+            ),
+        ],
+    )
+    resolved = StreamFileResolver(t_folder, series=None).resolve()
+    assert resolved is not None
+    assert resolved.name == "The.Menu.2022.1080p.BluRay.x264-GRP.mkv"
+
+    t_single = TorrentInfo(
+        info_hash="hash_a_menu",
+        name="A.menu.2022.1080p.WEB-DL.HUN-GRP.mkv",
+        size=8000,
+        piece_size=1000,
+        files=[make_file("A.menu.2022.1080p.WEB-DL.HUN-GRP.mkv", 0, size=8000)],
+    )
+    resolved = StreamFileResolver(t_single, series=None).resolve()
+    assert resolved is not None
+    assert resolved.name == "A.menu.2022.1080p.WEB-DL.HUN-GRP.mkv"
+
+
+def test_episode_with_menu_title_is_resolved():
+    t_pack = TorrentInfo(
+        info_hash="hash_menu_episode",
+        name="Show.S01.1080p.WEB",
+        size=12000,
+        piece_size=1000,
+        files=[
+            make_file("Show.S01.1080p.WEB/Show.S01E04.1080p.WEB.mkv", 0, size=3000),
+            make_file(
+                "Show.S01.1080p.WEB/Show.S01E05.The.Menu.1080p.WEB.mkv", 1, size=3000
+            ),
+            make_file("Show.S01.1080p.WEB/Show - S01E06 - The Menu.mkv", 2, size=3000),
+            make_file("Show.S01.1080p.WEB/BD Menu.mkv", 3, size=3000),
+        ],
+    )
+    resolved = StreamFileResolver(
+        t_pack, series=SeriesInfo(season=1, episode=5)
+    ).resolve()
+    assert resolved is not None
+    assert resolved.name == "Show.S01E05.The.Menu.1080p.WEB.mkv"
+
+    resolved = StreamFileResolver(
+        t_pack, series=SeriesInfo(season=1, episode=6)
+    ).resolve()
+    assert resolved is not None
+    assert resolved.name == "Show - S01E06 - The Menu.mkv"

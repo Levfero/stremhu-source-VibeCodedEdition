@@ -29,10 +29,10 @@
         "migration",
         "dependency-dag"
       ],
-      "source_commit": "863c1567eb1b9b8013d436be2bb4ab60806da501",
+      "source_commit": "2026959af979673fca2092650af05a69d93599e6",
       "baseline": "f3ffff3a5d65088b509f17a2eaef21d8a644eaf8",
-      "verification": "fixed-snapshot static audit; Docker Ruff/type/pytest on both snapshots; future PRs not built",
-      "structure_reviewed": "2026-11-11",
+      "verification": "fixed-snapshot static audit at 863c156 plus reviewed 3-file delta to 2026959; Docker Ruff/type/pytest on f3ffff3 and 863c156, host-venv Ruff/type/pytest on 2026959; future PRs not built",
+      "structure_reviewed": "2026-11-22",
       "related_docs": [
         "docs/README.md",
         "docs/AI-INDEX.md",
@@ -261,6 +261,11 @@
         {
           "title": "PR-26: Document portable split-horizon deployment patterns",
           "anchor": "pr-26",
+          "level": 3
+        },
+        {
+          "title": "PR-27: Request server-rendered HunTorrent browse results",
+          "anchor": "pr-27",
           "level": 3
         }
       ]

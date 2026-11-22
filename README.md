@@ -54,7 +54,7 @@
 | **Azonosító-feloldás** | — | TMDb API (ha van kulcs), kulcs nélkül Wikidata SPARQL, TVMaze, Anime-Kitsu, Kitsu API, Cinemeta, végső esetben a TMDb weboldal |
 | **IMDb nélküli műsorok** | Nincs találat | Másodlagos címkeresés (ékezet- és névelő-mentes jelöltek), 20 s-os monoton határidővel |
 | **Katalóguskeresés** | Csak `t-<torrent_id>` | `t-<torrent_id>` és szabadszavas keresés a trackereken, sorozatszűréssel |
-| **Fájlszintű feloldás** | Legnagyobb videófájl | `StreamFileResolver` + `SeriesParser`: évad/epizód (abszolút és szezonális számozás), évadcsomagok, extrák és menük kiszűrése |
+| **Fájlszintű feloldás** | Legnagyobb videófájl | `StreamFileResolver` + `SeriesParser`: évad/epizód (abszolút és szezonális számozás), évadcsomagok, extrák és menük kiszűrése (a „menu”/„sample” szó csak a fájlnév végén és `SxxEyy` nélkül jelöl extrát, így pl. a *The Menu* film megmarad) |
 | **Deduplikáció** | Indexerenként külön találat | `(info_hash, file_index)` kulcs, összesített seeder, több tracker jelölése, forráskonzisztens lejátszási URL (kikapcsolható) |
 | **Tracker-sorrend** | Seeder szerinti top-lista | Trackerenként váltakozó (fair) kiválasztás, legfeljebb 40 jelöltig |
 | **HunTorrent keresés** | A `/browse/` oldal HTML-jéből olvas; a HunTorrent ma már csak üres vázat ad, a találatokat a böngésző tölti be kódolva, így minden keresés hibaüzenet nélkül 0 találatot ad (az upstream mai `main`-jén, `f3ffff3`-on is) | `server_search=1`: a HunTorrent a találatokat szerveroldalon, a megszokott táblázatos vagy poszter HTML-ben adja; IMDb- és szöveges keresés, lapozás, regressziós teszttel |
@@ -259,7 +259,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **844 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **847 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 

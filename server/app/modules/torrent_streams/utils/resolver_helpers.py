@@ -21,12 +21,29 @@ def is_video(filename: str) -> bool:
     return bool(content_type and content_type.startswith("video/"))
 
 
-SAMPLE_REGEX = re.compile(r"(^sample|sample$|sample-|-sample-|-sample|\bmen[uü]\b)")
+SAMPLE_REGEX = re.compile(r"(^sample|sample$|sample-|-sample-|-sample)")
+
+# A „menu” és a „sample” cím- és epizódcímszó is lehet (pl. The Menu), ezért csak
+# a fájlnév utolsó szavaként jelöl menüt/mintát, és explicit SxxEyy jelölés mellett soha.
+MENU_OR_SAMPLE_FILE_REGEX = re.compile(
+    r"(?:^|[ ._\[\(-])(?:men[uü]|sample)(?:[ ._-]?\d{1,2})?[ \]\)]*\.[^.]+$",
+    re.IGNORECASE,
+)
+EXPLICIT_EPISODE_REGEX = re.compile(
+    r"(?:^|[^a-z0-9])s\d{1,2}[ ._-]?e\d{1,4}(?![0-9])",
+    re.IGNORECASE,
+)
+
+
+def is_menu_or_sample_file(name: str) -> bool:
+    return bool(MENU_OR_SAMPLE_FILE_REGEX.search(name)) and not bool(
+        EXPLICIT_EPISODE_REGEX.search(name)
+    )
 
 
 def is_sample(name: str) -> bool:
     base = name.rsplit(".", 1)[0].lower()
-    return bool(SAMPLE_REGEX.search(base))
+    return bool(SAMPLE_REGEX.search(base)) or is_menu_or_sample_file(name)
 
 
 def is_sample_or_trash(name: str) -> bool:
@@ -62,16 +79,14 @@ EXTRA_FILE_REGEX = re.compile(
     r"o[av]a[ ._\-]?\d+|"
     r"oad[ ._\-]?\d+|"
     r"nc(?:ed|op)\d*|"
-    r"creditless|"
-    r"men[uü]|"
-    r"sample"
+    r"creditless"
     r")(?:[ ._\]\)-]|\.[^.]+$)",
     re.IGNORECASE,
 )
 
 
 def is_extra_file(filename: str) -> bool:
-    return bool(EXTRA_FILE_REGEX.search(filename))
+    return bool(EXTRA_FILE_REGEX.search(filename)) or is_menu_or_sample_file(filename)
 
 
 HUN_LANG_PATTERN = re.compile(

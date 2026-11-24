@@ -45,6 +45,7 @@ Ez a könyvtár felhasználói útmutatót, fejlesztői referenciát, történet
 | Első fejlesztői tájékozódás | [Fejlesztői belépési pont](fejlesztoi-dokumentacio.md) | [Repó munkaszabályai](../AGENTS.md), majd az érintett modul |
 | AI agent célzott forráskeresése | [AI téma- és forrásindex](AI-INDEX.md) | Csak az érintett feature és forrásfájlok |
 | Telepítés, DNS, HTTPS, Tailscale, Caddy | [Hálózati és üzemeltetési útmutató](STREMHU-UNIVERSAL-SETUP-GUIDE.md) | A saját platformhoz tartozó előfeltételek/tesztkapuk |
+| Átállás az eredeti StremHU-ról, visszaállás, mentés | [Átállás és visszaállás](atallas-es-visszaallas.md) | Mentés az átállás előtt |
 | Anime, TVDB, Kitsu, MAL, fájlfeloldás | [Feature-katalógus](feature/README.md) | Anime és keresési referenciák |
 | Felirat, MediaInfo, magyar hangsáv | [Feature-katalógus](feature/README.md) | Felirat- és audioattribútum-leírások |
 | CR01–CR19 audit vagy implementáció | [Stabilitási munkacsomag](feature/stability-and-optimization/README.md) | Audit → értékelt terv → érintett forrás |
@@ -62,6 +63,7 @@ docs/
 ├── index.json                        # gépi katalógus, státuszok és szakaszhivatkozások
 ├── fejlesztoi-dokumentacio.md         # fejlesztői környezet és ellenőrzés
 ├── STREMHU-UNIVERSAL-SETUP-GUIDE.md    # részletes Linux/hálózati üzemeltetési útmutató
+├── atallas-es-visszaallas.md          # átállás az eredetiről a forkra és vissza, mentéssel
 ├── feature/
 │   ├── README.md                     # feature-katalógus
 │   ├── <feature>.md                  # funkcióeredet, modulok, invariánsok

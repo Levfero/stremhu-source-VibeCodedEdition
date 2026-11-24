@@ -31,6 +31,9 @@
 > - **Hivatalos Docker image:** [s4pp1/stremhu-source:latest](https://hub.docker.com/r/s4pp1/stremhu-source)
 > - **A fork Docker image-e:** [levfero/stremhu-source:dev](https://hub.docker.com/r/levfero/stremhu-source)
 
+> [!TIP]
+> **Átállnál az eredeti StremHU-ról, vagy visszaállnál rá?** Mentés, átállás és visszaállás lépésről lépésre, és hogy mi marad meg közben: [Átállás az eredeti StremHU-ról és vissza](./docs/atallas-es-visszaallas.md)
+
 ---
 
 ## Tartalom

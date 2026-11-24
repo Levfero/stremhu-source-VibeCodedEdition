@@ -67,6 +67,7 @@ Az audit és a terv régi feladathatárai az eredeti készítés történetét �
 | Session, auth, pairing, bootstrap, CSRF, TLS, titok, logging | CR05–10/16/18/19 | `auth/`, `pairings/`, `network/ssl/`, `config.py`, `main.py` |
 | React, TanStack Query, poll, observer, render, heap | CR04 | `client/src/shared/queries/torrents.ts`, `client/src/shared/lib/client.ts` |
 | Telepítés, Linux, DNS, AdGuard, Caddy, Tailscale, Cloudflare | [üzemeltetés](STREMHU-UNIVERSAL-SETUP-GUIDE.md) | Környezeti útmutató, nem általános branchteszt |
+| Átállás, visszaállás, upstream, mentés, downgrade, alembic, SESSION_SECRET, HTTP 400 a folytatásnál | [átállás és visszaállás](atallas-es-visszaallas.md) | `server/alembic/versions/`, `config.py`, `boot/setup.py` |
 | Korábbi M01–M18 vagy benchmarkeredmény | [archív M01–M18 terv](feature/stability-and-optimization/archive/m01-m18-implementation-plan.md), [állapotjelentés](feature/implementation-progress.md) | Történeti környezet/commit ellenőrzése szükséges |
 
 A rövid backend-útvonalak a `server/app/modules/` alatt értendők, a `common/`, `config.py`, `main.py` pedig a `server/app/` alatt. A gépi katalógusban teljes repórelatív `source_paths` szerepel.

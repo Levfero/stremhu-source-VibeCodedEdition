@@ -2436,6 +2436,70 @@
       ]
     },
     {
+      "path": "docs/atallas-es-visszaallas.md",
+      "doc_id": "atallas-es-visszaallas",
+      "title": "Átállás az eredeti StremHU-ról és vissza",
+      "kind": "operator-guide",
+      "status": "instructions-locally-verified",
+      "audience": [
+        "operator"
+      ],
+      "tags": [
+        "installation",
+        "docker",
+        "migration",
+        "backup",
+        "restore",
+        "alembic",
+        "session-secret"
+      ],
+      "source_commit": "afca1e6d",
+      "baseline": "s4pp1/stremhu-source@f3ffff3",
+      "verification": "local Docker, throwaway volume, --network none, 2026-11-24: s4pp1/stremhu-source:latest (db head c30e6d9dd16d) and a fork image with the migrations of afca1e6d (db head a7c41e9b2d10); upstream boot, backup with busybox tar, fork migration, upstream exit 1 on the fork database, restore, alembic downgrade; no real tracker data",
+      "structure_reviewed": "2026-11-24",
+      "related_docs": [
+        "README.md",
+        "docs/README.md"
+      ],
+      "source_paths": [
+        "server/alembic/versions/",
+        "server/app/config.py",
+        "server/app/boot/setup.py"
+      ],
+      "sections": [
+        {
+          "title": "Röviden",
+          "anchor": "doc-roviden",
+          "level": 2
+        },
+        {
+          "title": "Mi marad meg, és mi változik?",
+          "anchor": "doc-mi-marad-meg-es-mi-valtozik",
+          "level": 2
+        },
+        {
+          "title": "Átállás az eredetiről a forkra",
+          "anchor": "doc-atallas-az-eredetirol-a-forkra",
+          "level": 2
+        },
+        {
+          "title": "Visszaállás az eredetire",
+          "anchor": "doc-visszaallas-az-eredetire",
+          "level": 2
+        },
+        {
+          "title": "Lejátszási linkek és SESSION_SECRET",
+          "anchor": "doc-lejatszasi-linkek-es-session-secret",
+          "level": 2
+        },
+        {
+          "title": "Hibaelhárítás",
+          "anchor": "doc-hibaelharitas",
+          "level": 2
+        }
+      ]
+    },
+    {
       "path": "docs/templates/feature.md",
       "doc_id": "templates-feature",
       "title": "Feature-dokumentum sablon",

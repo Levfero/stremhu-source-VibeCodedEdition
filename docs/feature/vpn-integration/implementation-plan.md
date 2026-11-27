@@ -237,7 +237,7 @@ stateDiagram-v2
 |---|---|---|
 | G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | **P2P szerverrel lefutott** (2026-11-27), lásd [G1 végrehajtási állapota](#g1-végrehajtási-állapot). Nyitott: normál (nem P2P) szerver, valódi torrentforgalom, MTU. |
 | G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | **Helyben kész**, lásd [G2 végrehajtási állapota](#g2-végrehajtási-állapot). |
-| G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | PoC-harness |
+| G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | **Helyben kész**, lásd [G3 végrehajtási állapota](#g3-végrehajtási-állapot). |
 | G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness. **A UDP-tracker része a G2-ben igazolva**; nyitott: magnet-metaadat, web seed, HTTPS-tracker SNI-vel. |
 | G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
 | G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | **Helyben kész** (kernel-WireGuard tesztszerverrel, lásd [G6 végrehajtási állapota](#g6-végrehajtási-állapot)); nyitott: a Proton belső címe válaszol-e a pingre (G1). A `/metrics` nincs bekötve. |
@@ -354,6 +354,23 @@ stateDiagram-v2
 
 - **Kódváltozás a G1 nyomán:** `wireguard_config.check_alive_targets()` alapból csak az IPv4-es DNS-címeket adja (ha nincs ilyen, az elsőt); a `VPN_CHECK_ALIVE` felülírása változatlan.
 - **Nyitott:** normál (nem P2P) szerver, valódi torrentforgalom élő swarmmal (a G2 szimulált kilépővel mérte), MTU-hangolás, hosszabb távú stabilitás.
+
+#### G3 végrehajtási állapot
+
+- **Mérés (2026-11-27):** a PoC tesztkörnyezete két új forgatókönyvvel, amelyek 25%-os letöltöttség után ugyanúgy váltanak, mint a termék `apply_network_policy()`-ja: `pause()` → `apply_settings(csomag)` → `resume()`. A csomagok a termék `vpn_settings()` és `direct_settings()` értékei. A váltás után 2 s türelmi idő jár a pause által bontott régi kapcsolatok csomagjainak; az ezutáni közvetlen csomagokat külön számolja (`tcpdump -tt`). Eredmények: [`poc/userspace/results/g3-runtime-switch-results.json`](poc/userspace/results/g3-runtime-switch-results.json).
+
+| Forgatókönyv | Váltás | Közvetlen csomag a türelmi időben | Közvetlen csomag utána | Letöltés |
+|---|---|---|---|---|
+| `switch_to_vpn` (közvetlen → VPN) | 41%-nál | 278 (a régi közvetlen uTP-kapcsolat: a seeder még küldött, a kliens nyugtázott) | **0** | Kész, SHA ok, a tunnelen fejeződött be (a trackernél a tunnelcím jelent meg) |
+| `switch_to_direct` (VPN → közvetlen) | 54%-nál | 0 | szándékosan közvetlen | Kész, SHA ok |
+| `vpn_product_bind` (kontroll) | — | — | 0 | 12,5 s, SHA ok |
+| `direct` (kontroll) | — | — | 234 617 | 13,0 s, SHA ok |
+
+- **Értékelés:**
+  - A VPN-re váltás után 2 s-on belül megszűnik minden közvetlen forgalom; új közvetlen kapcsolat nem jön létre.
+  - A váltás pillanatában a már futó közvetlen kapcsolatok peerjei a valódi IP-t a váltás előtt is ismerték; ezt a váltás nem tudja visszamenőleg elrejteni. A felületi szöveg erre kitérhet.
+- **Megjegyzés:** a váltás után mindkét irányban kb. 60 s kellett a befejezéshez. Ez a PoC-kliens beállítása: nem állítja a `min_reconnect_time`-ot, így a libtorrent alapértelmezett 60 s-a érvényes. A termék 5 s-ot állít be, ott gyorsabb újrakapcsolódás várható; ezt nem mértük.
+- **Harness-javítás:** a `switch_to_vpn` a `direct` kontrollhoz hasonlóan helyi trackerfeloldást kap (különben a közvetlen fázisban nincs peer). A váltás után a libtorrent a neveket a proxyn át oldja fel, így ez ott nem takar el semmit.
 
 #### G2 végrehajtási állapot
 

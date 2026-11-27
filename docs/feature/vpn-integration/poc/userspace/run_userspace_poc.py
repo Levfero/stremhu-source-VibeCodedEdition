@@ -40,6 +40,9 @@ SCENARIOS = [  # direct last: its tracker entry would otherwise be dialled back 
     # G2 (terv Rev. 5): a termék csomagja, illetve ugyanaz outgoing_interfaces=127.0.0.1-gyel.
     ("vpn_product", "vpn_product", None),
     ("vpn_product_bind", "vpn_product_bind", None),
+    # G3 (terv Rev. 5, L4): futás közbeni váltás aktív letöltés közben (25%-nál).
+    ("switch_to_vpn", "switch_to_vpn", None),
+    ("switch_to_direct", "switch_to_direct", None),
     ("direct", "direct", None),
 ]
 
@@ -115,7 +118,10 @@ def run_scenario(tag: str, scenario: str, breaker: str | None, seq: list[int]) -
     peers_before = share_json("seeder_peers.json", {})
     # Only the direct control may resolve the tracker locally; in VPN runs a local lookup must surface
     # as a DNS packet to 127.0.0.11 (captured) instead of being answered silently from /etc/hosts.
-    hosts = ["--add-host", "tracker.poc.test:172.30.20.2"] if scenario == "direct" else []
+    # A switch_to_vpn közvetlen módban indul (G3), ezért neki is kell a helyi feloldás. A váltás
+    # után a libtorrent a neveket a proxyn át oldja fel (proxy_hostnames), így ez ott nem takar el
+    # semmit; a közvetlen csomagokat a pcap továbbra is számolja.
+    hosts = ["--add-host", "tracker.poc.test:172.30.20.2"] if scenario in ("direct", "switch_to_vpn") else []
     docker("create", "--name", name, "--network", "vpnpoc-wan", "--ip", "172.30.10.10", *hosts,
            "--cpus", "2", "--memory", "1g",
            "-e", f"POC_SCENARIO={scenario}", "-e", f"POC_TAG={tag}",

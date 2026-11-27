@@ -42,6 +42,34 @@ VPN = SCENARIO != "direct"
 # a vpn_product_bind ezen felül outgoing_interfaces=127.0.0.1-et is kap (L3).
 PRODUCT = SCENARIO.startswith("vpn_product")
 SOCKS_USER, SOCKS_PASS = "poc-user", "poc-pass"
+# G3 (terv Rev. 5, L4): futás közbeni váltás aktív letöltés közben, ahogy a termék
+# apply_network_policy() csinálja: pause -> apply_settings(csomag) -> resume.
+SWITCH = SCENARIO in ("switch_to_vpn", "switch_to_direct")
+SWITCH_AT_PROGRESS = 0.25
+SWITCH_GRACE_S = 2.0  # a pause által bontott régi kapcsolatok FIN/RST-csomagjai
+
+
+def product_vpn_pack() -> dict:
+    """A network_policy.vpn_settings() értékei (G2 óta outgoing_interfaces-szel)."""
+    return {
+        "listen_interfaces": "127.0.0.1:0", "enable_upnp": False, "enable_natpmp": False,
+        "enable_lsd": False, "enable_dht": False, "dht_bootstrap_nodes": "",
+        "proxy_type": lt.proxy_type_t.socks5_pw, "proxy_hostname": "127.0.0.1", "proxy_port": SOCKS_PORT,
+        "proxy_username": SOCKS_USER, "proxy_password": SOCKS_PASS,
+        "proxy_hostnames": True, "proxy_peer_connections": True, "proxy_tracker_connections": True,
+        "outgoing_interfaces": "127.0.0.1",
+        "enable_outgoing_utp": False, "enable_incoming_utp": False, "anonymous_mode": False,
+    }
+
+
+def product_direct_pack() -> dict:
+    """A network_policy.direct_settings() értékei (port 6881, UPnP/NAT-PMP ki, uTP be)."""
+    return {
+        "proxy_type": lt.proxy_type_t.none, "proxy_hostname": "", "proxy_port": 0,
+        "proxy_username": "", "proxy_password": "", "outgoing_interfaces": "",
+        "listen_interfaces": "0.0.0.0:6881", "enable_upnp": False, "enable_natpmp": False,
+        "enable_outgoing_utp": True, "enable_incoming_utp": True,
+    }
 
 
 def iface_bytes() -> dict[str, dict[str, int]]:
@@ -84,7 +112,7 @@ class Proxy:
             "[Socks5]\n"
             f"BindAddress = 127.0.0.1:{SOCKS_PORT}\n"
         )
-        if PRODUCT:
+        if PRODUCT or SWITCH:
             conf += f"Username = {SOCKS_USER}\nPassword = {SOCKS_PASS}\n"
         if SCENARIO == "inbound":
             conf += "\n[TCPServerTunnel]\nListenPort = 6881\nTarget = 127.0.0.1:6881\n"
@@ -137,6 +165,9 @@ def settings() -> dict:
         "enable_dht": False, "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False,
         "allow_multiple_connections_per_ip": True,
     }
+    if SWITCH:
+        base.update(product_direct_pack() if SCENARIO == "switch_to_vpn" else product_vpn_pack())
+        return base
     if not VPN:
         base.update({"listen_interfaces": "0.0.0.0:6881", "enable_outgoing_utp": True, "enable_incoming_utp": True})
         return base
@@ -198,6 +229,8 @@ def main() -> None:
     expected = (SHARE / "test.sha256").read_text().strip()
     timeline, alerts, peers_seen = [], [], {}
     last_seq, done_at = -1, None
+    switch_at: float | None = None
+    switch_progress: float | None = None
     sockets: list[str] = []
     ctl_path = SHARE / f"{TAG}_client_ctl.json"
     while time.time() - t0 < TIMEOUT:
@@ -220,6 +253,13 @@ def main() -> None:
                                                     lt.udp_error_alert, lt.incoming_connection_alert)):
                 alerts.append({"t": round(time.time() - t0, 2), "type": type(a).__name__, "msg": a.message()[:200]})
         st = handle.status()
+        if SWITCH and switch_at is None and st.progress >= SWITCH_AT_PROGRESS:
+            switch_progress = round(st.progress, 4)
+            ses.pause()
+            ses.apply_settings(product_vpn_pack() if SCENARIO == "switch_to_vpn" else product_direct_pack())
+            ses.resume()
+            switch_at = time.time()
+            timeline.append({"t": round(switch_at - t0, 2), "event": f"switch at progress {switch_progress}"})
         for p in handle.get_peer_info():
             transport = "utp" if p.flags & UTP else "tcp"
             direction = "out" if p.flags & lt.peer_info.local_connection else "in"
@@ -264,6 +304,23 @@ def main() -> None:
     dns_names = sorted({w for line in subprocess.run(["tcpdump", "-nn", "-vv", "-r", "/tmp/cap.pcap", "udp and src host 127.0.0.11"], capture_output=True, text=True).stdout.split("q: ")[1:] for w in [line.split(" ")[1] if " " in line else line]})
     ipv6 = packets("ip6 and not icmp6")
     arp_count = len(packets("arp"))
+
+    def packets_after(expr: str, epoch: float) -> list[str]:
+        out = subprocess.run(["tcpdump", "-tt", "-nn", "-r", "/tmp/cap.pcap", expr], capture_output=True, text=True)
+        return [line for line in out.stdout.splitlines() if line.strip() and float(line.split()[0]) > epoch]
+
+    switch_result: dict = {}
+    if SWITCH and switch_at is not None:
+        direct_expr = f"ip and (host {SWARM_IP} or host {WAN_IP})"
+        in_grace = [line for line in packets_after(direct_expr, switch_at) if float(line.split()[0]) <= switch_at + SWITCH_GRACE_S]
+        after = packets_after(direct_expr, switch_at + SWITCH_GRACE_S)
+        payload = [line for line in after if " length 0" not in line and "length 0" != line.rsplit(" ", 1)[-1]]
+        switch_result = {
+            "switch_at_s": round(switch_at - t0, 2), "switch_progress": switch_progress,
+            "direct_packets_in_grace": len(in_grace), "grace_samples": in_grace[:6],
+            "direct_packets_after_grace": len(after), "direct_payload_packets_after_grace": len(payload),
+            "after_samples": after[:8],
+        }
     result = {
         "scenario": SCENARIO, "tag": TAG, "vpn": VPN, "completed": done_at is not None,
         "seconds_to_complete": round(done_at, 2) if done_at else None, "wall_seconds": round(wall, 2),
@@ -280,6 +337,7 @@ def main() -> None:
         "dns_packets": len(dns), "dns_samples": dns[:12], "dns_local_query_names": dns_names,
         "sockets_at_5s": sockets,
         "ipv6_non_icmp_packets": len(ipv6), "ipv6_samples": ipv6[:8], "arp_packets": arp_count,
+        "switch": switch_result,
         "peers_seen": peers_seen, "alerts": alerts[:120],
         "timeline": timeline[::4] + timeline[-1:],
     }

@@ -37,6 +37,9 @@ SCENARIOS = [  # direct last: its tracker entry would otherwise be dialled back 
     ("inbound", "inbound", None),
     ("inbound_direct", "inbound_direct", None),
     ("inbound_direct_utp", "inbound_direct_utp", None),
+    # G2 (terv Rev. 5): a termék csomagja, illetve ugyanaz outgoing_interfaces=127.0.0.1-gyel.
+    ("vpn_product", "vpn_product", None),
+    ("vpn_product_bind", "vpn_product_bind", None),
     ("direct", "direct", None),
 ]
 
@@ -207,7 +210,8 @@ def main() -> int:
                   f" leak_swarm={r.get('leak_packets_direct_swarm')} leak_wan={r.get('leak_packets_wan_non_tunnel')}"
                   f" dns={r.get('dns_packets')} wp_cpu={r.get('wireproxy_cpu_s')} lt_cpu={r.get('libtorrent_process_cpu_s')}",
                   flush=True)
-        path = OUT / "userspace-poc-results.json"
+        # Külön eredményfájl (pl. G2), hogy a lezárt PoC-eredmény ne változzon.
+        path = OUT / os.environ.get("POC_RESULTS_NAME", "userspace-poc-results.json")
         if only and path.exists():  # partial rerun: keep the other scenarios' latest results
             merged = json.loads(path.read_text(encoding="utf-8"))
             merged["results"].update(results)

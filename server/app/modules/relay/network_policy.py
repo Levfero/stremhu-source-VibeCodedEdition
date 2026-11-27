@@ -59,6 +59,7 @@ def direct_settings(user: UserNetworkSettings) -> "libtorrent.settings_pack":
         "proxy_port": 0,
         "proxy_username": "",
         "proxy_password": "",
+        "outgoing_interfaces": "",
         "listen_interfaces": f"0.0.0.0:{user.port},[::]:{user.port}",
         "enable_upnp": user.enable_upnp_and_natpmp,
         "enable_natpmp": user.enable_upnp_and_natpmp,
@@ -79,6 +80,9 @@ def vpn_settings(policy: VpnProxyPolicy) -> "libtorrent.settings_pack":
         "proxy_hostnames": True,
         "proxy_peer_connections": True,
         "proxy_tracker_connections": True,
+        # Mélységi védelem (L3, G2-ben mérve: a letöltés megy, 0 közvetlen csomag).
+        # A libtorrent SOCKS5-UDP socketje ettől is 0.0.0.0-ra köt; azon nem megy ki semmi.
+        "outgoing_interfaces": "127.0.0.1",
         "enable_outgoing_utp": False,
         "enable_incoming_utp": False,
         # A privát trackerek kliens-fehérlistája miatt az anonim mód nem kapcsolható be.

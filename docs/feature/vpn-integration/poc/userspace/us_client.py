@@ -38,6 +38,10 @@ SOCKS_PORT = 25344
 CLK = os.sysconf("SC_CLK_TCK")
 UTP = getattr(lt.peer_info, "utp_socket", 1 << 17)  # peer_flags_t bit 17 in 2.x; not exported by the 2.1.1 binding
 VPN = SCENARIO != "direct"
+# G2 (terv Rev. 5): a termék vpn_settings() csomagja (network_policy.py), hitelesített SOCKS5-tel;
+# a vpn_product_bind ezen felül outgoing_interfaces=127.0.0.1-et is kap (L3).
+PRODUCT = SCENARIO.startswith("vpn_product")
+SOCKS_USER, SOCKS_PASS = "poc-user", "poc-pass"
 
 
 def iface_bytes() -> dict[str, dict[str, int]]:
@@ -80,6 +84,8 @@ class Proxy:
             "[Socks5]\n"
             f"BindAddress = 127.0.0.1:{SOCKS_PORT}\n"
         )
+        if PRODUCT:
+            conf += f"Username = {SOCKS_USER}\nPassword = {SOCKS_PASS}\n"
         if SCENARIO == "inbound":
             conf += "\n[TCPServerTunnel]\nListenPort = 6881\nTarget = 127.0.0.1:6881\n"
         path = Path("/tmp/wp.conf")
@@ -144,6 +150,18 @@ def settings() -> dict:
         "proxy_tracker_connections": True,
         "enable_outgoing_utp": False, "enable_incoming_utp": False,
     })
+    if PRODUCT:
+        # A network_policy.vpn_settings() értékei (a PoC-image-ben nincs alkalmazáskód).
+        base.update({
+            "listen_interfaces": "127.0.0.1:0",
+            "proxy_type": lt.proxy_type_t.socks5_pw,
+            "proxy_username": SOCKS_USER,
+            "proxy_password": SOCKS_PASS,
+            "dht_bootstrap_nodes": "",
+            "anonymous_mode": False,
+        })
+        if SCENARIO == "vpn_product_bind":
+            base["outgoing_interfaces"] = "127.0.0.1"
     if SCENARIO == "vpn_udp_probe":
         base.update({
             "enable_dht": True, "enable_lsd": True, "enable_upnp": True, "enable_natpmp": True,

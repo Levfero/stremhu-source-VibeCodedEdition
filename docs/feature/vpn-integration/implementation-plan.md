@@ -22,7 +22,7 @@ A Rev. 5 nem új architektúra: a Rev. 4 userspace irányát a jelenlegi kódhoz
 | R4 | **`listen_interfaces` VPN módban loopbackre** (`127.0.0.1:0`), nem „nincs listener” feltételezés. | A PoC nyitott UDP-socketet mért a valódi IP-n. |
 | R5 | **Proxy-hitelesítés:** indításonként véletlen SOCKS5 felhasználónév/jelszó (`socks5_pw`). | A wireproxy `[Socks5]` szekciója támogatja; konténeren belüli visszaélés ellen. |
 | R6 | **`anonymous_mode` marad `False`**, `dht_bootstrap_nodes` üres. | Privát trackerek kliens-fehérlistája; DHT-bootstrap DNS. |
-| R7 | **UDP-tracker ellentmondás:** a wireproxy README-je szerint a SOCKS5 csak CONNECT-et tud (UDP a TODO-listán), a PoC viszont UDP-tracker-csomagot mért a tunnelcímről. A G4 tisztázza; ha nem megy, VPN módban a UDP-trackerek elmaradnak (fail-closed, nem szivárgás). | Ellenőrzött README (2026-11-27). |
+| R7 | **UDP-tracker ellentmondás:** a wireproxy README-je szerint a SOCKS5 csak CONNECT-et tud (UDP a TODO-listán), a PoC viszont UDP-tracker-csomagot mért a tunnelcímről. A G4 tisztázza; ha nem megy, VPN módban a UDP-trackerek elmaradnak (fail-closed, nem szivárgás). | Ellenőrzött README (2026-11-27). **Feloldva a G2-ben:** a termékcsomaggal a UDP-tracker a tunnelen ment (`10.2.0.2` forrás), a README ezen pontja elavult. |
 | R8 | **Health:** a wireproxy `-i/--info` kapcsolója `/readyz` és `/metrics` végpontot ad, a `CheckAlive` opcióval. A G6 ezzel szűkebb. | Ellenőrzött README. |
 | R9 | **Docker:** a wireproxy kanonikus tárolója `github.com/windtf/wireproxy` (a `whyvl` URL ugyanezt szolgálja ki). Javasolt a kiadott, ellenőrzőösszeggel rögzített bináris (amd64, arm64) a forrásból fordítás helyett. | A PoC is ezt a binárist mérte. |
 | R10 | **Lejátszás tunnelhiba alatt:** pontos javaslat a mai Range/időkorlát-viselkedésre épülve (`503` + `Retry-After`, csak ha a kért első darab nincs meg helyben). | A Rev. 4 csak „újraellenőrzést” írt elő. |
@@ -112,7 +112,7 @@ flowchart LR
 |---|---|---|
 | L1 | A session VPN módban **csak proxyval** fut: `proxy_type=socks5_pw`, `proxy_hostname=127.0.0.1`, `proxy_hostnames`, `proxy_peer_connections`, `proxy_tracker_connections`; DHT, LSD, UPnP, NAT-PMP, uTP ki; `dht_bootstrap_nodes=""` (6.3). | PoC: 0 közvetlen csomag; a DHT bootstrap helyi DNS-szivárgása miatt kötelező a DHT tiltása. A beállításnevek a libtorrent 2.1.1-ben ellenőrizve (2026-11-27). |
 | L2 | **Proxy nélkül nincs út.** Ha a wireproxy nem fut, vagy a tunnel nem él, a SOCKS-kapcsolat meghiúsul, és a libtorrent megáll; közvetlen tartaléka nincs. | PoC `killswitch_tunnel`, `killswitch_proxy`: megállás, 0 közvetlen csomag, magától folytatja. |
-| L3 | **Loopback-kötés** (defense in depth): `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"`. Egy proxyt megkerülő kapcsolat loopback forráscímről indulna, és a valódi IP-n nem marad nyitott socket. | A beállításnevek érvényesek (2.1.1), a **hatásuk proxyval nem igazolt → G2.** Ha valamelyik a proxyval nem működik, az a réteg elmarad, és ezt dokumentálni kell. |
+| L3 | **Loopback-kötés** (defense in depth): `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"`. Egy proxyt megkerülő kapcsolat loopback forráscímről indulna. | **G2-ben mérve:** mindkettővel megy a letöltés, 0 közvetlen csomag, TCP-listener nincs. A libtorrent SOCKS5-UDP socketje ezektől is `0.0.0.0:<véletlen>`-re köt; azon nem ment ki csomag, és a PoC szerint a bejövő forgalomra sem válaszol. |
 | L4 | **Módváltás csak felhasználói művelettel:** be/ki kapcsoláskor `session.pause()` → beállítás → (VPN-nél) proxy kész → `resume()`. Automatikus visszaesés közvetlen módra nincs. A kikapcsoláshoz megerősítés kell. | **G3 kapu** (futás közbeni váltás aktív torrentekkel). |
 | L5 | **Indulás mentett VPN-nel:** ha `vpn_enabled=True`, a szabály proxymódot ír elő. Ha a wireproxy nem indul el, az L2 miatt nincs forgalom, a GUI hibát mutat. | Konstrukcióból következik + F1-teszt. |
 | L6 | **Zárt indulás (R1):** a session olyan csomaggal jön létre, amelyben nincs UPnP/NAT-PMP/LSD/DHT, és a listener loopbacken van. Torrent (`restore_torrents()`, új stream) csak a hálózati szabály **sikeres** alkalmazása után kerülhet be; VPN módban sikertelen alkalmazásnál nem kerül be (R2). | **F1-teszt** (invariáns: a szabály előtt 0 torrent, 0 UPnP/NAT-PMP). Mellékhatásként a mai közvetlen módú UPnP-ablak is megszűnik. |
@@ -163,7 +163,7 @@ flowchart LR
 | `enable_lsd`, `enable_upnp`, `enable_natpmp` | `False` | LAN-multicast, illetve routerport-nyitás; VPN módban tilos. |
 | `enable_outgoing_utp`, `enable_incoming_utp` | `False` | A wireproxyn az uTP nem épül ki; TCP elég. A GUI uTP-kapcsolója (#292) zárolt. |
 | `listen_interfaces` | `"127.0.0.1:0"` | L3; a PoC a `0.0.0.0:6881` UDP-socketet a valódi IP-n nyitva találta. **G2:** a UDP-tracker a loopback-listenerrel is működik-e. |
-| `outgoing_interfaces` | `"127.0.0.1"` | L3, **G2 kapu után**. |
+| `outgoing_interfaces` | `"127.0.0.1"` (közvetlen módban `""`) | L3, mélységi védelem; a G2 óta be van kapcsolva. |
 | `anonymous_mode` | `False` (marad) | A privát trackerek a klienst a peer-ID és a User-Agent alapján fehérlistázzák; anonim módban elutasíthatják. |
 | `out_enc_policy`, `in_enc_policy` | A felhasználó beállítása (#292) | A titkosítás a peerprotokollon belül van, a SOCKS5-től független. |
 
@@ -236,9 +236,9 @@ stateDiagram-v2
 | Kapu | Tartalom | Ki/hol |
 |---|---|---|
 | G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | A felhasználó Proton `.conf`-jával, izolált környezetben, **csak kifejezett engedéllyel** (AGENTS.md 2. pont). A kulcs nem kerül repóba vagy logba. |
-| G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | PoC-harness |
+| G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | **Helyben kész**, lásd [G2 végrehajtási állapota](#g2-végrehajtási-állapot). |
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | PoC-harness |
-| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness |
+| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness. **A UDP-tracker része a G2-ben igazolva**; nyitott: magnet-metaadat, web seed, HTTPS-tracker SNI-vel. |
 | G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
 | G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | **Helyben kész** (kernel-WireGuard tesztszerverrel, lásd [G6 végrehajtási állapota](#g6-végrehajtási-állapot)); nyitott: a Proton belső címe válaszol-e a pingre (G1). A `/metrics` nincs bekötve. |
 
@@ -338,6 +338,27 @@ stateDiagram-v2
 **Megfigyelés (G6, azóta megoldva):** elérhetetlen WireGuard-végpont mellett is elindul a SOCKS-proxy, így a SOCKS-port alapú készenlét szerint az állapot `CONNECTED` volt, holott handshake nem történt. A [G6](#g6-végrehajtási-állapot) óta az állapot a `/readyz` + `CheckAlive` válaszát követi.
 
 **Nem futott:** a PoC-harness termékre portolt szivárgási tesztkészlete (0 közvetlen csomag), élő Proton (G1), NAS-mérés (G5).
+
+#### G2 végrehajtási állapot
+
+- **Mérés:** a PoC tesztkörnyezete (szimulált Proton-kilépő kernel-WireGuarddal, seeder, internet nélküli belső hálózatok, 256 MiB-os hibrid torrent), két új forgatókönyvvel. Eredmények: [`poc/userspace/results/g2-product-pack-results.json`](poc/userspace/results/g2-product-pack-results.json), futtatás: `POC_RESULTS_NAME=g2-product-pack-results.json python run_userspace_poc.py vpn_tcp vpn_product vpn_product_bind direct`.
+  - `vpn_product`: a termék `vpn_settings()` csomagja (`socks5_pw` hitelesítéssel, `listen_interfaces="127.0.0.1:0"`, DHT-bootstrap üres);
+  - `vpn_product_bind`: ugyanez `outgoing_interfaces="127.0.0.1"`-gyel;
+  - kontrollok: a régi `vpn_tcp` és a VPN nélküli `direct`.
+- **wireproxy:** az image-ből kimásolt, ellenőrzött v1.1.3 bináris (`70ae5e52…466d`).
+
+| Forgatókönyv | Letöltés | Közvetlen csomag (swarm / WAN) | Helyi DNS | UDP-tracker a kilépőn | libtorrent-socketek |
+|---|---|---|---|---|---|
+| `vpn_tcp` (régi) | 12,5 s, SHA ok | 0 / 0 | 0 | a tunnelcímről | UDP `0.0.0.0:6881` |
+| `vpn_product` | 12,5 s, SHA ok | 0 / 0 | 0 | a tunnelcímről | UDP `0.0.0.0:<véletlen>`, TCP-listener nincs |
+| `vpn_product_bind` | 13,0 s, SHA ok | 0 / 0 | 0 | a tunnelcímről | UDP `0.0.0.0:<véletlen>`, TCP-listener nincs |
+| `direct` (kontroll) | 13,3 s, SHA ok | 229 996 / 7 | 0 | a valódi címről | listenerek minden interfészen |
+
+- **Következmények:**
+  - A `socks5_pw` hitelesítés működik a wireproxyval (L7).
+  - Az `outgoing_interfaces="127.0.0.1"` nem rontja a proxyn át menő forgalmat, ezért a G2 óta a termékcsomag része (`network_policy.vpn_settings()`; közvetlen módban üres).
+  - A libtorrent SOCKS5-UDP socketje egyik beállítással sem köthető loopbackre. Ezen a mérésben nem ment ki semmi; a kockázat elfogadott, libtorrent-frissítéskor újramérendő.
+  - A UDP-tracker a SOCKS5-ön át működik (R7 feloldva).
 
 #### G6 végrehajtási állapot
 

@@ -57,6 +57,7 @@ def test_user_network_settings_wait_for_the_direct_policy():
     assert pack["enable_upnp"] and pack["enable_natpmp"]
     assert not pack["enable_outgoing_utp"] and not pack["enable_incoming_utp"]
     assert pack["proxy_type"] == int(libtorrent.proxy_type_t.none)
+    assert pack["outgoing_interfaces"] == ""
 
 
 async def test_vpn_policy_forces_proxy_and_gui_cannot_reopen_the_real_network():
@@ -78,6 +79,7 @@ async def test_vpn_policy_forces_proxy_and_gui_cannot_reopen_the_real_network():
         assert settings["proxy_hostnames"] and settings["proxy_peer_connections"]
         assert settings["proxy_tracker_connections"]
         assert settings["listen_interfaces"] == "127.0.0.1:0"
+        assert settings["outgoing_interfaces"] == "127.0.0.1"
         assert not settings["enable_upnp"] and not settings["enable_natpmp"]
         assert not settings["enable_outgoing_utp"] and not settings["enable_incoming_utp"]
         assert not settings["enable_dht"] and not settings["anonymous_mode"]

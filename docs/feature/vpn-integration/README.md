@@ -4,7 +4,7 @@ Beépített Proton VPN a StremHU torrentforgalmához. **Csak a torrent le- és f
 
 | Dokumentum | Típus | Státusz |
 |---|---|---|
-| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 4 (userspace, plug & play) | **Aktuális.** Az F1 (backend mag) indítható; nyitott kapuk: G1–G6. Megvalósítás a PR #9 beolvasztása után ajánlott. |
+| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). Megvalósítás nincs; az F1 (backend mag) indítható, nyitott kapuk: G1–G6. A Rev. 4-hez képesti változások a terv 0. fejezetében. |
 | [`userspace-poc-report.md`](userspace-poc-report.md) | PoC-mérési jelentés | Lezárva (2026-11-08): 8 forgatókönyv, helyi Docker, élő Proton nélkül. |
 | [`review-rev3-findings.md`](review-rev3-findings.md) | A Rev. 3 felülvizsgálata | Lezárva (2026-11-08). |
 | [`phase0-evidence-report.md`](phase0-evidence-report.md) | Phase 0 mérési jelentés a Rev. 3-hoz | Történeti (2026-11-04). |

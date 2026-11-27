@@ -1,25 +1,44 @@
-# StremHU Source — Beépített Proton VPN a torrentforgalomhoz: implementációs terv (Rev. 4, userspace, plug & play)
+# StremHU Source — Beépített Proton VPN a torrentforgalomhoz: implementációs terv (Rev. 5, userspace, plug & play)
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az 1. fázis (backend mag) indítható**, a fázisonkénti nyitott kapuk (G1–G6) a [9. fejezetben](#9-fázisok-kapuk-és-elfogadási-feltételek). |
-| **Dátum** | 2026-11-08 |
-| **Alap** | `main` `2615596`; a megvalósítás a PR #9 (`feature/stability-and-optimization`) beolvasztása **után** ajánlott, lásd a [10. fejezetet](#10-viszony-a-pr-9-hez-featurestability-and-optimization). |
-| **Felváltja** | Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
+| **Típus / státusz** | Implementációs terv, **megvalósítás nincs**. Az F1 (backend mag) indítható; a fázisonkénti nyitott kapuk (G1–G6) a [9. fejezetben](#9-fázisok-kapuk-és-elfogadási-feltételek). |
+| **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
+| **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
+| **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
 | **Alapdokumentumok** | [`review-rev3-findings.md`](review-rev3-findings.md) (miért nem a Rev. 3), [`userspace-poc-report.md`](userspace-poc-report.md) (mérési bizonyíték) |
 
 ---
+
+## 0. Mi változott a Rev. 4-hez képest
+
+A Rev. 5 nem új architektúra: a Rev. 4 userspace irányát a jelenlegi kódhoz és ellenőrzött külső tényekhez igazítja.
+
+| # | Változás | Ok |
+|---|---|---|
+| R1 | **Indulási sorrend:** a `RelayService` ma a beállítások beolvasása **előtt** jön létre (`main.py` 97–98). A session ezért „zárt hálózati” beállításcsomaggal indul, és torrent csak a hálózati szabály alkalmazása után kerülhet bele (L6). | A Rev. 4 a régi `sync.py`-beli példányosításra épített. |
+| R2 | **Hibakezelés:** a `sync_settings()` ma elnyeli a hibát (`relay_settings/service.py` 43. sor). VPN módban a szabály alkalmazásának hibája nem engedheti tovább a `restore_torrents()`-t. | Fail-closed (K3). |
+| R3 | **Új GUI-kapcsolók a #292 óta:** titkosítás és uTP. VPN módban az uTP-kapcsoló is zárolt; a titkosítás a felhasználónál marad. | Upstream `99e76e6`. |
+| R4 | **`listen_interfaces` VPN módban loopbackre** (`127.0.0.1:0`), nem „nincs listener” feltételezés. | A PoC nyitott UDP-socketet mért a valódi IP-n. |
+| R5 | **Proxy-hitelesítés:** indításonként véletlen SOCKS5 felhasználónév/jelszó (`socks5_pw`). | A wireproxy `[Socks5]` szekciója támogatja; konténeren belüli visszaélés ellen. |
+| R6 | **`anonymous_mode` marad `False`**, `dht_bootstrap_nodes` üres. | Privát trackerek kliens-fehérlistája; DHT-bootstrap DNS. |
+| R7 | **UDP-tracker ellentmondás:** a wireproxy README-je szerint a SOCKS5 csak CONNECT-et tud (UDP a TODO-listán), a PoC viszont UDP-tracker-csomagot mért a tunnelcímről. A G4 tisztázza; ha nem megy, VPN módban a UDP-trackerek elmaradnak (fail-closed, nem szivárgás). | Ellenőrzött README (2026-11-27). |
+| R8 | **Health:** a wireproxy `-i/--info` kapcsolója `/readyz` és `/metrics` végpontot ad, a `CheckAlive` opcióval. A G6 ezzel szűkebb. | Ellenőrzött README. |
+| R9 | **Docker:** a wireproxy kanonikus tárolója `github.com/windtf/wireproxy` (a `whyvl` URL ugyanezt szolgálja ki). Javasolt a kiadott, ellenőrzőösszeggel rögzített bináris (amd64, arm64) a forrásból fordítás helyett. | A PoC is ezt a binárist mérte. |
+| R10 | **Lejátszás tunnelhiba alatt:** pontos javaslat a mai Range/időkorlát-viselkedésre épülve (`503` + `Retry-After`, csak ha a kért első darab nincs meg helyben). | A Rev. 4 csak „újraellenőrzést” írt elő. |
+| R11 | **Titokkulcs:** a `SESSION_SECRET` a CR05 óta generált fájl; a VPN-kulcs ettől **függetlenül** marad külön fájlban. | Kulcscserekor (image-váltás, utólag megadott secret) a VPN-konfiguráció ne vesszen el. |
 
 ## 1. Döntés röviden
 
 - **Termékkövetelmény (felhasználói döntés, 2026-11-08):** *plug & play.* A felhasználó csak elindítja a konténert; ha van Proton VPN-je, a webes felületen konfigurálja. Nem kell `cap_add`, `/dev/net/tun`, kernelmodul vagy compose-módosítás.
 - **Megoldás:** a konténerbe épített **userspace WireGuard** (wireproxy: wireguard-go + gVisor netstack), amely `127.0.0.1`-en SOCKS5 proxyt ad. **Csak a libtorrent** kapja meg ezt a proxyt.
 - **Hatás:** a torrent le- és feltöltése, a trackerforgalom és a trackernevek DNS-feloldása a VPN-en megy. **A Stremio-streamelés, a webes felület, az indexerek, a metaadat, az ACME és a DDNS nem**: ezek a konténer normál hálózatán maradnak, mert a wireproxy nem hoz létre interfészt és nem módosít útvonalat.
+- **Fontos pontosítás a streamelésről:** a szerver és a lejátszó közti adatút nem megy a VPN-en, de a lejátszott adat a torrentből jön. A VPN sebessége és a kevesebb peer (lásd lent) ezért **közvetlenül hat** az indulási időre és az akadásra.
 - **Mit nyerünk:** a libtorrent a FastAPI-folyamatban marad, ezért a streamelési adatút (`stream/` ↔ `relay/`, piece-határidők, memóriabeli olvasás) változatlan. Nincs worker, osztott memória, IPC, network namespace és `SYS_ADMIN`.
 - **Ára:**
   - a kill switch **alkalmazásszintű** (konfiguráció és proxykényszer, kernelszintű tiltás nélkül);
-  - **nincs bejövő kapcsolat és porttovábbítás**, mert proxy módban a libtorrent nem nyit TCP-listenert;
-  - VPN módban a **DHT és az uTP ki van kapcsolva**. Privát magyar trackereknél ez nem jár funkcióvesztéssel.
+  - **nincs bejövő kapcsolat és porttovábbítás**, mert proxy módban a libtorrent nem fogad bejövő peert;
+  - VPN módban a **DHT és az uTP ki van kapcsolva**. Privát magyar trackereknél ez nem jár funkcióvesztéssel, de a ratio lassabban nő.
 - **Bizonyíték:** a userspace PoC 8 forgatókönyve. Tunnel nélküli forgalom 0; a kill switch tunnel- és proxyhibánál is zár, és magától visszaáll. Részletek a [`userspace-poc-report.md`](userspace-poc-report.md)-ben.
 
 ## 2. Követelmények és nem-célok
@@ -27,32 +46,36 @@
 | ID | Követelmény | Forrás |
 |---|---|---|
 | K1 | Telepítés extra Docker-jogosultság nélkül; a VPN teljesen a GUI-ból kezelhető. | Felhasználói döntés (plug & play) |
-| K2 | Csak a torrentforgalom (peer, tracker, tracker-DNS) megy VPN-en; a streamelés és minden más nem. | Prompt 2.1, felhasználói megerősítés |
-| K3 | Bekapcsolt VPN mellett a torrentforgalom soha nem vált automatikusan közvetlen kapcsolatra (fail-closed). A kikapcsolás csak tudatos, megerősített felhasználói művelet lehet. | Prompt 5.1–5.2 |
-| K4 | Proton WireGuard `.conf` import, validálás, titkosított tárolás; a privát kulcs soha nem jelenik meg API-válaszban, logban vagy hibaüzenetben. | Prompt 6.1, 13 |
-| K5 | A streamelés (Range/HEAD, piece-prioritás, lejátszói kompatibilitás) nem romlik. | Prompt 1.3, 7 |
-| K6 | Alacsony erőforrásigény NAS-on, mérhető kerettel. | Prompt 14 |
+| K2 | Csak a torrentforgalom (peer, tracker, tracker-DNS) megy VPN-en; a streamelés és minden más nem. | Felhasználói megerősítés |
+| K3 | Bekapcsolt VPN mellett a torrentforgalom soha nem vált automatikusan közvetlen kapcsolatra (fail-closed). A kikapcsolás csak tudatos, megerősített felhasználói művelet lehet. | Biztonsági követelmény |
+| K4 | Proton WireGuard `.conf` import, validálás, titkosított tárolás; a privát kulcs soha nem jelenik meg API-válaszban, logban vagy hibaüzenetben. | Biztonsági követelmény |
+| K5 | A streamelés (Range/HEAD, piece-prioritás, lejátszói kompatibilitás) közvetlen módban nem romlik; VPN módban a romlás mérve és a GUI-ban kimondva. | AGENTS.md 3. pont |
+| K6 | Alacsony erőforrásigény NAS-on, mérhető kerettel. | Felhasználói környezet |
 
 **Nem célok (v1):**
 - **Porttovábbítás / Proton NAT-PMP:** proxy módban nem lehetséges (PoC `inbound`).
 - **Kernelszintű izoláció:** később opcionális „emelt védelem” lehet (Rev. 3 irány).
 - **Az indexer-weboldalak VPN-en át:** későbbi, kapcsolható opció lehet, lásd a [11. fejezetet](#11-kockázatok).
 - **Proton-fiókos (jelszavas) bejelentkezés.**
+- **Az upstream felé küldés:** ez fork-saját funkció, nem része az upstream PR-felbontási tervnek.
 
-## 3. Kiinduló állapot (kód, `main` `2615596`)
+## 3. Kiinduló állapot (kód, fork `main` `7bf93aa`)
 
 | Hely | Mi van ott | Mit kell változtatni |
 |---|---|---|
-| `server/app/modules/relay/service.py` 22–25. sor | `libtorrent.session()` argumentum nélkül, majd `apply_settings` (`listen_interfaces = 0.0.0.0/[::]:6881`, DHT/LSD ki). A konstrukció és a beállítás között a libtorrent alapértékei élnek (UPnP/NAT-PMP be). | A session a **teljes beállításcsomaggal** jöjjön létre (`libtorrent.session(settings)`), VPN módban már proxyval. |
-| `relay/service.py` 101–131. sor (`update_settings`) | A GUI relay-beállításai futás közben átírhatják a listen portot és bekapcsolhatják az UPnP/NAT-PMP-t. | VPN módban ezek felülíródnak: UPnP/NAT-PMP ki, listen nincs (proxy). |
-| `server/app/sync.py` 34–35. sor | Az indulási szinkron példányosítja a `RelayService`-t (`get_relay_service()`), még bármely VPN-ellenőrzés előtt. | A session-konstrukcióhoz a VPN-beállítás már ekkor kell: a DB-ből olvasott hálózati szabály alapján. |
-| `server/app/main.py` `lifespan` | `sync_database_and_settings` → … → `restore_torrents()` → `priority_manager_loop`. | A VPN-kezelő indítása a `restore_torrents()` **előtt**, leállítása a session után. |
-| `server/app/modules/settings/` | Kulcs-érték `settings` tábla (`system`, `relay`, `network`), `save_*` minta (`exclude_unset`). | Új kulcs: `vpn`. **Nincs alembic-migráció** (rollback-biztos). |
-| `server/app/boot/settings.py` `ensure_default_settings` | Alapértelmezett beállítások induláskor. | `save_vpn(VpnSettingsUpdate())` hozzáadása. |
-| `server/app/config.py` 31. sor | `session_secret = "stremhu-source"` (nyilvános alapérték). | VPN-kulcs **nem** származtatható belőle; külön, automatikusan generált kulcsfájl kell (6.6). |
+| `server/app/modules/relay/service.py` 80. sor | `libtorrent.session()` argumentum nélkül, majd 89–113: `apply_settings` (`listen_interfaces = 0.0.0.0/[::]:6881`, `connections_limit` 300, DHT/LSD ki, időkorlátok). Az UPnP/NAT-PMP itt nincs beállítva, ezért a `sync_settings()`-ig a libtorrent alapértéke él (**be**). | A session a **teljes, zárt beállításcsomaggal** jöjjön létre (`libtorrent.session(settings)`), lásd L6 és 6.3. |
+| `relay/service.py` 195–232. sor (`update_settings`) | Sávszélesség-korlát, kapcsolatkorlát, UPnP/NAT-PMP, torrentenkénti kapcsolat-szabály (PR-08), titkosítás és uTP (#292), port → `listen_interfaces`. | VPN módban a port, az UPnP/NAT-PMP és az uTP mezőt a hálózati szabály írja felül; a titkosítás és a korlátok maradnak. |
+| `server/app/main.py` `lifespan`, 97–104. sor | `get_relay_service()` (97) → `sync_database_and_settings(app)` (98) → … → `restore_torrents()` (104). **A session a DB beolvasása előtt jön létre.** | A hálózati szabály (direct / vpn) a 98. és a 104. sor között alkalmazódik; torrent csak utána kerül a sessionbe (L6). |
+| `main.py` leállítás, 152–194. sor | Sorrend: `relay-admission` → … → `pieces` → `final-resume` → `resume-writer` → … → `native-session` (187) → … → `relay-factory` (194). | Új lépés: `vpn-supervisor` a `native-session` **után** (a wireproxy túléli a sessiont, így leállításkor sincs közvetlen ablak). |
+| `server/app/sync.py` 33–35. sor, `relay_settings/service.py` 26–43. sor | A `sync_settings()` a DB-ből alkalmazza a relay-beállításokat, a hibát `logger.exception`-nel elnyeli. | VPN módban a hiba nem nyelhető el: a `restore_torrents()` nem futhat (R2). |
+| `server/app/modules/settings/` | Kulcs-érték `settings` tábla (`SettingModel`: `key`, JSON `value`), kulcsok: `system`, `relay`, `network` (`enums.py` 5–7). | Új kulcs: `vpn`. **Nincs alembic-migráció.** |
+| `server/app/boot/settings.py` 9–23. sor | `ensure_default_settings` a `system` és `relay` alapértékeit menti. | `save_vpn(VpnSettingsUpdate())` hozzáadása. |
+| `server/app/config.py` 44. sor | `load_or_create_session_secret`: a `SESSION_SECRET` (CR05) generált fájl a `data/system/` alatt, atomikus létrehozással. | A VPN-kulcs **külön** fájl (`data/system/vpn.key`), ugyanezzel az atomikus mintával (R11). |
 | `server/requirements.txt` | `cryptography==50.0.2` már függőség. | AES-GCM új függőség nélkül. |
-| `Dockerfile` | `node-build` + `python:3.12-slim-bookworm` runtime, root, nincs `USER`. | Új build-stage a wireproxyhoz (8. fejezet). |
-| `client/src/routes/_protected/dashboard/system/` | Admin rendszeroldalak (`network` alroute). | Új `vpn` alroute (7. fejezet). |
+| `Dockerfile` | `node:24-bookworm-slim` build + `python:3.12-slim-bookworm` runtime, root, nincs `USER`. | Új lépés a wireproxyhoz (8. fejezet). |
+| `client/src/routes/_protected/dashboard/system/` | Admin rendszeroldalak, köztük a `network` alroute. | Új `vpn` alroute (7. fejezet). |
+| `client/src/routes/_protected/relay/settings/-features/` | `port.tsx` (port, UPnP/NAT-PMP), `peer-protocol.tsx` (titkosítás, uTP, #292), `connection.tsx`, `speed.tsx`. | VPN módban a `port.tsx` mezői és az uTP-kapcsoló zárolt, „VPN által kezelt” jelzéssel. |
+| Python-oldali trackerforgalom | Nincs: a `server/app` alatt nincs scrape- vagy announce-hívás, a trackerforgalom kizárólag a libtorrenten megy. | Ezt egy regressziós ellenőrzés őrizze (6.2). |
 
 ## 4. Architektúra
 
@@ -77,7 +100,8 @@ flowchart LR
 
 | Forgalom | Útvonal VPN módban |
 |---|---|
-| Torrent-peerek (letöltés, feltöltés), tracker-announce (HTTP/HTTPS/UDP), tracker-DNS | libtorrent → SOCKS5 → wireproxy → Proton |
+| Torrent-peerek (letöltés, feltöltés), tracker-announce (HTTP/HTTPS), tracker-DNS | libtorrent → SOCKS5 → wireproxy → Proton |
+| UDP-tracker | libtorrent → SOCKS5 UDP → wireproxy, **ha a G4 igazolja**; különben VPN módban nem érhető el (fail-closed) |
 | Stremio/Kodi/Nuvio streamelés, web UI, API | normál hálózat (változatlan) |
 | Indexer-keresés, `.torrent` letöltése az oldalról, TMDB/Cinemeta, ACME, DDNS | normál hálózat (változatlan) |
 | DHT, LSD, UPnP, NAT-PMP, uTP | **tiltva** VPN módban |
@@ -86,13 +110,15 @@ flowchart LR
 
 | Réteg | Mechanizmus | Bizonyítottság |
 |---|---|---|
-| L1 | A session **csak proxyval** jön létre VPN módban: `proxy_type=socks5`, `proxy_hostnames`, `proxy_peer_connections`, `proxy_tracker_connections`; DHT, LSD, UPnP, NAT-PMP, uTP ki (6.3). Már a konstruktorban, nem utólag. | PoC: 0 közvetlen csomag; a DHT bootstrap helyi DNS-szivárgása miatt kötelező a DHT tiltása. |
+| L1 | A session VPN módban **csak proxyval** fut: `proxy_type=socks5_pw`, `proxy_hostname=127.0.0.1`, `proxy_hostnames`, `proxy_peer_connections`, `proxy_tracker_connections`; DHT, LSD, UPnP, NAT-PMP, uTP ki; `dht_bootstrap_nodes=""` (6.3). | PoC: 0 közvetlen csomag; a DHT bootstrap helyi DNS-szivárgása miatt kötelező a DHT tiltása. A beállításnevek a libtorrent 2.1.1-ben ellenőrizve (2026-11-27). |
 | L2 | **Proxy nélkül nincs út.** Ha a wireproxy nem fut, vagy a tunnel nem él, a SOCKS-kapcsolat meghiúsul, és a libtorrent megáll; közvetlen tartaléka nincs. | PoC `killswitch_tunnel`, `killswitch_proxy`: megállás, 0 közvetlen csomag, magától folytatja. |
-| L3 | **Loopback-kötés** (defense in depth): `outgoing_interfaces = "127.0.0.1"`. Egy esetleges proxyt megkerülő libtorrent-kapcsolat loopback forráscímről indulna, ezért a kernel nem engedi ki. | **Nem igazolt → G2 kapu.** Ha a libtorrent proxyval így nem működik, a réteg elmarad, és ezt dokumentálni kell. |
+| L3 | **Loopback-kötés** (defense in depth): `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"`. Egy proxyt megkerülő kapcsolat loopback forráscímről indulna, és a valódi IP-n nem marad nyitott socket. | A beállításnevek érvényesek (2.1.1), a **hatásuk proxyval nem igazolt → G2.** Ha valamelyik a proxyval nem működik, az a réteg elmarad, és ezt dokumentálni kell. |
 | L4 | **Módváltás csak felhasználói művelettel:** be/ki kapcsoláskor `session.pause()` → beállítás → (VPN-nél) proxy kész → `resume()`. Automatikus visszaesés közvetlen módra nincs. A kikapcsoláshoz megerősítés kell. | **G3 kapu** (futás közbeni váltás aktív torrentekkel). |
-| L5 | **Indulás:** ha a mentett beállítás `vpn_enabled=True`, a session proxyval jön létre. Ha a wireproxy nem indul el, az L2 miatt nincs forgalom, a GUI pedig hibát mutat. | Konstrukcióból következik + 1. fázis tesztje. |
+| L5 | **Indulás mentett VPN-nel:** ha `vpn_enabled=True`, a szabály proxymódot ír elő. Ha a wireproxy nem indul el, az L2 miatt nincs forgalom, a GUI hibát mutat. | Konstrukcióból következik + F1-teszt. |
+| L6 | **Zárt indulás (R1):** a session olyan csomaggal jön létre, amelyben nincs UPnP/NAT-PMP/LSD/DHT, és a listener loopbacken van. Torrent (`restore_torrents()`, új stream) csak a hálózati szabály **sikeres** alkalmazása után kerülhet be; VPN módban sikertelen alkalmazásnál nem kerül be (R2). | **F1-teszt** (invariáns: a szabály előtt 0 torrent, 0 UPnP/NAT-PMP). Mellékhatásként a mai közvetlen módú UPnP-ablak is megszűnik. |
+| L7 | **Proxy-hitelesítés (R5):** indításonként véletlen felhasználónév és jelszó a wireproxy `[Socks5]` szekciójában és a libtorrentben (`proxy_username`, `proxy_password`). | A beállításnevek érvényesek (2.1.1), a wireproxy README támogatja; G2-ben mérni. |
 
-**Maradék kockázat:** egy olyan libtorrent-kódút, amely a proxyt nem tartja be, szivárogna. Ilyet a PoC egyet talált (a DHT bootstrap-nevének helyi feloldása), ezt az L1 tiltja. A G2 és G4 kapu, valamint libtorrent-frissítéskor a szivárgási tesztkészlet ismételt futtatása csökkenti a kockázatot.
+**Maradék kockázat:** egy olyan libtorrent-kódút, amely a proxyt nem tartja be, szivárogna. Ilyet a PoC egyet talált (a DHT bootstrap-nevének helyi feloldása), ezt az L1 tiltja. A `force_proxy` kulcs a 2.1.1-ben még létezik, de a hatása nem igazolt, ezért nem támaszkodunk rá. A G2 és G4 kapu, valamint libtorrent-frissítéskor a szivárgási tesztkészlet ismételt futtatása csökkenti a kockázatot.
 
 ## 6. Backend-terv (fájlszinten)
 
@@ -100,9 +126,9 @@ flowchart LR
 
 | Fájl | Felelősség |
 |---|---|
-| `wireguard_config.py` | Proton `.conf` parser és validátor: `[Interface] PrivateKey, Address, DNS`, `[Peer] PublicKey, PresharedKey?, Endpoint, AllowedIPs, PersistentKeepalive`. Ismeretlen vagy hiányzó kötelező mező, rossz base64, rossz CIDR és port esetén hiba. Kimenet: tipizált objektum + nem titkos metaadat (cím, DNS, végpont, publikus kulcs ujjlenyomat). |
-| `secret_store.py` | AES-256-GCM (`cryptography`) a teljes konfigurációra. **Kulcs:** `VPN_SECRET_KEY` környezeti változó, ha meg van adva; különben az első induláskor generált `data/system/vpn.key` (32 bájt, `0600`) — **plug & play**. Verziózott boríték (`v1:`), kulcsrotáció a régi kulccsal visszafejtve és újratitkosítva. |
-| `proxy_supervisor.py` | A wireproxy alfolyamat életciklusa. A futási konfigurációt `/dev/shm/stremhu-vpn/` alá írja (`0700` könyvtár, `0600` fájl), elindítja a wireproxyt (`-c`), megvárja a SOCKS-portot, majd **törli a konfigurációs fájlt**. Felügyel, exponenciális visszalépéssel újraindít, a kimenetet redaktálva logolja. |
+| `wireguard_config.py` | Proton `.conf` parser és validátor: `[Interface] PrivateKey, Address, DNS`, `[Peer] PublicKey, PresharedKey?, Endpoint, AllowedIPs, PersistentKeepalive`. Ismeretlen vagy hiányzó kötelező mező, rossz base64, rossz CIDR és port esetén hiba. Kimenet: tipizált objektum + nem titkos metaadat (cím, DNS, végpont, publikus kulcs ujjlenyomat). Kiegészítő ellenőrzés: `wireproxy -n` (configtest) a generált futási konfigurációra. |
+| `secret_store.py` | AES-256-GCM (`cryptography`) a teljes konfigurációra. **Kulcs:** `VPN_SECRET_KEY` környezeti változó, ha meg van adva; különben az első induláskor generált `data/system/vpn.key` (32 bájt, `0600`), a `load_or_create_session_secret` atomikus mintájával — **plug & play**. Verziózott boríték (`v1:`), kulcsrotáció a régi kulccsal visszafejtve és újratitkosítva. Ha a kulcs nem fejti vissza a konfigurációt, a VPN `ERROR` állapotba megy (újraimportálás kell), és **nem** vált közvetlen módra. |
+| `proxy_supervisor.py` | A wireproxy alfolyamat életciklusa. A futási konfigurációt `/dev/shm/stremhu-vpn/` alá írja (`0700` könyvtár, `0600` fájl), véletlen SOCKS-porttal és -hitelesítéssel, `-i 127.0.0.1:<port>` health-végponttal indítja (`-c`), megvárja a SOCKS-portot és a `/readyz`-t, majd **törli a konfigurációs fájlt**. Felügyel, exponenciális visszalépéssel újraindít, a kimenetet redaktálva logolja. Tulajdonolt (owned) taskként fut, a meglévő leállítási rendben. |
 | `manager.py` | `VpnManager`: állapotgép (6.4), az L4 módváltás, a health-ellenőrzés és az állapot publikálása az API felé. |
 | `schemas/internal.py`, `schemas/api.py` | `VpnSettings`, `VpnSettingsUpdate`, `VpnStatusResponse`, `VpnConfigImportRequest` (camelCase alias, a meglévő minta szerint). |
 | `router.py`, `dependencies.py` | Admin-végpontok (6.5). |
@@ -113,28 +139,33 @@ flowchart LR
 |---|---|
 | `settings/enums.py`, `settings/schemas/internal.py`, `settings/service.py` | `SettingsKeyEnum.VPN = "vpn"`. `save_vpn` / `get_vpn` a `save_relay` mintájára. Tárolt mezők: `vpn_enabled`, `encrypted_config`, `config_metadata`, `last_error_code`, `last_connected_at`. |
 | `boot/settings.py` | `save_vpn(VpnSettingsUpdate())` az `ensure_default_settings`-ben. |
-| `relay/service.py` | `RelayService.__init__` a teljes beállításcsomaggal hívja a `libtorrent.session(settings)`-t, a hálózati szabályt (`direct` / `vpn(proxy_port)`) egy új `torrent_network_policy()` függvény adja. Új `apply_network_policy(policy)`: pause → beállítás → resume. Az `update_settings` VPN módban nem kapcsolhatja be az UPnP/NAT-PMP-t, és nem állíthat listen portot. |
-| `relay_settings/service.py` | A GUI-beállítások összehangolása a hálózati szabállyal (VPN módban a port- és UPnP-mező „VPN által kezelt”). |
-| `sync.py` | Változatlan hívási sorrend, de a `RelayService` konstrukciója már a DB-ből olvasott VPN-szabállyal történik (nincs közvetlen ablak). |
-| `main.py` (`lifespan`) | `VpnManager.start()` a `restore_torrents()` **előtt**. Leállítás: torrentek mentése → session → wireproxy. |
+| `relay/service.py` | A `RelayService.__init__` a **zárt** csomaggal hívja a `libtorrent.session(settings)`-t (L6). Új `torrent_network_policy()` (`direct` / `vpn(proxy_port, auth)`) és `apply_network_policy(policy)`: pause → beállítás → resume. Az `update_settings` VPN módban nem kapcsolhatja be az UPnP/NAT-PMP-t és az uTP-t, és nem állíthat listen portot; minden GUI-módosítás után a VPN-felülírás újra érvényesül. |
+| `relay_settings/service.py` | A `sync_settings()` VPN módban a hibát továbbadja (R2). A GUI felé a port-, UPnP- és uTP-mező „VPN által kezelt” jelzése. |
+| `sync.py`, `main.py` (`lifespan`) | A 98. sor (`sync_database_and_settings`) után a `VpnManager.start()` alkalmazza a hálózati szabályt; csak siker esetén fut a `restore_torrents()` (104). Leállítás: a meglévő `native-session` lépés után `vpn-supervisor`. |
 | `api.py` | `vpn` router felvétele. |
-| `stream/router.py` | Ha VPN módban a tunnel nem él, a még el nem kezdett letöltésre a válasz egyértelmű legyen (`503`, `Retry-After`). A meglévő 206/0 bájt viselkedést a PR #9 utáni kódon kell újraellenőrizni (Rev. 3 bizonyítékjelentés 11A). |
+| `stream/service.py` (`prepare_for_stream`) | **R10:** ha a VPN be van kapcsolva, de nem `CONNECTED`, és a kért tartomány első darabja nincs meg helyben (`have_piece`), a válasz még a fejlécek előtt `503` + `Retry-After: 5` (a `stream/router.py` 303–309. és a `common/lifecycle.py` 15–16. sor meglévő mintájára). A helyben meglévő darabok tunnelhiba alatt is lejátszhatók. Ma ilyenkor `200/206` fejléc megy ki, majd a darabolvasás a `relay_piece_timeout_seconds` (120 s) / `relay_read_timeout_seconds` (15 s) után csonka választ ad. |
+| `tests/` | Regressziós ellenőrzés, hogy a `server/app` alatt nincs Python-oldali tracker- vagy peerforgalom (a K2 a libtorrent-proxyn múlik). |
 
-### 6.3. Libtorrent-beállítások VPN módban
+### 6.3. Libtorrent-beállítások
+
+**Zárt indulócsomag (mindkét módban, a `session()` konstruktorában):** `enable_upnp=False`, `enable_natpmp=False`, `enable_lsd=False`, `enable_dht=False`, `listen_interfaces="127.0.0.1:0"`, a mai időkorlát- és korlátbeállításokkal. A közvetlen mód ezután a felhasználó relay-beállításait alkalmazza (port, UPnP/NAT-PMP, uTP stb.), ahogy ma a `sync_settings()`.
+
+**VPN mód:**
 
 | Beállítás | Érték | Indok |
 |---|---|---|
-| `proxy_type` | `socks5` | Minden torrentforgalom a wireproxyn megy. |
+| `proxy_type` | `socks5_pw` (3) | Minden torrentforgalom a wireproxyn megy, hitelesítéssel (L7). |
 | `proxy_hostname` / `proxy_port` | `127.0.0.1` / a supervisor által választott port | Csak loopback. |
+| `proxy_username` / `proxy_password` | Indításonként véletlen | L7. |
 | `proxy_hostnames` | `True` | A trackernevek a tunnelen oldódnak fel (PoC: 0 helyi DNS). |
 | `proxy_peer_connections`, `proxy_tracker_connections` | `True` | Peer- és trackerforgalom a proxyn. |
-| `enable_dht` | `False` | A PoC helyi DNS-szivárgást mért (DHT bootstrap). |
+| `enable_dht` / `dht_bootstrap_nodes` | `False` / `""` | A PoC helyi DNS-szivárgást mért (DHT bootstrap). |
 | `enable_lsd`, `enable_upnp`, `enable_natpmp` | `False` | LAN-multicast, illetve routerport-nyitás; VPN módban tilos. |
-| `enable_outgoing_utp`, `enable_incoming_utp` | `False` | A wireproxyn az uTP nem épül ki; TCP elég. |
-| `outgoing_interfaces` | `"127.0.0.1"` | L3 réteg, **G2 kapu után**. |
-| `listen_interfaces` | (proxy módban nincs TCP-listener) | A PoC szerint proxy módban nem nyílik; a beállítást nem tekintjük védelemnek. |
-
-Közvetlen (VPN nélküli) módban a mai beállítások maradnak.
+| `enable_outgoing_utp`, `enable_incoming_utp` | `False` | A wireproxyn az uTP nem épül ki; TCP elég. A GUI uTP-kapcsolója (#292) zárolt. |
+| `listen_interfaces` | `"127.0.0.1:0"` | L3; a PoC a `0.0.0.0:6881` UDP-socketet a valódi IP-n nyitva találta. **G2:** a UDP-tracker a loopback-listenerrel is működik-e. |
+| `outgoing_interfaces` | `"127.0.0.1"` | L3, **G2 kapu után**. |
+| `anonymous_mode` | `False` (marad) | A privát trackerek a klienst a peer-ID és a User-Agent alapján fehérlistázzák; anonim módban elutasíthatják. |
+| `out_enc_policy`, `in_enc_policy` | A felhasználó beállítása (#292) | A titkosítás a peerprotokollon belül van, a SOCKS5-től független. |
 
 ### 6.4. Állapotgép
 
@@ -142,9 +173,9 @@ Közvetlen (VPN nélküli) módban a mai beállítások maradnak.
 stateDiagram-v2
   [*] --> DISABLED
   DISABLED --> STARTING: bekapcsolás (van érvényes .conf)
-  STARTING --> CONNECTED: SOCKS kész + handshake friss + tracker/egress próba ok
-  STARTING --> ERROR: wireproxy nem indul / konfighiba
-  CONNECTED --> RECONNECTING: handshake elavul / wireproxy kilép
+  STARTING --> CONNECTED: SOCKS kész + /readyz 200 + tracker/egress próba ok
+  STARTING --> ERROR: wireproxy nem indul / konfighiba / kulcs nem fejti vissza
+  CONNECTED --> RECONNECTING: /readyz 503 / wireproxy kilép
   RECONNECTING --> CONNECTED: helyreállt
   RECONNECTING --> ERROR: N sikertelen próba
   ERROR --> STARTING: újrapróba (backoff) vagy felhasználói "Újrakapcsolás"
@@ -153,7 +184,7 @@ stateDiagram-v2
 ```
 
 - **Minden nem-`DISABLED` állapotban** a libtorrent session proxymódban van: a torrentforgalom vagy a tunnelen megy, vagy áll. Állapotváltás közben sincs közvetlen forgalom.
-- **Health:** a SOCKS-port elérhető, a WireGuard handshake friss, és egy próbakapcsolat a proxyn át sikeres. A wireproxy health- és metrikavégpontjának használhatósága a **G6 kapu**.
+- **Health (R8):** a wireproxy `-i 127.0.0.1:<port>` kapcsolóval `/readyz` (`503`, ha a `CheckAlive` célpont a `CheckAliveInterval` alatt, alapból 5 s, nem válaszol) és `/metrics` (a `wg show` adatai, köztük a handshake) végpontot ad. Nyitott kérdés a G6-ban: melyik `CheckAlive` célpont érhető el megbízhatóan a Proton-tunnelen át (pl. a belső DNS-cím), és ICMP-vel válaszol-e.
 
 ### 6.5. API (admin, `SessionGuard([UserRoleKey.ADMIN])`, `/api/vpn` alatt)
 
@@ -162,15 +193,16 @@ stateDiagram-v2
 | `GET /api/vpn` | Beállítások és nem titkos metaadatok (cím, DNS, végpont, kulcs-ujjlenyomat, `hasConfig`). Privát kulcsot soha nem ad vissza. |
 | `PUT /api/vpn` | `.conf` import (szövegként) és/vagy `enabled` kapcsoló. A kikapcsoláshoz `confirmUnprotected: true` kell. Validálás, titkosított mentés, az L4 módváltás alkalmazása. |
 | `DELETE /api/vpn/config` | Konfiguráció törlése (csak kikapcsolt VPN mellett). |
-| `GET /api/vpn/status` | Állapot, utolsó handshake, hibakód, a tunnel átviteli számlálói. |
+| `GET /api/vpn/status` | Állapot, utolsó handshake, hibakód, a tunnel átviteli számlálói (`/metrics`-ből). |
 | `POST /api/vpn/test` | Diagnosztika: handshake, DNS a tunnelen, próbakapcsolat a proxyn át, és annak ellenőrzése, hogy a libtorrent-beállítások a 6.3 szerintiek. |
 
 ### 6.6. Titokkezelés
 
 - **Tárolás:** az `encrypted_config` AES-GCM-mel titkosítva a DB-ben; a kulcs külön fájlban (`data/system/vpn.key`) vagy környezeti változóban.
+  - **Miért nem a `SESSION_SECRET`-ből:** az a gyakorlatban változhat (image-váltás az upstream és a fork között, utólag megadott secret). Ilyenkor a munkamenetek és a lejátszási linkek amúgy is újraindulnak, de a VPN-konfiguráció ne vesszen el.
   - **Korlát:** a teljes adatkötet megszerzése ellen ez nem véd, csak a DB-mentés vagy DB-fájl kiszivárgása ellen. Ezt a felületen és a dokumentációban is ki kell mondani.
 - **Futás közben:** a nyílt konfiguráció csak tmpfs-en (`/dev/shm`) él, a wireproxy indulása után törlődik.
-- **Redakció:** `PrivateKey` és `PresharedKey` sem logban, sem kivételben, sem API-válaszban, sem a böngészőkonzolban. A wireproxy kimenete szűrve kerül a logba.
+- **Redakció:** `PrivateKey`, `PresharedKey` és a SOCKS-jelszó sem logban, sem kivételben, sem API-válaszban, sem a böngészőkonzolban. A wireproxy kimenete szűrve kerül a logba.
 
 ## 7. Frontend
 
@@ -180,18 +212,19 @@ stateDiagram-v2
   - be/ki kapcsoló, a kikapcsoláskor megerősítő ablakkal;
   - állapotkártya: állapot, utolsó handshake, végpont, hibaüzenet;
   - „Teszt” gomb;
-  - tájékoztató szöveg: *„Csak a torrent le- és feltöltése megy a VPN-en; a streamelés és a weboldal nem. VPN módban nincs porttovábbítás, a DHT és az uTP ki van kapcsolva.”*
-- **Relay-beállítások oldal:** VPN módban a port és az UPnP/NAT-PMP mező zárolt, „VPN által kezelt” jelzéssel.
+  - tájékoztató szöveg: *„Csak a torrent le- és feltöltése megy a VPN-en; a streamelés és a weboldal nem. A lejátszás adata viszont a torrentből jön, ezért a VPN sebessége hat az indulásra. VPN módban nincs porttovábbítás, a DHT és az uTP ki van kapcsolva.”*
+- **Relay-beállítások oldal:** VPN módban a `port.tsx` (port, UPnP/NAT-PMP) mezői és a `peer-protocol.tsx` uTP-kapcsolója zárolt, „VPN által kezelt” jelzéssel. A titkosítás és a korlátok szerkeszthetők maradnak.
 
 ## 8. Docker
 
-- **Új build-stage:** a wireproxy forrásból, rögzített verzióval:
-  - `go install github.com/windtf/wireproxy/cmd/wireproxy@v1.1.3`, `CGO_ENABLED=0`, `-trimpath`; a Go-modulok sértetlenségét a `go.sum` és a checksum-adatbázis adja;
-  - a v1.1.3 `go.mod` modulútvonala `github.com/windtf/wireproxy`, `go 1.26.0` — ezt a fordításkor ellenőrizni kell;
-  - multi-arch (`amd64`, `arm64`) buildx-szel.
+- **Forrás:** a wireproxy kanonikus tárolója `github.com/windtf/wireproxy` (ISC, Go-modulútvonal `github.com/windtf/wireproxy`, `go 1.26.0`). A régi `whyvl/wireproxy` URL ugyanezt a tárolót szolgálja ki. Legutóbbi kiadás: **v1.1.3** (2026-07-16), `linux_amd64` és `linux_arm64` archívummal és `checksums.txt`-vel.
+- **Javasolt út (R9): a kiadott bináris, rögzített ellenőrzőösszeggel.**
+  - Architektúránként (`TARGETARCH`) a `wireproxy_linux_<arch>.tar.gz` letöltése egy build-stage-ben, a SHA-256 ellenőrzése a Dockerfile-ba beírt értékkel, eltérésnél a build megáll.
+  - Az amd64-archívum ellenőrzött hash-e a PoC-jelentésben van (`e88c1d09…f51c`); az arm64-é a kiadás `checksums.txt`-jéből a megvalósításkor rögzítendő, és két független forrásból (letöltött fájl + `checksums.txt`) egyeztetendő.
+  - Előny: a PoC pontosan ezt a binárist mérte, így a forrásból fordított bináris újramérése elmarad.
+- **Alternatíva:** forrásból fordítás (`go install github.com/windtf/wireproxy/cmd/wireproxy@v1.1.3`, `CGO_ENABLED=0`, `-trimpath`, Go 1.26 build-stage). Ekkor a G-kapuk szivárgási tesztkészletét az így fordított binárissal újra kell futtatni.
 - **Másolás** a runtime image-be `/usr/local/bin/wireproxy`-ként (~10 MB).
 - **Nincs** új `cap_add`, eszköz, compose-változás vagy AppArmor-kivétel (K1).
-- **A PoC-ban** a kiadott bináris futott (v1.1.3 `linux_amd64`, SHA-256 a PoC-jelentésben). A forrásból fordított binárist a G-kapuk előtt ugyanazzal a tesztkészlettel újra kell mérni.
 
 ## 9. Fázisok, kapuk és elfogadási feltételek
 
@@ -202,25 +235,27 @@ stateDiagram-v2
 
 | Kapu | Tartalom | Ki/hol |
 |---|---|---|
-| G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | A felhasználó Proton `.conf`-jával, izolált környezetben. A kulcs nem kerül repóba vagy logba. |
-| G2 | `outgoing_interfaces="127.0.0.1"` a proxyval működik-e, és megakadályoz-e egy szándékosan proxy nélküli kapcsolatot. | PoC-harness |
+| G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | A felhasználó Proton `.conf`-jával, izolált környezetben, **csak kifejezett engedéllyel** (AGENTS.md 2. pont). A kulcs nem kerül repóba vagy logba. |
+| G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | PoC-harness |
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | PoC-harness |
-| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége. | PoC-harness |
+| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness |
 | G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
-| G6 | A wireproxy health- és metrikaadatai (handshake-idő) használhatók-e az állapotgéphez. | PoC-harness |
+| G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | PoC-harness + G1 |
 
 ### F1 — Backend mag
-- **Tartalom:** a 6.1–6.4 és 6.6 pont: `vpn` modul, settings, secret store, supervisor, manager, relay hálózati szabály.
+- **Tartalom:** a 6.1–6.4 és 6.6 pont: `vpn` modul, settings, secret store, supervisor, manager, relay hálózati szabály, zárt indulás.
 - **Elfogadás:**
-  - egységtesztek (parser, titkosítás és kulcsrotáció, supervisor hamis binárissal, állapotátmenetek, relay-szabály alkalmazása);
-  - Ruff → basedpyright → teljes pytest zöld;
-  - a session VPN módban már a konstruktorban proxyval jön létre (teszt).
+  - egységtesztek (parser, titkosítás és kulcsrotáció, visszafejtési hiba → `ERROR`, supervisor hamis binárissal, állapotátmenetek, relay-szabály alkalmazása);
+  - **L6-invariáns:** a hálózati szabály alkalmazása előtt 0 torrent és 0 UPnP/NAT-PMP; VPN módban sikertelen alkalmazásnál a `restore_torrents()` nem fut;
+  - a session VPN módban proxyval fut, mielőtt bármely torrent bekerül (teszt);
+  - Ruff → basedpyright → teljes pytest zöld.
 
 ### F2 — API és GUI
-- **Tartalom:** 6.5 és 7. pont.
+- **Tartalom:** 6.5 és 7. pont, a `prepare_for_stream` 503-as ága (R10).
 - **Elfogadás:**
-  - a privát kulcs egyetlen API-válaszban sem szerepel (teszt);
+  - a privát kulcs és a SOCKS-jelszó egyetlen API-válaszban sem szerepel (teszt);
   - a kikapcsolás megerősítés nélkül elutasítva;
+  - VPN módban a port-, UPnP- és uTP-mező zárolt, és API-n át sem kapcsolható be;
   - frontend lint/format/build zöld, a kapcsolók viselkedési tesztjei zöldek.
 
 ### F3 — Docker
@@ -236,35 +271,39 @@ stateDiagram-v2
 - **Mérési elfogadás**, a küszöbök a NAS-alapmérés **előtt** rögzítendők:
   - VPN módban 0 közvetlen torrent-csomag minden forgatókönyvben;
   - a kill switch 5 s-on belül megállítja a forgalmat, 0 közvetlen csomaggal, és magától visszaáll;
-  - a streamelés p95-ös TTFB-je és megakadási aránya nem romlik a közvetlen módhoz képest a mérési zajon túl;
+  - közvetlen módban a streamelés p95-ös TTFB-je és megakadási aránya nem romlik a mérési zajon túl; VPN módban a romlás mérve és a GUI-ban kimondva;
   - a wireproxy memóriája és CPU-ja a G5 alapján rögzített kereten belül marad.
 
-## 10. Viszony a PR #9-hez (`feature/stability-and-optimization`)
+## 10. Viszony a beolvasztott munkákhoz
 
-- **Ütközések:** a PR #9 átírja a `lifespan`-t, a relay- és stream-kódot (CR09, CR13, CR15, CR17) és a settingset, valamint új alembic-revíziókat hoz. A VPN-változtatás ugyanezeket a pontokat érinti (`RelayService` konstrukció, `lifespan`, `relay_settings`), ezért a **megvalósítás a PR #9 beolvasztása után** induljon, az akkori kódra újraellenőrzött fájl- és sorhivatkozásokkal.
-- **A CR15/a korlátos `.torrent`-letöltése** az indexer-HTTP-t érinti, ez a normál hálózaton marad, tehát nincs ütközés.
-- **Plug & play ütközés a PR #9-ben:** a CR05 kötelezővé teszi a `SESSION_SECRET`-et (nélküle nem indul az alkalmazás). Javasolt: ha nincs megadva, első induláskor generált és az adatkötetben tárolt titok, a környezeti változó csak felülírja. Részletek: [`review-rev3-findings.md`](review-rev3-findings.md) 4. fejezet.
+- **PR #9 (stabilitás, CR01–CR19) és PR #11 (streamgyorsítás) beolvasztva.** A Rev. 4 kért feltétele teljesült; a 3. fejezet a `7bf93aa` kódjára igazított. A legfontosabb következmény az R1: a relay a `lifespan` elején, a DB előtt jön létre, és a leállítás tulajdonolt lépésekből áll.
+- **CR05 (`SESSION_SECRET` plug & play) megoldva:** megadás nélkül generált, az adatkötetben tárolt kulcs (`config.py` 44. sor). A Rev. 4 ezzel kapcsolatos ütközése megszűnt; a VPN-kulcs ugyanezt a mintát követi, de külön fájlban (R11).
+- **Upstream-szinkron (#12):** a #292 titkosítás- és uTP-kapcsolója (R3).
+- **Upstream felé:** a VPN fork-saját funkció; az upstream PR-felbontási tervben nem szerepel.
 
 ## 11. Kockázatok
 
 | Kockázat | Hatás | Kezelés |
 |---|---|---|
-| Egy libtorrent-kódút nem tartja be a proxyt | IP-szivárgás | L1 tiltások, G2 loopback-kötés, G3/G4 tesztek; libtorrent-frissítéskor a tesztkészlet kötelező újrafuttatása. |
-| A wireproxy ellátási lánca, karbantartása | Biztonsági vagy kompatibilitási kockázat | Rögzített verzió, forrásból fordítás, frissítéskor a szivárgási tesztkészlet. Tartalékként más userspace-megvalósítás vizsgálható. |
-| Nincs porttovábbítás | Kevesebb peer, gyengébb ratio | A GUI-ban kimondva; a kernelszintű „emelt védelem” később adhat porttovábbítást. |
-| A privát tracker figyeli, hogy az oldal- és announce-IP eltér | Figyelmeztetés vagy tiltás a trackeren | Dokumentálva; opció lehet az indexerforgalom VPN-en át (külön döntés). |
+| Egy libtorrent-kódút nem tartja be a proxyt | IP-szivárgás | L1 tiltások, L3 loopback-kötés (G2), G3/G4 tesztek; libtorrent-frissítéskor a tesztkészlet kötelező újrafuttatása. |
+| A wireproxy SOCKS5 UDP-támogatása bizonytalan (R7) | UDP-trackerek VPN módban nem érhetők el | G4; fail-closed, a GUI jelzi. A magyar privát trackerek HTTP(S)-trackert használnak. |
+| A wireproxy ellátási lánca, karbantartása | Biztonsági vagy kompatibilitási kockázat | Rögzített verzió és SHA-256, frissítéskor a szivárgási tesztkészlet. Tartalékként más userspace-megvalósítás vizsgálható. |
+| Nincs porttovábbítás | Kevesebb peer, gyengébb ratio, lassabb indulás | A GUI-ban kimondva; a kernelszintű „emelt védelem” később adhat porttovábbítást. |
+| A privát tracker figyeli, hogy az oldal- és announce-IP eltér, vagy tiltja a VPN-címeket | Figyelmeztetés vagy tiltás a trackeren | Dokumentálva; a tracker szabályzatát a felhasználónak kell ellenőriznie. Opció lehet az indexerforgalom VPN-en át (külön döntés). |
+| Kliens-fehérlista a trackeren | Elutasított announce | `anonymous_mode=False` (6.3). |
+| A titkosítókulcs elvész (új kötet) | A VPN-konfiguráció nem fejthető vissza | `ERROR` állapot, újraimportálás; nincs közvetlen visszaesés. |
 | NAS-erőforrás (wireproxy 80–90 MiB terhelés alatt a PoC-ban) | Memórianyomás kis NAS-on | G5 mérés, `GOMEMLIMIT`, rögzített keret. |
 | A futó konfigurációban a nyílt kulcs | Kulcsszivárgás | tmpfs, `0600`, törlés indulás után, redakció. |
 
 ## 12. Visszaállítás és kompatibilitás
 
 - **Nincs alembic-migráció.** A `vpn` kulcs a `settings` táblában van; egy régebbi image figyelmen kívül hagyja.
-- **Ha egy régebbi, VPN-t nem ismerő image-re áll vissza a felhasználó, miközben `vpn_enabled=True`**, a torrentek VPN nélkül indulnának. Ezt a kiadási jegyzetben és a GUI-ban figyelmeztetésként kell jelezni, mert a régi kód ezt nem tudja megakadályozni.
-- **A VPN kikapcsolása** csak felhasználói megerősítéssel, és csak a torrentforgalmat érinti; a streamelés mindkét módban azonos.
+- **Ha egy régebbi, VPN-t nem ismerő image-re vagy az upstreamre áll vissza a felhasználó, miközben `vpn_enabled=True`**, a torrentek VPN nélkül indulnának. Ezt a kiadási jegyzetben, a GUI-ban és az [átállási útmutatóban](../../atallas-es-visszaallas.md) figyelmeztetésként kell jelezni, mert a régi kód ezt nem tudja megakadályozni.
+- **A VPN kikapcsolása** csak felhasználói megerősítéssel, és csak a torrentforgalmat érinti; a streamelés útvonala mindkét módban azonos.
 
 ## 13. Hivatkozások
 
 - [`userspace-poc-report.md`](userspace-poc-report.md), [`poc/userspace/`](poc/userspace/) (szkriptek, eredmény-JSON)
 - [`review-rev3-findings.md`](review-rev3-findings.md), [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md), [`phase0-evidence-report.md`](phase0-evidence-report.md)
-- wireproxy: <https://github.com/whyvl/wireproxy> (ISC), v1.1.3
-- libtorrent 2.1 settings: <https://www.libtorrent.org/reference-Settings.html>
+- wireproxy: <https://github.com/windtf/wireproxy> (ISC), v1.1.3; README (SOCKS5 csak CONNECT, `-i/--info`, `/readyz`, `/metrics`, `CheckAlive`, `[Socks5] Username/Password`, `-n` configtest), ellenőrizve 2026-11-27
+- libtorrent 2.1.1 settings: <https://www.libtorrent.org/reference-Settings.html>; a 6.3 kulcsai a `server/.venv` libtorrent `2.1.1.0`-ján beállítva és visszaolvasva (2026-11-27)

@@ -465,7 +465,14 @@ stateDiagram-v2
   - a szerver `wg0` leállítása után 7 s-mal `reconnecting`, 35 s-mal `error` (`no-handshake`), a Teszt `handshake` sora `no-reply`; visszakapcsolás után 10 s-mal `connected`;
   - kikapcsolás megerősítés nélkül 400, megerősítéssel `disabled`, a relay-zárolás feloldódik; törlés után `hasConfig: false`;
   - a klienskulcs nem szerepel a konténer naplójában.
-- **Nem futott:** a felület böngészős végigkattintása. A beépített böngésző a helyi hálózati címen futó oldal saját fájljait letiltja, a Claude in Chrome bővítmény pedig nem csatlakozott.
+- **Böngészős bejárás (2026-11-27, Chrome, ugyanilyen eldobható környezetben):**
+  - első admin létrehozása után a felhasználónév menüje → Irányítópult → Rendszer → VPN-kártya → VPN-oldal;
+  - a kapcsoló konfiguráció nélkül letiltott; hibás fájlra a *„Érvénytelen WireGuard-konfiguráció (unsupported-key: PostUp).”* üzenet jelenik meg; a „Fájl kiválasztása” betölti a `.conf`-ot;
+  - mentés után végpont és cím látszik, a kulcs nem; bekapcsolás után az oldal magától 🟡 → 🟢 lesz; a Teszt öt sora 🟢;
+  - a relay-oldalon a port, az UPnP / NAT-PMP és az uTP zárolt, a két „VPN által kezelt” szöveggel;
+  - a szerver leállítása után 🟡 *Újrakapcsolódás...* (kb. 10 s), majd 🔴 *Hiba* `no-handshake` kóddal (kb. 38 s); a Rendszer-kártyán „🟡 VPN bekapcsolva, a kapcsolat nem él: a torrentforgalom áll”; visszakapcsolás után 🟢;
+  - kikapcsoláskor és törléskor megerősítő ablak, utána ⚪ és letiltott kapcsoló.
+  - Az útmutató ennek nyomán pontosabb lett: a navigáció (a felhasználónév menüje) és a Rendszer-kártya állapotszövegei. A beépített böngésző a helyi hálózati címen futó oldal fájljait letiltotta, ezért készült a bejárás a Chrome-ban.
 - **Nyitott:**
   - a G5 (erőforrásmérés a célszerveren) és a mérési elfogadás fenti küszöbeinek rögzítése;
   - a G1 maradéka (normál szerver, élő swarm);

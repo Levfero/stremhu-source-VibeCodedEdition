@@ -1,11 +1,15 @@
-import asyncio
+import time
+from collections import OrderedDict
 
 from fastapi import HTTPException
 
+from app.common.async_utils import fire_and_forget, owned_to_thread
 from app.common.database import isolated_db_session
 from app.common.keyed_lock import KeyedLock
+from app.common.log_safety import network_error_fields
 from app.common.logger import logger
 from app.common.schemas.internal import ImdbInfo
+from app.config import config
 from app.modules.indexers.service import IndexersService
 from app.modules.playback_histories.dependencies import (
     create_playback_histories_service,
@@ -32,6 +36,83 @@ from app.modules.torrents.service import TorrentsService
 
 torrent_locks = KeyedLock()
 playback_history_lock = KeyedLock()
+
+# SP03 (``playback_history_background``): a lejátszási előzmény playbackenként egyszer,
+# a válasz útján kívül íródik. Kikapcsolva ezek az állapotok érintetlenek.
+_HISTORY_RECORDED_TTL_SECONDS = 6 * 3600.0
+_HISTORY_RECORDED_MAX = 4096
+_HISTORY_PENDING_MAX = 64
+
+
+class _PlaybackHistoryState:
+    """Már rögzített vagy éppen rögzülő playbackek; csak az event loopról használható."""
+
+    def __init__(self) -> None:
+        self.recorded: OrderedDict[str, float] = OrderedDict()
+        self.pending: set[str] = set()
+
+    def is_known(self, playback_id: str, now: float) -> bool:
+        while self.recorded:
+            oldest_id, recorded_at = next(iter(self.recorded.items()))
+            if now - recorded_at < _HISTORY_RECORDED_TTL_SECONDS:
+                break
+            self.recorded.pop(oldest_id)
+        return playback_id in self.recorded or playback_id in self.pending
+
+    def mark_recorded(self, playback_id: str, now: float) -> None:
+        self.recorded[playback_id] = now
+        self.recorded.move_to_end(playback_id)
+        while len(self.recorded) > _HISTORY_RECORDED_MAX:
+            self.recorded.popitem(last=False)
+
+    def clear(self) -> None:
+        self.recorded.clear()
+        self.pending.clear()
+
+
+_history_state = _PlaybackHistoryState()
+
+
+def clear_playback_history_state() -> None:
+    _history_state.clear()
+
+
+def _playback_history_payload(
+    stream_token: StreamToken,
+    client_info: PlaybackHistoryClientInfo,
+    user_id: str,
+    file: File,
+    imdb_info: ImdbInfo | None,
+) -> PlaybackHistoryCreate:
+    return PlaybackHistoryCreate(
+        client=client_info,
+        indexer_id=stream_token.indexer_id,
+        playback_id=stream_token.playback_id,
+        user_id=user_id,
+        torrent_id=stream_token.torrent_id,
+        file_index=stream_token.file_index,
+        imdb_info=imdb_info,
+        torrent_name=file.torrent.name,
+        file_name=file.name,
+    )
+
+
+def _persist_playback_history(payload: PlaybackHistoryCreate) -> None:
+    """Külön session: egy sikertelen írás nem viheti magával a kérés tranzakcióját."""
+    with isolated_db_session() as local_db:
+        create_playback_histories_service(local_db).get_or_create(payload)
+
+
+async def _write_playback_history(payload: PlaybackHistoryCreate) -> None:
+    try:
+        async with playback_history_lock(payload.playback_id):
+            await owned_to_thread(_persist_playback_history, payload)
+        _history_state.mark_recorded(payload.playback_id, time.monotonic())
+    except Exception as e:
+        # Nincs „rögzítve” jelölés: a következő kérés újrapróbálja.
+        logger.warning("operation=playback-history-write %s", network_error_fields(e))
+    finally:
+        _history_state.pending.discard(payload.playback_id)
 
 
 class StreamService:
@@ -62,14 +143,14 @@ class StreamService:
         )
 
         async with torrent_locks(f"{indexer_id}:{torrent_id}"):
-            torrent_with_relay: TorrentWithRelay | None = await asyncio.to_thread(
+            torrent_with_relay: TorrentWithRelay | None = await owned_to_thread(
                 self._torrents_service.find_by_id,
                 indexer_id=indexer_id,
                 torrent_id=torrent_id,
             )
 
             if torrent_with_relay is None:
-                torrent_file = await asyncio.to_thread(
+                torrent_file = await owned_to_thread(
                     self._torrent_files_service.find_by_id,
                     indexer_id=indexer_id,
                     torrent_id=torrent_id,
@@ -89,14 +170,14 @@ class StreamService:
                         )
                     )
 
-                    torrent_file = await asyncio.to_thread(
+                    torrent_file = await owned_to_thread(
                         self._isolated_torrent_files_service.create,
                         indexer_id=indexer_id,
                         torrent_id=torrent_id,
                         torrent_bytes=downloaded_torrent_file.torrent_bytes,
                     )
 
-                torrent_with_relay = await asyncio.to_thread(
+                torrent_with_relay = await owned_to_thread(
                     self._create_torrent,
                     torrent_file=torrent_file,
                     file_index=file_index,
@@ -130,29 +211,36 @@ class StreamService:
         file: File,
         imdb_info: ImdbInfo | None = None,
     ) -> None:
-        try:
-            async with playback_history_lock(stream_token.playback_id):
-                await asyncio.to_thread(
-                    self._save_playback_history,
-                    PlaybackHistoryCreate(
-                        client=client_info,
-                        indexer_id=stream_token.indexer_id,
-                        playback_id=stream_token.playback_id,
-                        user_id=user_id,
-                        torrent_id=stream_token.torrent_id,
-                        file_index=stream_token.file_index,
-                        imdb_info=imdb_info,
-                        torrent_name=file.torrent.name,
-                        file_name=file.name,
-                    ),
-                )
-        except Exception as e:
-            logger.warning(f"Nem sikerült menteni a lejátszási előzményt: {e}")
+        """Rögzíti a lejátszást a lejátszási előzményben.
 
-    def _save_playback_history(self, payload: PlaybackHistoryCreate) -> None:
-        """Külön session: egy sikertelen írás nem viheti magával a kérés tranzakcióját."""
-        with isolated_db_session() as local_db:
-            create_playback_histories_service(local_db).get_or_create(payload)
+        Kikapcsolt ``playback_history_background`` mellett a korábbi út fut: minden GET/HEAD
+        kérés a válaszfejlécek előtt megvárja a zárolt, szálon futó ``get_or_create``-t.
+
+        Bekapcsolva (SP03, alapérték) playbackenként egyszer, a válaszfejlécek útján kívül íródik:
+        az ismételt Range/HEAD kérések nem nyúlnak a DB-hez, az első írás a háttérben fut
+        (a lifespan ``background-db`` lépése lezárja), teli függő halmaznál szinkron tartalék,
+        hogy előzmény ne vesszen el.
+        """
+        if not config.playback_history_background:
+            try:
+                async with playback_history_lock(stream_token.playback_id):
+                    await owned_to_thread(
+                        _persist_playback_history,
+                        _playback_history_payload(stream_token, client_info, user_id, file, imdb_info),
+                    )
+            except Exception as e:
+                logger.warning("operation=playback-history-write %s", network_error_fields(e))
+            return
+
+        playback_id = stream_token.playback_id
+        if _history_state.is_known(playback_id, time.monotonic()):
+            return
+        payload = _playback_history_payload(stream_token, client_info, user_id, file, imdb_info)
+        _history_state.pending.add(playback_id)
+        if len(_history_state.pending) > _HISTORY_PENDING_MAX:
+            await _write_playback_history(payload)
+            return
+        fire_and_forget(_write_playback_history(payload))
 
     def _create_torrent(
         self,
@@ -213,6 +301,16 @@ def _range_not_satisfiable(file_size: int, detail: str) -> HTTPException:
     )
 
 
+def _parse_ascii_uint_capped(text: str, cap: int) -> int:
+    if not text or not text.isascii() or not text.isdecimal():
+        raise ValueError("Invalid ASCII decimal")
+    digits = text.lstrip("0") or "0"
+    ceiling = str(cap)
+    if len(digits) > len(ceiling) or (len(digits) == len(ceiling) and digits > ceiling):
+        return cap
+    return int(digits)
+
+
 def parse_range_header(
     file_size: int,
     range_header: str | None = None,
@@ -245,21 +343,25 @@ def parse_range_header(
     start_str, end_str = start_str.strip(), end_str.strip()
     if not dash or (not start_str and not end_str):
         raise _range_not_satisfiable(file_size, "Érvénytelen range header.")
-    if (start_str and not start_str.isdigit()) or (end_str and not end_str.isdigit()):
-        raise _range_not_satisfiable(file_size, "Érvénytelen range header.")
-
     if file_size <= 0:
         raise _range_not_satisfiable(file_size, "A kért tartomány kívül esik a fájlon.")
 
+    try:
+        start_value = _parse_ascii_uint_capped(start_str, file_size) if start_str else None
+        end_value = _parse_ascii_uint_capped(end_str, file_size if start_value is None else file_size - 1) if end_str else None
+    except ValueError:
+        raise _range_not_satisfiable(file_size, "Érvénytelen range header.") from None
+
     if not start_str:
-        suffix_length = int(end_str)
+        suffix_length = end_value or 0
         if suffix_length <= 0:
             raise _range_not_satisfiable(file_size, "A kért tartomány kívül esik a fájlon.")
         start_byte = max(file_size - suffix_length, 0)
         end_byte = file_size - 1
     else:
-        start_byte = int(start_str)
-        end_byte = int(end_str) if end_str else file_size - 1
+        assert start_value is not None
+        start_byte = start_value
+        end_byte = end_value if end_value is not None else file_size - 1
         if start_byte > end_byte:
             raise _range_not_satisfiable(file_size, "Érvénytelen range header.")
         if start_byte >= file_size:

@@ -204,6 +204,7 @@ export interface MeUpdateRequest {
   smartFilterLimit?: number | null
   enableFallbackSubtitles?: boolean | null
   enableCatalogSearch?: boolean | null
+  enableDownloadedMarker?: boolean | null
 }
 
 export type MediaType = (typeof MediaType)[keyof typeof MediaType]
@@ -377,6 +378,7 @@ export interface UserResponse {
   smartFilterLimit: number
   enableFallbackSubtitles: boolean
   enableCatalogSearch: boolean
+  enableDownloadedMarker: boolean
   maxConcurrentStreams: number | null
 }
 
@@ -449,6 +451,15 @@ export interface RegisterRequest {
   password: string
 }
 
+export type RelayEncryptionEnum =
+  (typeof RelayEncryptionEnum)[keyof typeof RelayEncryptionEnum]
+
+export const RelayEncryptionEnum = {
+  enabled: 'enabled',
+  forced: 'forced',
+  disabled: 'disabled',
+} as const
+
 export interface RelaySettingsResponse {
   port: number
   downloadLimit: number
@@ -456,6 +467,8 @@ export interface RelaySettingsResponse {
   connectionsLimit: number
   torrentConnectionsLimit: number
   enableUpnpAndNatpmp: boolean
+  encryption: RelayEncryptionEnum
+  enableUtp: boolean
 }
 
 export interface RelaySettingsUpdateRequest {
@@ -465,6 +478,8 @@ export interface RelaySettingsUpdateRequest {
   connectionsLimit?: number | null
   torrentConnectionsLimit?: number | null
   enableUpnpAndNatpmp?: boolean | null
+  encryption?: RelayEncryptionEnum | null
+  enableUtp?: boolean | null
 }
 
 export interface StremioCatalogResponse {
@@ -540,6 +555,7 @@ export interface UserCreateRequest {
   smartFilterLimit?: number
   enableFallbackSubtitles?: boolean
   enableCatalogSearch?: boolean
+  enableDownloadedMarker?: boolean
   maxConcurrentStreams?: number | null
   password?: string | null
   roleId?: string
@@ -556,6 +572,7 @@ export interface UserUpdateRequest {
   smartFilterLimit?: number | null
   enableFallbackSubtitles?: boolean | null
   enableCatalogSearch?: boolean | null
+  enableDownloadedMarker?: boolean | null
   maxConcurrentStreams?: number | null
 }
 

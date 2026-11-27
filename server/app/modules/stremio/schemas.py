@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import humanize
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydash import compact
 
 from app.common.schemas.internal import ImdbInfo, SeriesInfo
+from app.common.validators import validate_numeric_media_id
 from app.modules.media_attributes.constants import MediaAttributeKey
 from app.modules.media_attributes.models import MediaAttributeModel
 from app.modules.media_attributes.parser import clean_torrent_name
@@ -24,10 +25,14 @@ from app.modules.stremio.enums import (
     ShortManifestResource,
     StreamIdType,
 )
-from app.modules.torrent_files.models import TorrentFileModel
+from app.modules.torrent_files.schemas import TorrentFileSnapshot
 
 if TYPE_CHECKING:
     from app.modules.torrent_streams.schemas import TorrentStream
+
+# A helyben már letöltött fájl jelölése a stream nevében és leírásában
+DOWNLOADED_MARKER = "⚡ Letöltve"
+DOWNLOADED_BANNER = "⚡ Helyben tárolva (Azonnali lejátszás)"
 
 # ──────────────────────────────────────────────
 # Manifest schemas
@@ -167,8 +172,13 @@ class StremioStream(BaseModel):
     behavior_hints: BehaviorHints | None = None
 
     @classmethod
-    def from_id_torrent_stream(cls, torrent_stream: TorrentStream) -> StremioStream:
+    def from_id_torrent_stream(
+        cls,
+        torrent_stream: TorrentStream,
+        show_downloaded_marker: bool = True,
+    ) -> StremioStream:
         file_size = f"💾 {humanize.naturalsize(torrent_stream.file_size, binary=True, format='%.2f')}"
+        is_marked = show_downloaded_marker and torrent_stream.is_persisted_torrent
 
         stremio_subtitles = (
             [
@@ -185,8 +195,15 @@ class StremioStream(BaseModel):
         )
 
         return cls(
-            name=file_size,
-            description=f"📁 {torrent_stream.file_name}",
+            name=" | ".join(compact([DOWNLOADED_MARKER if is_marked else None, file_size])),
+            description="\n".join(
+                compact(
+                    [
+                        DOWNLOADED_BANNER if is_marked else None,
+                        f"📁 {torrent_stream.file_name}",
+                    ]
+                )
+            ),
             url=torrent_stream.play_url,
             subtitles=stremio_subtitles,
             behavior_hints=BehaviorHints(
@@ -207,8 +224,10 @@ class StremioStream(BaseModel):
         cls,
         torrent_stream: TorrentStream,
         is_series: bool = False,
+        show_downloaded_marker: bool = True,
     ) -> StremioStream:
         file_size = f"💾 {humanize.naturalsize(torrent_stream.file_size, binary=True, format='%.2f')}"
+        is_marked = show_downloaded_marker and torrent_stream.is_persisted_torrent
         effective_seeders = (
             torrent_stream.combined_seeders
             if torrent_stream.combined_seeders is not None
@@ -296,21 +315,14 @@ class StremioStream(BaseModel):
             )
         )
 
-        readable_is_persisted: str | None = None
-
-        if torrent_stream.is_persisted_torrent:
-            readable_is_persisted = "⚡ Letöltve"
+        readable_is_persisted = DOWNLOADED_MARKER if is_marked else None
 
         name = " | ".join(
             compact(
                 [readable_is_persisted, readable_resolutions, readable_video_qualities]
             )
         )
-        persisted_banner = (
-            "⚡ Helyben tárolva (Azonnali lejátszás)"
-            if torrent_stream.is_persisted_torrent
-            else None
-        )
+        persisted_banner = DOWNLOADED_BANNER if is_marked else None
         file_name_line = f"📁 {torrent_stream.file_name}" if is_series else None
         description = "\n".join(
             compact(
@@ -489,7 +501,7 @@ class MetaPreview(BaseMeta):
     @classmethod
     def from_torrent_file(
         cls,
-        torrent_file: TorrentFileModel,
+        torrent_file: TorrentFileSnapshot,
         content_type: ContentType = ContentType.MOVIE,
         imdb_id: str | None = None,
         imdb_rating: str | None = None,
@@ -528,7 +540,7 @@ class MetaDetail(BaseMeta):
     @classmethod
     def from_torrent_file(
         cls,
-        torrent_file: TorrentFileModel,
+        torrent_file: TorrentFileSnapshot,
         content_type: ContentType = ContentType.MOVIE,
         imdb_id: str | None = None,
     ) -> MetaDetail:
@@ -637,28 +649,31 @@ class TorrentStreamId(BaseModel):
     file_index: int | None = None
 
 
+NumericMediaId = Annotated[str, AfterValidator(validate_numeric_media_id)]
+
+
 class TvdbStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TVDB
-    tvdb_id: str
+    tvdb_id: NumericMediaId
     series_info: SeriesInfo | None = None
 
 
 class KitsuStreamId(BaseModel):
     type: StreamIdType = StreamIdType.KITSU
-    kitsu_id: str
+    kitsu_id: NumericMediaId
     episode: int | None = None
     series_info: SeriesInfo | None = None
 
 
 class TmdbStreamId(BaseModel):
     type: StreamIdType = StreamIdType.TMDB
-    tmdb_id: str
+    tmdb_id: NumericMediaId
     series_info: SeriesInfo | None = None
 
 
 class MalStreamId(BaseModel):
     type: StreamIdType = StreamIdType.MAL
-    mal_id: str
+    mal_id: NumericMediaId
     episode: int | None = None
     series_info: SeriesInfo | None = None
 

@@ -7,7 +7,7 @@ audience: ["operator"]
 tags: ["vpn", "proton", "wireguard", "wireproxy", "privacy", "relay", "kill-switch", "troubleshooting"]
 source_commit: "4cecffb8"
 baseline: null
-verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); VPN_CHECK_ALIVE parsing tried with the backend config class; behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; no live tracker, no NAS measurement (G5); Proton steps from protonvpn.com support pages (2026-11-27)"
+verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; no live tracker, no NAS measurement (G5); Proton steps from protonvpn.com support pages (2026-11-27)"
 structure_reviewed: "2026-11-27"
 related_docs: ["README.md", "docs/README.md", "docs/atallas-es-visszaallas.md", "docs/feature/vpn-integration/implementation-plan.md"]
 source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_policy.py", "server/app/modules/stream/service.py", "server/app/config.py", "client/src/routes/_protected/dashboard/system/vpn/"]
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](README.md) · [AI-index](AI-INDEX.md)
 
-> **Státusz:** Felhasználói útmutató. A funkció a `feature/vpn-integration` ágon van, a fork `main` ágába még nem került; amíg ott nincs, a fork kiadott image-ében sem érhető el. A leírt működést a [VPN-terv](feature/vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) mérései igazolják: élő Proton P2P szerver (G1), valamint helyi, internet nélküli Docker-tesztek (G2–G4, G6). A felület lépéseit a forráskódból írtuk le, böngészőben nem kattintottuk végig. Élő trackerrel és NAS-on nem mértük.
+> **Státusz:** Felhasználói útmutató. A funkció a `feature/vpn-integration` ágon van, a fork `main` ágába még nem került; amíg ott nincs, a fork kiadott image-ében sem érhető el. A leírt működést a [VPN-terv](feature/vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) mérései igazolják: élő Proton P2P szerver (G1), valamint helyi, internet nélküli Docker-tesztek (G2–G4, G6). A felület szövegeit a forráskódból vettük. A mögöttük lévő műveleteket egy eldobható helyi konténeren, API-n át kipróbáltuk (2026-11-27): feltöltés, bekapcsolás, Teszt, relay-zárolás, kapcsolatvesztés és visszaállás, kikapcsolás, törlés. Böngészőben nem kattintottuk végig. Élő trackerrel és NAS-on nem mértük.
 
 **Kapcsolódó:** [Fő README](../README.md) · [Átállás és visszaállás](atallas-es-visszaallas.md) · [VPN-terv](feature/vpn-integration/implementation-plan.md)
 
@@ -174,7 +174,7 @@ services:
 
 | Hibakód | Mit jelent | Mit tegyél |
 |---|---|---|
-| `no-handshake` | 30 s óta nem jön válasz a VPN-szerverről a tunnelen át. | Ellenőrizd, hogy a konfigurációt nem törölted-e a Proton-fiókban. Próbálj másik szervert (új `.conf`). Nézd meg, hogy a hálózatod engedi-e a kimenő UDP-forgalmat a konfiguráció `Endpoint` portjára (Protonnál jellemzően 51820). Ha a VPN valójában működik, csak a DNS-cím nem válaszol pingre, állítsd a `VPN_CHECK_ALIVE`-ot egy válaszoló címre. |
+| `no-handshake` | 30 s óta nem jön válasz a VPN-szerverről a tunnelen át. A helyi próbában a szerver leállítása után kb. 7 s-mal jelent meg a 🟡 *Újrakapcsolódás...*, kb. 35 s-mal ez a hiba, és a szerver visszakapcsolása után kb. 10 s-mal újra 🟢. | Ellenőrizd, hogy a konfigurációt nem törölted-e a Proton-fiókban. Próbálj másik szervert (új `.conf`). Nézd meg, hogy a hálózatod engedi-e a kimenő UDP-forgalmat a konfiguráció `Endpoint` portjára (Protonnál jellemzően 51820). Ha a VPN valójában működik, csak a DNS-cím nem válaszol pingre, állítsd a `VPN_CHECK_ALIVE`-ot egy válaszoló címre. |
 | `decrypt-failed` | A mentett konfiguráció a jelenlegi kulccsal nem fejthető vissza (elveszett `vpn.key` vagy megváltozott `VPN_SECRET_KEY`). | Töltsd fel újra a `.conf`-ot. |
 | `missing-config` | A VPN be van kapcsolva, de nincs mentett konfiguráció. | Töltsd fel a `.conf`-ot. |
 | `invalid-key` | A `VPN_SECRET_KEY` nem 32 bájtos base64-érték, vagy a `vpn.key` tartalma hibás. | Javítsd vagy töröld a változót, illetve állítsd vissza a `vpn.key`-t mentésből; ha nem megy, töltsd fel újra a `.conf`-ot. |

@@ -458,7 +458,14 @@ stateDiagram-v2
   - visszaállás VPN nélküli változatra, korlátok.
 - **Hivatkozások:** a fő README (TIP-doboz és egy sor az összehasonlító mátrixban), a [`docs/README.md`](../../README.md), az [`AI-INDEX.md`](../../AI-INDEX.md), a feature-katalógus, a gépi katalógus (`index.json`) és az átállási útmutató visszaállási része.
 - **Ellenőrzés:** a felület szövegei, az állapotok, a hibakódok és a környezeti változók a `4cecffb` forrásából; a `VPN_CHECK_ALIVE` formátuma kipróbálva (csak JSON-lista érvényes, a sima cím induláskor hibát ad); a helyi linkek és anchorok, a kódfence-ek és az `index.json` statikusan ellenőrizve. A Proton-lépések a Proton súgóoldalai alapján (2026-11-27).
-- **Nem futott:** a felület lépéseit böngészőben nem kattintottuk végig (csak dokumentációs munka volt, Docker-indítás nélkül).
+- **API-szintű próba (2026-11-27):** az ág image-e (`4cecffb` forrása) eldobható kötettel, a PoC kernel-WireGuard tesztszerverével, internet nélküli belső hálózaton. Az útmutató minden lépése egyezett:
+  - hibás feltöltés: `unsupported-key: PostUp`, `malformed-line`; bekapcsolás konfiguráció nélkül: 400;
+  - bekapcsolás után 1 s alatt `connected`; a Teszt mind az öt sora rendben;
+  - VPN módban a port, az UPnP/NAT-PMP és az uTP módosítása 409, a titkosítás és a korlátok állíthatók; törlés bekapcsolt VPN mellett 409;
+  - a szerver `wg0` leállítása után 7 s-mal `reconnecting`, 35 s-mal `error` (`no-handshake`), a Teszt `handshake` sora `no-reply`; visszakapcsolás után 10 s-mal `connected`;
+  - kikapcsolás megerősítés nélkül 400, megerősítéssel `disabled`, a relay-zárolás feloldódik; törlés után `hasConfig: false`;
+  - a klienskulcs nem szerepel a konténer naplójában.
+- **Nem futott:** a felület böngészős végigkattintása. A beépített böngésző a helyi hálózati címen futó oldal saját fájljait letiltja, a Claude in Chrome bővítmény pedig nem csatlakozott.
 - **Nyitott:**
   - a G5 (erőforrásmérés a célszerveren) és a mérési elfogadás fenti küszöbeinek rögzítése;
   - a G1 maradéka (normál szerver, élő swarm);

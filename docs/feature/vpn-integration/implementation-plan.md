@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag) és az F2 (API és felület) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot) és az [F2 végrehajtási állapotát](#f2-végrehajtási-állapot). Az F3–F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). Az F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -315,6 +315,29 @@ stateDiagram-v2
   - a VPN a GUI-ból bekapcsolható;
   - a szivárgási tesztkészlet (a PoC-harness termékre portolt változata) 0 közvetlen csomagot mér;
   - a Stremio-streamelés VPN módban is a normál hálózaton megy.
+
+#### F3 végrehajtási állapot
+
+- **Megvalósítás:** a `Dockerfile` új `wireproxy` stage-e a `docker/fetch_wireproxy.py` szkripttel letölti a `windtf/wireproxy` v1.1.3 kiadott archívumát (`TARGETARCH`: `amd64` vagy `arm64`), ellenőrzi az archívum SHA-256-ját, és a binárist `/usr/local/bin/wireproxy`-ként másolja a runtime image-be. Eltérésnél a build megáll. Az alapjogosultság, a compose és a `cap_add` nem változik.
+- **Rögzített hash-ek:**
+  - amd64-archívum: `e88c1d09…f51c`. Egyezik a kiadás `checksums.txt`-jével, a kiadási oldallal és a PoC-jelentéssel.
+  - amd64-bináris: `70ae5e52…466d`, a PoC-ban mért érték; a build ezt is ellenőrzi.
+  - arm64-archívum: `370e00bd…21b6`. Egyezik a `checksums.txt`-vel és a kiadási oldallal.
+
+**Ellenőrzés (2026-11-27, helyi Docker):**
+
+| Próba | Eredmény |
+|---|---|
+| amd64 build | Sikeres; az archívum- és a bináris-hash egyezik; `wireproxy -v`: `1.1.3`, kb. 10 MB. |
+| Szándékosan rossz archívum-hash | A build `archive checksum mismatch` hibával megáll. |
+| arm64 | A helyi builder nem tudta betölteni az arm64-es Python alapimage-et, ezért nem épült. Az archívum közvetlenül letöltve: a hash egyezik a rögzítettel, a benne lévő `wireproxy` aarch64 ELF. A teljes arm64-build a CI-ben (buildx, `linux/amd64,linux/arm64`) fut le először. |
+| VPN be, eldobható tesztkulcs, elérhetetlen végpont, belső hálózat | A wireproxy fut (`-c <tmpfs>`, `-i 127.0.0.1:<port>`); a tmpfs-mappa üres, `0700`; a SOCKS és a health csak `127.0.0.1`-en figyel; a 6881-es porton semmi; a tesztkulcs nem szerepel a naplóban. |
+| A wireproxy kilövése (`kill -9`) | A felügyelő kb. 1 s alatt újraindította (új PID), a naplóban `operation=vpn-proxy-exit code=-9`. |
+| Leállítás | 0-s kilépési kód, cleanup-hiba nélkül. |
+
+**Fontos megfigyelés (G6):** elérhetetlen WireGuard-végpont mellett is elindul a SOCKS-proxy, így a mostani készenlét-ellenőrzés (SOCKS-port) szerint az állapot `CONNECTED`, holott handshake nem történt. A valódi kapcsolatot a `/readyz` + `CheckAlive` adja; amíg ez nincs bekötve (G6), a „Kapcsolódva” csak azt jelenti, hogy a proxy fut. A forgalom ettől még nem szivárog: tunnel nélkül a proxyn át sem megy semmi.
+
+**Nem futott:** a PoC-harness termékre portolt szivárgási tesztkészlete (0 közvetlen csomag), élő Proton (G1), NAS-mérés (G5).
 
 ### F4 — Validáció és dokumentáció
 - **Tartalom:** a G1 és G5 kapu a felhasználóval, telepítési útmutató, README.

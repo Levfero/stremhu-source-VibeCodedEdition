@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); nyitott a G5, az F4 mérési elfogadása és a G1 maradéka ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -239,7 +239,7 @@ stateDiagram-v2
 | G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | **Helyben kész**, lásd [G2 végrehajtási állapota](#g2-végrehajtási-állapot). |
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | **Helyben kész**, lásd [G3 végrehajtási állapota](#g3-végrehajtási-állapot). |
 | G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | **Helyben kész** (a UDP-tracker része a G2-ben), lásd [G4 végrehajtási állapota](#g4-végrehajtási-állapot). |
-| G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
+| G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | **Kész a felhasználó szerverén** (amd64, 4K lejátszás közben), lásd [G5 végrehajtási állapota](#g5-végrehajtási-állapot). |
 | G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | **Helyben kész** (kernel-WireGuard tesztszerverrel, lásd [G6 végrehajtási állapota](#g6-végrehajtási-állapot)); nyitott: a Proton belső címe válaszol-e a pingre (G1). A `/metrics` nincs bekötve. |
 
 ### F1 — Backend mag
@@ -416,6 +416,39 @@ stateDiagram-v2
 - **Harness-javítás:** az első futásban a magnet első announce-a megelőzte a seeder első regisztrációját a trackeren. A válasz 0 peer volt, és a libtorrent a `min_announce_interval` (300 s) miatt csak az időkorlát végén announce-olt újra; a metaadat ekkor azonnal megjött. A vezérlő most megvárja a seeder announce-át (v1 és v2), mielőtt az első forgatókönyv indul. Abban a futásban a 6 „WAN”-csomag ICMP „port unreachable” volt a WireGuard-végpont felé: a wireproxy leállítása után a végpont még küldött csomagot. Ez nem torrentforgalom.
 - **Korlátok:** a futási idők nem teljesítménymérések (a G2-ben a hasonló letöltés 12,5 s volt, az eltérés okát nem vizsgáltuk). IPv6-on csak link-szintű MLD-jelentések mentek ki. A SOCKS5-UDP socket `0.0.0.0`-ra köt (G2, elfogadott kockázat). Élő vagy valódi HTTPS-trackert (pl. nCore) a G4 nem ért el.
 
+#### G5 végrehajtási állapot
+
+- **Mérés (2026-11-27, a felhasználó szerverén, csak olvasó hozzáféréssel):**
+  - Célgép: Ubuntu Server, Intel Core i7-4720HQ (4 mag / 8 szál, AVX2), kb. 15 GiB RAM, amd64.
+  - Image: a `feature/vpn-integration` ág, a felhasználó webes frissítőjével buildelve. A termékkód azonos a `4cecffb`-ével (két kulcsfájl hash-e alapján). `network_mode: host`, extra jogosultság nélkül.
+  - Terhelés: a VPN bekapcsolva (Proton), közben a felhasználó egy 4K lejátszást indított.
+  - Mintavétel: `/proc` CPU- és hálózati bájtszámlálók 3 × 10 s-ig, szálankénti CPU 5 s-ig, valamint egy `docker stats` pillanatkép.
+
+| Mit | Érték |
+|---|---|
+| VPN-állapot | `/readyz` 200; a torrentporton (6881) nincs TCP/UDP figyelő; kb. 61 kapcsolat a helyi SOCKS-proxyn át |
+| Letöltés (a hálózati kártya bejövő forgalma, minden forgalommal együtt) | 73–80 Mbit/s |
+| wireproxy CPU | 88–96% (kb. 1 mag) 15 szálon; a legterheltebb szál kb. 11% |
+| StremHU-folyamat CPU | 15–19% |
+| A gép terhelése | load 1,6 (8 szálon) |
+| Memória | a konténer kb. 380 MiB (pillanatkép), ebből a wireproxy RSS-e kb. 114 MiB; a gépen kb. 13 GB szabad |
+| Napló | az indulás óta hiba és figyelmeztetés nélkül |
+
+- **Értékelés:**
+  - **A célgép bőven elbírja:** kb. 1 mag a 8 szálból. A terhelés több szálon oszlik meg, egyik szál sem telített, tehát a VPN sebességét itt nem a CPU korlátozza.
+  - **A wireproxy CPU-igénye nagyobb a vártnál:** kb. 1 mag 75–80 Mbit/s-nál, többet, mint a PoC-ból becsültük (az ottani gyorsabb gépen 256 MiB ≈ 2,5 CPU-másodperc). Gyenge, 2–4 magos ARM NAS-on ez szűk lehet; a felhasználói útmutató ezt kimondja.
+  - **Memória:** kb. 114 MiB, kicsit több, mint a PoC 80–90 MiB-ja. 15 GiB mellett `GOMEMLIMIT` nem kell.
+  - **Host hálózati mód:** működik. A SOCKS-proxy és a health-végpont a gép loopbackjén van, véletlen jelszóval.
+  - **Élő swarm:** a felhasználó saját torrentjei a VPN-en át töltöttek (a G1 egyik nyitott pontja). Élesben csomagrögzítéses szivárgásmérés nem futott.
+- **Nem mért:**
+  - a lejátszás indulási ideje és akadása (a felhasználó indította, metrika nélkül);
+  - arm64 (a célgép amd64);
+  - hosszabb távú stabilitás.
+- **F4 mérési keret:** a küszöböket nem a mérés előtt rögzítettük, ezért ezek utólagos referenciaértékek a regressziókhoz (ugyanezen a gépen, 4K lejátszás közben):
+  - wireproxy legfeljebb kb. 1,2 mag és 150 MiB RSS;
+  - `/readyz` 200;
+  - 0 figyelő a torrentporton.
+
 #### G6 végrehajtási állapot
 
 - **Megvalósítás:**
@@ -474,8 +507,7 @@ stateDiagram-v2
   - kikapcsoláskor és törléskor megerősítő ablak, utána ⚪ és letiltott kapcsoló.
   - Az útmutató ennek nyomán pontosabb lett: a navigáció (a felhasználónév menüje) és a Rendszer-kártya állapotszövegei. A beépített böngésző a helyi hálózati címen futó oldal fájljait letiltotta, ezért készült a bejárás a Chrome-ban.
 - **Nyitott:**
-  - a G5 (erőforrásmérés a célszerveren) és a mérési elfogadás fenti küszöbeinek rögzítése;
-  - a G1 maradéka (normál szerver, élő swarm);
+  - a G1 maradéka: normál (nem P2P) szerver, csomagrögzítéses szivárgásmérés élesben (az élő swarm a G5-ben működött);
   - a VPN-ág beolvasztása a `main`-be, utána a kézzel írt `vpn-client.ts` cseréje a generált kliensre (a [PR #16](https://github.com/Levfero/stremhu-source-VibeCodedEdition/pull/16) után).
 
 ## 10. Viszony a beolvasztott munkákhoz
@@ -496,7 +528,7 @@ stateDiagram-v2
 | A privát tracker figyeli, hogy az oldal- és announce-IP eltér, vagy tiltja a VPN-címeket | Figyelmeztetés vagy tiltás a trackeren | Dokumentálva; a tracker szabályzatát a felhasználónak kell ellenőriznie. Opció lehet az indexerforgalom VPN-en át (külön döntés). |
 | Kliens-fehérlista a trackeren | Elutasított announce | `anonymous_mode=False` (6.3). |
 | A titkosítókulcs elvész (új kötet) | A VPN-konfiguráció nem fejthető vissza | `ERROR` állapot, újraimportálás; nincs közvetlen visszaesés. |
-| NAS-erőforrás (wireproxy 80–90 MiB terhelés alatt a PoC-ban) | Memórianyomás kis NAS-on | G5 mérés, `GOMEMLIMIT`, rögzített keret. |
+| NAS-erőforrás (wireproxy 80–90 MiB terhelés alatt a PoC-ban) | Memórianyomás és CPU-igény kis NAS-on | G5: a célgépen 4K-nál kb. 1 mag és kb. 114 MiB; gyenge NAS-on szűk lehet (az útmutató kimondja). `GOMEMLIMIT` csak kevés RAM-nál. |
 | A futó konfigurációban a nyílt kulcs | Kulcsszivárgás | tmpfs, `0600`, törlés indulás után, redakció. |
 
 ## 12. Visszaállítás és kompatibilitás

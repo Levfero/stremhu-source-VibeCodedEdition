@@ -235,7 +235,7 @@ stateDiagram-v2
 
 | Kapu | Tartalom | Ki/hol |
 |---|---|---|
-| G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | A felhasználó Proton `.conf`-jával, izolált környezetben, **csak kifejezett engedéllyel** (AGENTS.md 2. pont). A kulcs nem kerül repóba vagy logba. |
+| G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | **P2P szerverrel lefutott** (2026-11-27), lásd [G1 végrehajtási állapota](#g1-végrehajtási-állapot). Nyitott: normál (nem P2P) szerver, valódi torrentforgalom, MTU. |
 | G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | **Helyben kész**, lásd [G2 végrehajtási állapota](#g2-végrehajtási-állapot). |
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | PoC-harness |
 | G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness. **A UDP-tracker része a G2-ben igazolva**; nyitott: magnet-metaadat, web seed, HTTPS-tracker SNI-vel. |
@@ -338,6 +338,22 @@ stateDiagram-v2
 **Megfigyelés (G6, azóta megoldva):** elérhetetlen WireGuard-végpont mellett is elindul a SOCKS-proxy, így a SOCKS-port alapú készenlét szerint az állapot `CONNECTED` volt, holott handshake nem történt. A [G6](#g6-végrehajtási-állapot) óta az állapot a `/readyz` + `CheckAlive` válaszát követi.
 
 **Nem futott:** a PoC-harness termékre portolt szivárgási tesztkészlete (0 közvetlen csomag), élő Proton (G1), NAS-mérés (G5).
+
+#### G1 végrehajtási állapot
+
+- **Környezet (2026-11-27):** a felhasználó Proton VPN Plus `.conf`-ja (magyar P2P szerver), a felhasználó kifejezett engedélyével. A fájl csak olvashatóan volt csatolva a tesztkonténerekbe, a tartalma sehol nem jelent meg. Az ág image-e, helyi Docker, alapértelmezett bridge-hálózat. Élő trackerhez nem csatlakozott, torrent nem futott. A titkosított konfigot tartalmazó eldobható kötet a teszt után törölve.
+- **A konfig:** érvényes; 2 cím (IPv4 + IPv6), 2 DNS-cím (`10.2.0.1` és egy IPv6-os), `AllowedIPs` IPv4 + IPv6, `PersistentKeepalive = 25`.
+
+| Próba | Eredmény |
+|---|---|
+| Az app a saját útján (import, bekapcsolás) | Valódi handshake (a `/metrics` `last_handshake_time_sec` értéke friss), forgalom a tunnelen. |
+| `CheckAlive` a konfig mindkét DNS-címére (a G6 alapértéke) | Az IPv4-es `10.2.0.1` válaszol a pingre, az IPv6-os **soha** → a `/readyz` folyamatosan `503`, és 30 s után `no-handshake` hiba **működő tunnel mellett**: a forgalom fölöslegesen leállt volna. |
+| Javítás után (`CheckAlive` alapból csak az IPv4-es DNS-címek) | A `/readyz` `200`, 45 s után sincs `no-handshake`; az állapot `CONNECTED`. |
+| Önálló wireproxy ugyanazzal a konfiggal, saját SOCKS-hitelesítéssel | `/readyz` 0,5 s alatt `200`; a névfeloldás a proxyn át működik (DNS a tunnelen); letöltés 25 MB / 3,0 s ≈ **66 Mbit/s** (egy TLS-kapcsolat, Cloudflare sebességteszt-végpont). |
+| Kilépő IP | `146.70.x.x`; nem azonos a konfig belépőcímével (a Protonnál gyakori a külön kilépőcím). Hogy nem a felhasználó otthoni címe, azt szándékosan nem ellenőriztük gépileg (ehhez az otthoni címet egy külső szolgáltatásnak kellett volna elküldeni); a felhasználó össze tudja vetni. |
+
+- **Kódváltozás a G1 nyomán:** `wireguard_config.check_alive_targets()` alapból csak az IPv4-es DNS-címeket adja (ha nincs ilyen, az elsőt); a `VPN_CHECK_ALIVE` felülírása változatlan.
+- **Nyitott:** normál (nem P2P) szerver, valódi torrentforgalom élő swarmmal (a G2 szimulált kilépővel mérte), MTU-hangolás, hosszabb távú stabilitás.
 
 #### G2 végrehajtási állapot
 

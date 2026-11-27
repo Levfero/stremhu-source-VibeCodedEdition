@@ -102,6 +102,11 @@ def test_check_alive_defaults_to_config_dns_and_can_be_overridden(proton_like):
     config = parse_wireguard_config(text)
     assert check_alive_targets(config) == ("10.2.0.1",)
     assert check_alive_targets(config, ["10.2.0.9"]) == ("10.2.0.9",)
+    # Proton-konfig: IPv4 és IPv6 DNS; az IPv6-os cím a tunnelen át nem válaszol a pingre (G1).
+    dual = parse_wireguard_config(text.replace("DNS = 10.2.0.1", "DNS = 10.2.0.1, 2a07:b944::2:1"))
+    assert check_alive_targets(dual) == ("10.2.0.1",)
+    ipv6_only = parse_wireguard_config(text.replace("DNS = 10.2.0.1", "DNS = 2a07:b944::2:1, 2a07:b944::2:2"))
+    assert check_alive_targets(ipv6_only) == ("2a07:b944::2:1",)
     rendered = render_wireproxy_config(config, 41234, "u", "p", check_alive=("10.2.0.1",), check_alive_interval=7)
     assert "CheckAlive = 10.2.0.1" in rendered and "CheckAliveInterval = 7" in rendered
     assert "CheckAlive" not in render_wireproxy_config(config, 41234, "u", "p")

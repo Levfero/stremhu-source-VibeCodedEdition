@@ -4,7 +4,7 @@ Beépített Proton VPN a StremHU torrentforgalmához. **Csak a torrent le- és f
 
 | Dokumentum | Típus | Státusz |
 |---|---|---|
-| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker, wireproxy az image-ben) elkészült, a G2 (termékcsomag-szivárgásmérés) és a G6 (valódi kapcsolatjelzés) helyben kész** ezen az ágon; az F4 és a G1, G3, G4 (részben), G5 kapuk nyitottak. A Rev. 4-hez képesti változások a terv 0. fejezetében, az F1–F3, a G2 és a G6 állapota a 9. fejezetben. |
+| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker, wireproxy az image-ben) elkészült, a G2 (termékcsomag-szivárgásmérés) és a G6 (valódi kapcsolatjelzés) helyben kész, a G1 élő Proton-teszt P2P szerverrel lefutott** ezen az ágon; az F4 és a G3, G4 (részben), G5 kapuk nyitottak. A Rev. 4-hez képesti változások a terv 0. fejezetében, az F1–F3, a G1, a G2 és a G6 állapota a 9. fejezetben. |
 | [`userspace-poc-report.md`](userspace-poc-report.md) | PoC-mérési jelentés | Lezárva (2026-11-08): 8 forgatókönyv, helyi Docker, élő Proton nélkül. |
 | [`review-rev3-findings.md`](review-rev3-findings.md) | A Rev. 3 felülvizsgálata | Lezárva (2026-11-08). |
 | [`phase0-evidence-report.md`](phase0-evidence-report.md) | Phase 0 mérési jelentés a Rev. 3-hoz | Történeti (2026-11-04). |

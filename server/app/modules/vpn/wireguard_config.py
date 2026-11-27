@@ -169,10 +169,17 @@ def parse_wireguard_config(text: str) -> WireGuardConfig:
 
 
 def check_alive_targets(config: WireGuardConfig, override: list[str] | None = None) -> tuple[str, ...]:
-    """A tunnelen át pingelt címek (G6): a megadott lista, különben a konfiguráció DNS-címei."""
+    """A tunnelen át pingelt címek (G6): a megadott lista, különben a konfiguráció IPv4-es
+    DNS-címei.
+
+    G1 (élő Proton, 2026-11-27): az IPv4-es DNS-cím válaszol a pingre, az IPv6-os soha;
+    a wireproxy /readyz-e pedig bármelyik célpont hiányánál 503. Ezért alapból csak IPv4;
+    ha nincs IPv4-es DNS-cím, az első DNS-cím.
+    """
     if override:
         return tuple(str(ipaddress.ip_address(item.strip())) for item in override)
-    return config.dns
+    ipv4 = tuple(item for item in config.dns if ipaddress.ip_address(item).version == 4)
+    return ipv4 or config.dns[:1]
 
 
 def render_wireproxy_config(

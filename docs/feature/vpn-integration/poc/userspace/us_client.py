@@ -12,6 +12,12 @@ Scenarios (POC_SCENARIO):
                    (wireproxy [TCPServerTunnel] 10.2.0.2:6881 -> 127.0.0.1:6881)
   inbound_direct   vpn_tcp without trackers; the seeder dials the app's REAL address 172.30.20.10:6881
                    (must not deliver any data: no bypass of the tunnel for incoming peers)
+  vpn_product*     G2: the product vpn_settings() pack (authenticated SOCKS5, loopback binding)
+  switch_to_*      G3: runtime switch (pause -> apply -> resume) during an active download
+  vpn_magnet       G4: product pack, magnet link only; metadata comes from the peer (ut_metadata)
+  vpn_webseed      G4: product pack, no trackers; the only source is the HTTP web seed seed.poc.test
+  vpn_https_tracker   G4: product pack, only the HTTPS tracker (SNI tracker.poc.test, test CA trusted)
+  vpn_https_untrusted G4: the same without the test CA: certificate validation must refuse it
 The container captures everything it sends except the expected loopback proxy hop and the WireGuard
 UDP to the endpoint, and records per-interface byte counters, so any bypass shows up as a leak.
 Results: /share/<scenario>_result.json, timeline: /share/<scenario>_progress.json.
@@ -25,6 +31,7 @@ import signal
 import socket
 import subprocess
 import time
+import urllib.parse
 from pathlib import Path
 
 import libtorrent as lt
@@ -47,6 +54,12 @@ SOCKS_USER, SOCKS_PASS = "poc-user", "poc-pass"
 SWITCH = SCENARIO in ("switch_to_vpn", "switch_to_direct")
 SWITCH_AT_PROGRESS = 0.25
 SWITCH_GRACE_S = 2.0  # a pause által bontott régi kapcsolatok FIN/RST-csomagjai
+# G4 (terv Rev. 5): a termékcsomaggal a magnet-metaadat (ut_metadata), a web seed és a
+# HTTPS-tracker (SNI-vel, tanúsítvány-ellenőrzéssel) útja.
+G4 = SCENARIO in ("vpn_magnet", "vpn_webseed", "vpn_https_tracker", "vpn_https_untrusted")
+MAGNET_TRACKER = "http://tracker.poc.test:6969/announce"
+WEBSEED_URL = "http://seed.poc.test:8080/poc-video.mkv"
+HTTPS_TRACKER = "https://tracker.poc.test:6970/announce"
 
 
 def product_vpn_pack() -> dict:
@@ -112,7 +125,7 @@ class Proxy:
             "[Socks5]\n"
             f"BindAddress = 127.0.0.1:{SOCKS_PORT}\n"
         )
-        if PRODUCT or SWITCH:
+        if PRODUCT or SWITCH or G4:
             conf += f"Username = {SOCKS_USER}\nPassword = {SOCKS_PASS}\n"
         if SCENARIO == "inbound":
             conf += "\n[TCPServerTunnel]\nListenPort = 6881\nTarget = 127.0.0.1:6881\n"
@@ -168,6 +181,9 @@ def settings() -> dict:
     if SWITCH:
         base.update(product_direct_pack() if SCENARIO == "switch_to_vpn" else product_vpn_pack())
         return base
+    if G4:
+        base.update(product_vpn_pack())
+        return base
     if not VPN:
         base.update({"listen_interfaces": "0.0.0.0:6881", "enable_outgoing_utp": True, "enable_incoming_utp": True})
         return base
@@ -217,20 +233,28 @@ def main() -> None:
         proxy.start()
     t0 = time.time()
     ses = lt.session(settings())
-    atp = lt.load_torrent_file(str(SHARE / "test.torrent"))
+    if SCENARIO == "vpn_magnet":
+        info_hash = str(lt.torrent_info(str(SHARE / "test.torrent")).info_hashes().v1)
+        atp = lt.parse_magnet_uri(f"magnet:?xt=urn:btih:{info_hash}&tr={urllib.parse.quote(MAGNET_TRACKER, safe='')}")
+    else:
+        atp = lt.load_torrent_file(str(SHARE / "test.torrent"))
     atp.save_path = "/tmp/dl"
-    if SCENARIO.startswith("inbound"):
+    own_sources = SCENARIO.startswith("inbound") or SCENARIO == "vpn_webseed" or SCENARIO.startswith("vpn_https")
+    if own_sources:  # paused until the torrent's own trackers are replaced
         atp.flags |= lt.torrent_flags.paused
         atp.flags &= ~lt.torrent_flags.auto_managed
     handle = ses.add_torrent(atp)
-    if SCENARIO.startswith("inbound"):
-        handle.replace_trackers([])
+    if own_sources:
+        handle.replace_trackers([lt.announce_entry(HTTPS_TRACKER)] if SCENARIO.startswith("vpn_https") else [])
+        if SCENARIO == "vpn_webseed":
+            handle.add_url_seed(WEBSEED_URL)
         handle.resume()
     expected = (SHARE / "test.sha256").read_text().strip()
     timeline, alerts, peers_seen = [], [], {}
     last_seq, done_at = -1, None
     switch_at: float | None = None
     switch_progress: float | None = None
+    metadata_at: float | None = None
     sockets: list[str] = []
     ctl_path = SHARE / f"{TAG}_client_ctl.json"
     while time.time() - t0 < TIMEOUT:
@@ -247,10 +271,13 @@ def main() -> None:
                     proxy.start()
                 timeline.append({"t": round(time.time() - t0, 2), "event": ctl.get("action")})
         for a in ses.pop_alerts():
+            if isinstance(a, lt.metadata_received_alert) and metadata_at is None:
+                metadata_at = time.time() - t0
             if len(alerts) < 400 and isinstance(a, (lt.tracker_error_alert, lt.tracker_reply_alert, lt.peer_error_alert,
                                                     lt.peer_disconnected_alert, lt.listen_failed_alert,
                                                     lt.listen_succeeded_alert, lt.dht_bootstrap_alert,
-                                                    lt.udp_error_alert, lt.incoming_connection_alert)):
+                                                    lt.udp_error_alert, lt.incoming_connection_alert,
+                                                    lt.metadata_received_alert, lt.url_seed_alert)):
                 alerts.append({"t": round(time.time() - t0, 2), "type": type(a).__name__, "msg": a.message()[:200]})
         st = handle.status()
         if SWITCH and switch_at is None and st.progress >= SWITCH_AT_PROGRESS:
@@ -263,7 +290,8 @@ def main() -> None:
         for p in handle.get_peer_info():
             transport = "utp" if p.flags & UTP else "tcp"
             direction = "out" if p.flags & lt.peer_info.local_connection else "in"
-            key = f"{p.ip[0]}:{p.ip[1]} {transport} {direction}"
+            kind = f" type{p.connection_type}" if getattr(p, "connection_type", 0) else ""  # web/http seed
+            key = f"{p.ip[0]}:{p.ip[1]} {transport} {direction}{kind}"
             peers_seen[key] = max(peers_seen.get(key, 0), p.total_download)
         proxy.sample()
         if not sockets and time.time() - t0 > 5:
@@ -338,6 +366,13 @@ def main() -> None:
         "sockets_at_5s": sockets,
         "ipv6_non_icmp_packets": len(ipv6), "ipv6_samples": ipv6[:8], "arp_packets": arp_count,
         "switch": switch_result,
+        "g4": {
+            "metadata_received_s": round(metadata_at, 2) if metadata_at is not None else None,
+            "magnet_tracker": MAGNET_TRACKER if SCENARIO == "vpn_magnet" else None,
+            "webseed_url": WEBSEED_URL if SCENARIO == "vpn_webseed" else None,
+            "https_tracker": HTTPS_TRACKER if SCENARIO.startswith("vpn_https") else None,
+            "ssl_cert_file": os.environ.get("SSL_CERT_FILE"),  # the image default is the system CA bundle
+        } if G4 else None,
         "peers_seen": peers_seen, "alerts": alerts[:120],
         "timeline": timeline[::4] + timeline[-1:],
     }

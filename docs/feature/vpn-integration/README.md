@@ -4,12 +4,12 @@ Beépített Proton VPN a StremHU torrentforgalmához. **Csak a torrent le- és f
 
 | Dokumentum | Típus | Státusz |
 |---|---|---|
-| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker, wireproxy az image-ben) elkészült, a G2 (termékcsomag-szivárgásmérés), a G3 (futás közbeni váltás) és a G6 (valódi kapcsolatjelzés) helyben kész, a G1 élő Proton-teszt P2P szerverrel lefutott** ezen az ágon; az F4 és a G4 (részben), G5 kapuk nyitottak. A Rev. 4-hez képesti változások a terv 0. fejezetében, az F1–F3 és a G1–G3, G6 állapota a 9. fejezetben. |
+| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker, wireproxy az image-ben) elkészült, a G2 (termékcsomag-szivárgásmérés), a G3 (futás közbeni váltás), a G4 (magnet-metaadat, web seed, HTTPS-tracker) és a G6 (valódi kapcsolatjelzés) helyben kész, a G1 élő Proton-teszt P2P szerverrel lefutott** ezen az ágon; az F4 és a G5 kapu nyitott. A Rev. 4-hez képesti változások a terv 0. fejezetében, az F1–F3 és a G1–G4, G6 állapota a 9. fejezetben. |
 | [`userspace-poc-report.md`](userspace-poc-report.md) | PoC-mérési jelentés | Lezárva (2026-11-08): 8 forgatókönyv, helyi Docker, élő Proton nélkül. |
 | [`review-rev3-findings.md`](review-rev3-findings.md) | A Rev. 3 felülvizsgálata | Lezárva (2026-11-08). |
 | [`phase0-evidence-report.md`](phase0-evidence-report.md) | Phase 0 mérési jelentés a Rev. 3-hoz | Történeti (2026-11-04). |
 | [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) | Előző terv (netns + kernel WireGuard + worker) | **Archivált**, a Rev. 4 váltotta fel. |
-| [`poc/userspace/`](poc/userspace/) | A userspace PoC szkriptjei és eredmény-JSON-ja | A Rev. 4 bizonyítéka. |
+| [`poc/userspace/`](poc/userspace/) | A userspace PoC szkriptjei és eredmény-JSON-jai | A Rev. 4 bizonyítéka, valamint a Rev. 5 G2, G3 és G4 mérései. |
 | [`poc/`](poc/) (többi fájl) | Rev. 3 Phase 0 PoC-k | Történeti. |
 
 **Döntések (felhasználó, 2026-11-08):**

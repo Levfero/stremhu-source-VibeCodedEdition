@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). Az F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott; nyitott az F4, a G5 és a G1 maradéka ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -100,8 +100,8 @@ flowchart LR
 
 | Forgalom | Útvonal VPN módban |
 |---|---|
-| Torrent-peerek (letöltés, feltöltés), tracker-announce (HTTP/HTTPS), tracker-DNS | libtorrent → SOCKS5 → wireproxy → Proton |
-| UDP-tracker | libtorrent → SOCKS5 UDP → wireproxy, **ha a G4 igazolja**; különben VPN módban nem érhető el (fail-closed) |
+| Torrent-peerek (letöltés, feltöltés, magnet-metaadat), web seed, tracker-announce (HTTP/HTTPS), tracker-DNS | libtorrent → SOCKS5 → wireproxy → Proton (a G2-ben és a G4-ben mérve) |
+| UDP-tracker | libtorrent → SOCKS5 UDP → wireproxy (a G2-ben mérve; libtorrent- vagy wireproxy-frissítéskor újramérendő) |
 | Stremio/Kodi/Nuvio streamelés, web UI, API | normál hálózat (változatlan) |
 | Indexer-keresés, `.torrent` letöltése az oldalról, TMDB/Cinemeta, ACME, DDNS | normál hálózat (változatlan) |
 | DHT, LSD, UPnP, NAT-PMP, uTP | **tiltva** VPN módban |
@@ -238,7 +238,7 @@ stateDiagram-v2
 | G1 | Élő Proton: P2P és normál szerver; handshake, DNS a tunnelen, MTU, átviteli sebesség, szivárgásmentesség. | **P2P szerverrel lefutott** (2026-11-27), lásd [G1 végrehajtási állapota](#g1-végrehajtási-állapot). Nyitott: normál (nem P2P) szerver, valódi torrentforgalom, MTU. |
 | G2 | Az L3 és L7 réteg: `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"` a proxyval működik-e (letöltés, HTTP- és UDP-tracker), megakadályoz-e egy szándékosan proxy nélküli kapcsolatot, és a `socks5_pw` hitelesítés működik-e a wireproxyval. | **Helyben kész**, lásd [G2 végrehajtási állapota](#g2-végrehajtási-állapot). |
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | **Helyben kész**, lásd [G3 végrehajtási állapota](#g3-végrehajtási-állapot). |
-| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness. **A UDP-tracker része a G2-ben igazolva**; nyitott: magnet-metaadat, web seed, HTTPS-tracker SNI-vel. |
+| G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | **Helyben kész** (a UDP-tracker része a G2-ben), lásd [G4 végrehajtási állapota](#g4-végrehajtási-állapot). |
 | G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
 | G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | **Helyben kész** (kernel-WireGuard tesztszerverrel, lásd [G6 végrehajtási állapota](#g6-végrehajtási-állapot)); nyitott: a Proton belső címe válaszol-e a pingre (G1). A `/metrics` nincs bekötve. |
 
@@ -393,6 +393,29 @@ stateDiagram-v2
   - A libtorrent SOCKS5-UDP socketje egyik beállítással sem köthető loopbackre. Ezen a mérésben nem ment ki semmi; a kockázat elfogadott, libtorrent-frissítéskor újramérendő.
   - A UDP-tracker a SOCKS5-ön át működik (R7 feloldva).
 
+#### G4 végrehajtási állapot
+
+- **Mérés (2026-11-27):** a PoC tesztkörnyezete négy új forgatókönyvvel, mind a termék `vpn_settings()` csomagjával (`socks5_pw`, loopback-kötés). Eredmények: [`poc/userspace/results/g4-magnet-webseed-https-results.json`](poc/userspace/results/g4-magnet-webseed-https-results.json), futtatás: `POC_RESULTS_NAME=g4-magnet-webseed-https-results.json python run_userspace_poc.py vpn_magnet vpn_webseed vpn_https_tracker vpn_https_untrusted`.
+  - `vpn_magnet`: csak magnetlink (v1 info-hash és HTTP-tracker); a metaadatot a peer adja (`ut_metadata`).
+  - `vpn_webseed`: trackerek nélkül; az egyetlen forrás a seeder HTTP web seedje (`http://seed.poc.test:8080/…`, Range-kérések).
+  - `vpn_https_tracker`: csak HTTPS-tracker (`https://tracker.poc.test:6970`), eldobható teszt-CA által aláírt tanúsítvánnyal; a kliens az `SSL_CERT_FILE`-lal bízik a CA-ban.
+  - `vpn_https_untrusted`: ugyanez az image rendszer-CA-listájával (negatív kontroll a tanúsítvány-ellenőrzésre).
+  - A szimulált kilépő a neveket csak a tunnelen át oldja fel. A seeder (BitTorrent és HTTP) és a tracker minden kérést a forráscímmel naplóz, a TLS-tracker a kézfogás SNI-nevével együtt.
+
+| Forgatókönyv | Letöltés | Közvetlen csomag (swarm / WAN) | Helyi DNS | Amit a túloldal látott |
+|---|---|---|---|---|
+| `vpn_magnet` | metaadat 1,0 s, kész 2,5 s, SHA ok | 0 / 0 | 0 | A trackernév a tunnel DNS-én (`10.2.0.2`); a seeder bejövő kapcsolata a kilépőcímről (`172.30.20.2`). |
+| `vpn_webseed` | kész 2,0 s, SHA ok | 0 / 0 | 0 | `seed.poc.test` a tunnel DNS-én; 20 HTTP-kérés (256 MiB) csak a kilépőcímről; BitTorrent-peer nem volt. |
+| `vpn_https_tracker` | kész 2,5 s, SHA ok | 0 / 0 | 0 | 4 sikeres TLS-kézfogás a tunnelcímről, SNI: `tracker.poc.test`; az announce-ok HTTPS-en, a tunnelcímről. |
+| `vpn_https_untrusted` | nem indult el (várt eredmény) | 0 / 0 | 0 | A kliens `certificate verify failed` hibával bontja a kézfogást (a szerveren `unknown ca`); announce nem érkezett, sima HTTP-re nem esett vissza. |
+
+- **Következmények:**
+  - A magnet-metaadat, a web seed és a HTTPS-tracker is a proxyn megy; a hostneveket a wireproxy a tunnelen oldja fel (`proxy_hostnames`). A G4 nem igényel termékkód-változást.
+  - A HTTPS-trackerek tanúsítvány-ellenőrzése a proxyn át is érvényes (`validate_https_trackers`, a libtorrent alapértéke; a termék nem módosítja). A VPN-szolgáltató így a tracker nevét látja (DNS, SNI), az announce URL-jében lévő passkey-t nem. Ezt a beállítást VPN módban sem szabad kikapcsolni.
+  - A termék a relaybe `.torrent`-fájlt tesz; magnetet csak a Torznab-kimenet ad más klienseknek. A magnetút mérése a teljességet szolgálja.
+- **Harness-javítás:** az első futásban a magnet első announce-a megelőzte a seeder első regisztrációját a trackeren. A válasz 0 peer volt, és a libtorrent a `min_announce_interval` (300 s) miatt csak az időkorlát végén announce-olt újra; a metaadat ekkor azonnal megjött. A vezérlő most megvárja a seeder announce-át (v1 és v2), mielőtt az első forgatókönyv indul. Abban a futásban a 6 „WAN”-csomag ICMP „port unreachable” volt a WireGuard-végpont felé: a wireproxy leállítása után a végpont még küldött csomagot. Ez nem torrentforgalom.
+- **Korlátok:** a futási idők nem teljesítménymérések (a G2-ben a hasonló letöltés 12,5 s volt, az eltérés okát nem vizsgáltuk). IPv6-on csak link-szintű MLD-jelentések mentek ki. A SOCKS5-UDP socket `0.0.0.0`-ra köt (G2, elfogadott kockázat). Élő vagy valódi HTTPS-trackert (pl. nCore) a G4 nem ért el.
+
 #### G6 végrehajtási állapot
 
 - **Megvalósítás:**
@@ -435,7 +458,7 @@ stateDiagram-v2
 | Kockázat | Hatás | Kezelés |
 |---|---|---|
 | Egy libtorrent-kódút nem tartja be a proxyt | IP-szivárgás | L1 tiltások, L3 loopback-kötés (G2), G3/G4 tesztek; libtorrent-frissítéskor a tesztkészlet kötelező újrafuttatása. |
-| A wireproxy SOCKS5 UDP-támogatása bizonytalan (R7) | UDP-trackerek VPN módban nem érhetők el | G4; fail-closed, a GUI jelzi. A magyar privát trackerek HTTP(S)-trackert használnak. |
+| A wireproxy SOCKS5 UDP-támogatása bizonytalan (R7) | UDP-trackerek VPN módban nem érhetők el | A G2-ben működött (a README ezen pontja elavult); libtorrent- vagy wireproxy-frissítéskor újramérendő. Ha elromlik: fail-closed, a GUI jelzi. A magyar privát trackerek HTTP(S)-trackert használnak. |
 | A wireproxy ellátási lánca, karbantartása | Biztonsági vagy kompatibilitási kockázat | Rögzített verzió és SHA-256, frissítéskor a szivárgási tesztkészlet. Tartalékként más userspace-megvalósítás vizsgálható. |
 | Nincs porttovábbítás | Kevesebb peer, gyengébb ratio, lassabb indulás | A GUI-ban kimondva; a kernelszintű „emelt védelem” később adhat porttovábbítást. |
 | A privát tracker figyeli, hogy az oldal- és announce-IP eltér, vagy tiltja a VPN-címeket | Figyelmeztetés vagy tiltás a trackeren | Dokumentálva; a tracker szabályzatát a felhasználónak kell ellenőriznie. Opció lehet az indexerforgalom VPN-en át (külön döntés). |

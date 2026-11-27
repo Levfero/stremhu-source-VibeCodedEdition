@@ -71,7 +71,7 @@ flowchart LR
    - a TCP-peerek, a HTTP-tracker és a tracker DNS-feloldása is a tunnelen megy;
    - az UDP-trackerkérések szintén (a wireproxy 1.1.x tud UDP-t továbbítani).
 
-   > **Megjegyzés (2026-11-27, terv Rev. 5):** a wireproxy README-je szerint a SOCKS5 szerver csak CONNECT-et támogat, a SOCKS5 UDP a TODO-listán szerepel. A mérés ennek ellentmond: a `vpn_tcp` forgatókönyvben a kilépő UDP-trackere 4 csomagot kapott a tunnelcímről (`10.2.0.2`). Az ellentmondást a terv G4 kapuja tisztázza; addig ez a pont nem tekinthető garantáltnak.
+   > **Megjegyzés (2026-11-27, terv Rev. 5):** a wireproxy README-je szerint a SOCKS5 szerver csak CONNECT-et támogat, a SOCKS5 UDP a TODO-listán szerepel. A mérés ennek ellentmond: a `vpn_tcp` forgatókönyvben a kilépő UDP-trackere 4 csomagot kapott a tunnelcímről (`10.2.0.2`). Az ellentmondást a terv G4 kapuja tisztázza; addig ez a pont nem tekinthető garantáltnak. **Feloldva** a terv G2 mérésében: a termékcsomaggal is a tunnelen ment a UDP-tracker, a README ezen pontja elavult.
 2. **A kill switch alkalmazásszintű, és a mért esetekben zárt.** Akár a tunnel, akár a wireproxy-folyamat áll le, a libtorrent megáll, közvetlen kapcsolatot nem nyit, a visszaállás után pedig magától folytatja.
    - **Ez megfigyelés, nem bizonyítás.** A garancia azon múlik, hogy a libtorrent proxy módban soha nem nyit közvetlen kapcsolatot; kernelszintű tiltás itt jogosultság nélkül nem lehetséges.
 3. **Kötelező libtorrent-beállítások VPN módban:**

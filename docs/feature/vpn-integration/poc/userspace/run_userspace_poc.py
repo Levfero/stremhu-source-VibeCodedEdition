@@ -12,7 +12,8 @@ Only the simulated exit (vpnpoc-wg) gets NET_ADMIN; it is test infrastructure, n
 Usage (from any directory):
   POC_WIREPROXY_DIR=<folder holding the verified wireproxy binary> python run_userspace_poc.py
 Writes results/userspace-poc-results.json next to this file; removes every vpnpoc-* object afterwards.
-WireGuard test keys live only in the throwaway volume and are never printed.
+WireGuard test keys and the G4 test CA / tracker certificate live only in the throwaway volume and are
+never printed.
 """
 
 import hashlib
@@ -43,6 +44,11 @@ SCENARIOS = [  # direct last: its tracker entry would otherwise be dialled back 
     # G3 (terv Rev. 5, L4): futás közbeni váltás aktív letöltés közben (25%-nál).
     ("switch_to_vpn", "switch_to_vpn", None),
     ("switch_to_direct", "switch_to_direct", None),
+    # G4 (terv Rev. 5): magnet-metaadat, web seed, HTTPS-tracker SNI-vel (és ellenőrzés nélküli CA-val).
+    ("vpn_magnet", "vpn_magnet", None),
+    ("vpn_webseed", "vpn_webseed", None),
+    ("vpn_https_tracker", "vpn_https_tracker", None),
+    ("vpn_https_untrusted", "vpn_https_untrusted", None),
     ("direct", "direct", None),
 ]
 
@@ -96,6 +102,17 @@ def wait_file(container: str, name: str, seconds: float) -> None:
     raise SystemExit(f"{container}: /share/{name} did not appear in {seconds}s\n{logs[-1500:]}")
 
 
+def wait_seeder_announced(seconds: float) -> None:
+    """The first scenario must not race the seeder's first announce (a magnet has no other peer source)."""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        rows = share_json("server_events.json", {}).get("announces", [])
+        if len({r.get("ih") for r in rows if r.get("src") == "172.30.20.3"}) >= 2:  # hybrid: v1 + v2
+            return
+        time.sleep(1)
+    raise SystemExit(f"the seeder did not announce within {seconds}s")
+
+
 def seeder_ctl(seq: int, **fields) -> None:
     payload = json.dumps({"seq": seq, **fields})
     docker("exec", "vpnpoc-seeder", "sh", "-c", f"echo '{payload}' > /share/seeder_ctl.json")
@@ -122,10 +139,13 @@ def run_scenario(tag: str, scenario: str, breaker: str | None, seq: list[int]) -
     # után a libtorrent a neveket a proxyn át oldja fel (proxy_hostnames), így ez ott nem takar el
     # semmit; a közvetlen csomagokat a pcap továbbra is számolja.
     hosts = ["--add-host", "tracker.poc.test:172.30.20.2"] if scenario in ("direct", "switch_to_vpn") else []
-    docker("create", "--name", name, "--network", "vpnpoc-wan", "--ip", "172.30.10.10", *hosts,
+    # G4: csak ez a forgatókönyv bízik a teszt-CA-ban; a vpn_https_untrusted a rendszer-CA-kkal fut.
+    tls = ["-e", "SSL_CERT_FILE=/share/tls/ca.pem"] if scenario == "vpn_https_tracker" else []
+    short = scenario.startswith("inbound_direct") or scenario == "vpn_https_untrusted"
+    docker("create", "--name", name, "--network", "vpnpoc-wan", "--ip", "172.30.10.10", *hosts, *tls,
            "--cpus", "2", "--memory", "1g",
            "-e", f"POC_SCENARIO={scenario}", "-e", f"POC_TAG={tag}",
-           "-e", f"POC_TIMEOUT={60 if scenario.startswith('inbound_direct') else 300}",
+           "-e", f"POC_TIMEOUT={60 if short else 300}",
            "-v", f"{VOL}:/share", "-v", f"{HERE}:/poc:ro", "-v", f"{WP_DIR}:/opt/wireproxy:ro",
            "--entrypoint", "python3", IMG, "/poc/us_client.py")
     docker("network", "connect", "--ip", "172.30.20.10", "vpnpoc-swarm", name)
@@ -162,9 +182,17 @@ def run_scenario(tag: str, scenario: str, breaker: str | None, seq: list[int]) -
     result["exit_code"] = code
     result["outage"] = outage or None
     result["server_view"] = {k: events_after.get(k, [])[len(events_before.get(k, [])):] for k in events_after}
+    t_start = min((r["t"] for rows in result["server_view"].values() for r in rows), default=0.0)
+    announce_rows = [{"t": round(r["t"] - t_start, 2), **{k: r.get(k) for k in ("src", "proto", "ih", "event")}}
+                     for r in result["server_view"].get("announces", [])][:20]
     for k, rows in result["server_view"].items():
         result["server_view"][k] = {"count": len(rows), "sources": sorted({r["src"] for r in rows}),
-                                    "names": sorted({r["name"] for r in rows if "name" in r})}
+                                    "names": sorted({r["name"] for r in rows if "name" in r}),
+                                    "protos": sorted({r["proto"] for r in rows if r.get("proto")}),
+                                    "sni": sorted({r["sni"] for r in rows if r.get("sni")}),
+                                    "tls": sorted({"ok" if r["ok"] else r.get("error") or "failed"
+                                                   for r in rows if "ok" in r})}
+    result["server_view"]["announce_rows"] = announce_rows
     result["seeder_view"] = {k: v for k, v in peers_after.items()
                              if k not in peers_before or v.get("count") != peers_before[k].get("count")
                              or v.get("bytes_up") != peers_before[k].get("bytes_up")}
@@ -191,7 +219,17 @@ def main() -> int:
         docker("volume", "create", VOL)
         docker("run", "--rm", "--network", "none", "-v", f"{VOL}:/share", "--entrypoint", "sh", IMG, "-c",
                "mkdir -p /share/wg && cd /share/wg && umask 077 && wg genkey > server.key && wg pubkey < server.key > server.pub"
-               " && wg genkey > client.key && wg pubkey < client.key > client.pub")
+               " && wg genkey > client.key && wg pubkey < client.key > client.pub"
+               # G4: eldobható teszt-CA és tracker.poc.test szervertanúsítvány (csak a kötetben).
+               " && mkdir -p /share/tls && cd /share/tls"
+               " && openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2"
+               " -subj /CN=vpnpoc-test-ca -addext basicConstraints=critical,CA:TRUE"
+               " -addext keyUsage=critical,keyCertSign -keyout ca.key -out ca.pem 2>/dev/null"
+               " && openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes"
+               " -subj /CN=tracker.poc.test -keyout tracker.key -out tracker.csr 2>/dev/null"
+               " && printf 'subjectAltName=DNS:tracker.poc.test\nextendedKeyUsage=serverAuth\n' > tracker.ext"
+               " && openssl x509 -req -in tracker.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 2"
+               " -extfile tracker.ext -out tracker.pem 2>/dev/null && chmod 644 ca.pem")
         env["kernel"] = docker("run", "--rm", "--network", "none", "--entrypoint", "uname", IMG, "-r")
         docker("create", "--name", "vpnpoc-wg", "--network", "vpnpoc-wan", "--ip", "172.30.10.2",
                "--cap-add", "NET_ADMIN", "--sysctl", "net.ipv4.ip_forward=1",
@@ -204,6 +242,7 @@ def main() -> int:
                "-v", f"{VOL}:/share", "-v", f"{HERE}:/poc:ro", "--entrypoint", "python3", IMG, "/poc/us_seeder.py")
         docker("start", "vpnpoc-seeder")
         wait_file("vpnpoc-seeder", "seeder_ready", 300)
+        wait_seeder_announced(60)
         results, seq = {}, [0]
         only = set(sys.argv[1:])
         for tag, scenario, breaker in SCENARIOS:

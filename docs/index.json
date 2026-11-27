@@ -2500,6 +2500,105 @@
       ]
     },
     {
+      "path": "docs/vpn-beallitas.md",
+      "doc_id": "vpn-beallitas",
+      "title": "Beépített VPN a torrentforgalomhoz",
+      "kind": "operator-guide",
+      "status": "source-paths-reviewed",
+      "audience": [
+        "operator"
+      ],
+      "tags": [
+        "vpn",
+        "proton",
+        "wireguard",
+        "wireproxy",
+        "privacy",
+        "relay",
+        "kill-switch",
+        "troubleshooting"
+      ],
+      "source_commit": "4cecffb8",
+      "baseline": null,
+      "verification": "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); VPN_CHECK_ALIVE parsing tried with the backend config class; behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; no live tracker, no NAS measurement (G5); Proton steps from protonvpn.com support pages (2026-11-27)",
+      "structure_reviewed": "2026-11-27",
+      "related_docs": [
+        "README.md",
+        "docs/README.md",
+        "docs/atallas-es-visszaallas.md",
+        "docs/feature/vpn-integration/implementation-plan.md"
+      ],
+      "source_paths": [
+        "server/app/modules/vpn/",
+        "server/app/modules/relay/network_policy.py",
+        "server/app/modules/stream/service.py",
+        "server/app/config.py",
+        "client/src/routes/_protected/dashboard/system/vpn/"
+      ],
+      "sections": [
+        {
+          "title": "Röviden",
+          "anchor": "doc-roviden",
+          "level": 2
+        },
+        {
+          "title": "Mi kell hozzá?",
+          "anchor": "doc-mi-kell-hozza",
+          "level": 2
+        },
+        {
+          "title": "WireGuard-konfiguráció a Protontól",
+          "anchor": "doc-wireguard-konfiguracio-a-protontol",
+          "level": 2
+        },
+        {
+          "title": "Beállítás a StremHU-ban",
+          "anchor": "doc-beallitas-a-stremhu-ban",
+          "level": 2
+        },
+        {
+          "title": "Mi változik bekapcsolt VPN mellett?",
+          "anchor": "doc-mi-valtozik-bekapcsolt-vpn-mellett",
+          "level": 2
+        },
+        {
+          "title": "Állapotok",
+          "anchor": "doc-allapotok",
+          "level": 2
+        },
+        {
+          "title": "Kikapcsolás, csere, törlés",
+          "anchor": "doc-kikapcsolas-csere-torles",
+          "level": 2
+        },
+        {
+          "title": "Biztonság és mentés",
+          "anchor": "doc-biztonsag-es-mentes",
+          "level": 2
+        },
+        {
+          "title": "Haladó beállítások",
+          "anchor": "doc-halado-beallitasok",
+          "level": 2
+        },
+        {
+          "title": "Hibaelhárítás",
+          "anchor": "doc-hibaelharitas",
+          "level": 2
+        },
+        {
+          "title": "Visszaállás VPN nélküli változatra",
+          "anchor": "doc-visszaallas-vpn-nelkuli-valtozatra",
+          "level": 2
+        },
+        {
+          "title": "Korlátok",
+          "anchor": "doc-korlatok",
+          "level": 2
+        }
+      ]
+    },
+    {
       "path": "docs/templates/feature.md",
       "doc_id": "templates-feature",
       "title": "Feature-dokumentum sablon",

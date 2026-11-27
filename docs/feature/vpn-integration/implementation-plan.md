@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott; nyitott az F4, a G5 és a G1 maradéka ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); nyitott a G5, az F4 mérési elfogadása és a G1 maradéka ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -445,6 +445,24 @@ stateDiagram-v2
   - a kill switch 5 s-on belül megállítja a forgalmat, 0 közvetlen csomaggal, és magától visszaáll;
   - közvetlen módban a streamelés p95-ös TTFB-je és megakadási aránya nem romlik a mérési zajon túl; VPN módban a romlás mérve és a GUI-ban kimondva;
   - a wireproxy memóriája és CPU-ja a G5 alapján rögzített kereten belül marad.
+
+#### F4 végrehajtási állapot
+
+- **Felhasználói útmutató (2026-11-27):** [`docs/vpn-beallitas.md`](../../vpn-beallitas.md). Tartalma:
+  - Proton-konfiguráció letöltése és beállítás a felületen;
+  - mi változik VPN módban, állapotok;
+  - kikapcsolás, csere, törlés;
+  - titkosítás és mentés (`vpn.key`);
+  - környezeti változók (`VPN_SECRET_KEY`, `VPN_CHECK_ALIVE`, `VPN_CHECK_ALIVE_INTERVAL`);
+  - minden hibakód magyarázata;
+  - visszaállás VPN nélküli változatra, korlátok.
+- **Hivatkozások:** a fő README (TIP-doboz és egy sor az összehasonlító mátrixban), a [`docs/README.md`](../../README.md), az [`AI-INDEX.md`](../../AI-INDEX.md), a feature-katalógus, a gépi katalógus (`index.json`) és az átállási útmutató visszaállási része.
+- **Ellenőrzés:** a felület szövegei, az állapotok, a hibakódok és a környezeti változók a `4cecffb` forrásából; a `VPN_CHECK_ALIVE` formátuma kipróbálva (csak JSON-lista érvényes, a sima cím induláskor hibát ad); a helyi linkek és anchorok, a kódfence-ek és az `index.json` statikusan ellenőrizve. A Proton-lépések a Proton súgóoldalai alapján (2026-11-27).
+- **Nem futott:** a felület lépéseit böngészőben nem kattintottuk végig (csak dokumentációs munka volt, Docker-indítás nélkül).
+- **Nyitott:**
+  - a G5 (erőforrásmérés a célszerveren) és a mérési elfogadás fenti küszöbeinek rögzítése;
+  - a G1 maradéka (normál szerver, élő swarm);
+  - a VPN-ág beolvasztása a `main`-be, utána a kézzel írt `vpn-client.ts` cseréje a generált kliensre (a [PR #16](https://github.com/Levfero/stremhu-source-VibeCodedEdition/pull/16) után).
 
 ## 10. Viszony a beolvasztott munkákhoz
 

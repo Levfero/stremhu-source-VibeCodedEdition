@@ -121,6 +121,12 @@ class Config(BaseSettings):
     session_secret: str = Field(default="", repr=False)
     session_secret_file: Path | None = Field(default=None, repr=False)
     session_allowed_origins: list[str] = Field(default_factory=list, repr=False)
+    # VPN (terv Rev. 5): a konfiguráció titkosítókulcsa (base64, 32 bájt). Üresen az első
+    # induláskor generált data/system/vpn.key érvényes; a SESSION_SECRET-től független.
+    vpn_secret_key: str | None = Field(default=None, repr=False)
+    vpn_wireproxy_path: Path = Path("/usr/local/bin/wireproxy")
+    # A nyílt WireGuard-konfiguráció csak itt (tmpfs) él a wireproxy indulásáig.
+    vpn_runtime_dir: Path = Path("/dev/shm/stremhu-vpn")
     host_ip: str = Field(
         default="",
     )

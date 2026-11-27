@@ -78,3 +78,26 @@ class RelaySettingsUpdate(BaseModel):
     enable_upnp_and_natpmp: bool | None = None
     encryption: RelayEncryptionEnum | None = None
     enable_utp: bool | None = None
+
+
+class VpnConfigMetadata(BaseModel):
+    """A WireGuard-konfiguráció nem titkos adatai (a GUI és a naplók számára)."""
+
+    addresses: list[str] = Field(default_factory=list)
+    dns: list[str] = Field(default_factory=list)
+    endpoint: str
+    peer_public_key: str
+    client_public_key_fingerprint: str
+
+
+class VpnSettings(BaseModel):
+    vpn_enabled: bool = False
+    # AES-GCM boríték (secret_store); a nyílt konfiguráció soha nem kerül ide.
+    encrypted_config: str | None = Field(default=None, repr=False)
+    config_metadata: VpnConfigMetadata | None = None
+
+
+class VpnSettingsUpdate(BaseModel):
+    vpn_enabled: bool | None = None
+    encrypted_config: str | None = Field(default=None, repr=False)
+    config_metadata: VpnConfigMetadata | None = None

@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv, **megvalósítás nincs**. Az F1 (backend mag) indítható; a fázisonkénti nyitott kapuk (G1–G6) a [9. fejezetben](#9-fázisok-kapuk-és-elfogadási-feltételek). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag) elkészült** a `feature/vpn-integration` ágon, lásd az [F1 végrehajtási állapotát](#f1-végrehajtási-állapot). F2–F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -249,6 +249,36 @@ stateDiagram-v2
   - **L6-invariáns:** a hálózati szabály alkalmazása előtt 0 torrent és 0 UPnP/NAT-PMP; VPN módban sikertelen alkalmazásnál a `restore_torrents()` nem fut;
   - a session VPN módban proxyval fut, mielőtt bármely torrent bekerül (teszt);
   - Ruff → basedpyright → teljes pytest zöld.
+
+#### F1 végrehajtási állapot
+
+| Elem | Hely | Állapot |
+|---|---|---|
+| Hálózati szabály, zárt indulás, szabálykapu | `server/app/modules/relay/network_policy.py`, `relay/service.py` (`apply_network_policy`, `update_settings`, `add_torrent`) | Kész. Szabály nélkül az `add_torrent` `503`-at ad (`Retry-After: 5`); VPN módban a port, az UPnP/NAT-PMP és az uTP nem nyitható vissza, a titkosítás a felhasználónál marad. |
+| WireGuard-feldolgozó | `vpn/wireguard_config.py` | Kész. Egy `[Interface]` + egy `[Peer]`; a `PostUp`-féle kulcsokat elutasítja; a hibák titokmentesek. |
+| Titkos tároló | `vpn/secret_store.py` | Kész. AES-256-GCM `v1:` boríték; `VPN_SECRET_KEY` vagy `data/system/vpn.key`; rotáció a régi kulccsal. |
+| wireproxy-felügyelő | `vpn/proxy_supervisor.py` | Kész. tmpfs-konfiguráció, törlés indulás után, redaktált kimenet; készenlét a SOCKS-port alapján. |
+| Állapotgép | `vpn/manager.py`, `vpn/dependencies.py` | Kész. Bekapcsolt VPN-nél hiba esetén is proxymód marad (fail-closed). |
+| Beállítások | `settings` (`VPN` kulcs, `VpnSettings`), `boot/settings.py` | Kész. Tárolt mezők: `vpn_enabled`, `encrypted_config`, `config_metadata`. |
+| Életciklus | `main.py` `lifespan` | Kész. A szabály a `sync_database_and_settings()` után, a `restore_torrents()` előtt; a `vpn-supervisor` lépés a `native-session` után. |
+
+**Eltérések a tervtől (F1):**
+- A `last_error_code` és a `last_connected_at` nem a DB-ben, hanem a memóriabeli `VpnStatus`-ban van; az API (F2) innen olvassa.
+- Az `outgoing_interfaces` nincs beállítva, a G2-ig vár.
+- A wireproxy a `-i` health-porttal indul, de a `/readyz` még nincs használva (G6); a készenlét a SOCKS-porton mért.
+- A wireproxy-bináris még nincs az image-ben (F3). Hiányában a VPN `ERROR` (`binary-missing`) állapotban, proxymódban marad.
+
+**Ellenőrzés (2026-11-27, Windows, `server/.venv`):** Ruff hibátlan, basedpyright 0 hiba. Teljes `pytest tests`: 880 passed, 64 snapshot. A végleges kódon 9 futásból 7 zöld; 2 futásban egy-egy nem VPN-es teszt (`test_indexer_cache_swr`, illetve egy fixture) `WinError 10055` (Windows socketpuffer-kifogyás) hibával állt le, mindkétszer még az új tesztek előtt. A változatlan `main` 8 futásból 8-szor zöld volt. A hiba Windows-specifikus (az asyncio itt TCP-loopbackkel készít belső socketpárt): Linux-konténerben (az ág image-e, hálózat nélkül) a teljes csomag 5 futásból 5-ször zöld, 880 passed.
+
+**Helyi Docker-próba (2026-11-27, az ág image-e, eldobható kötet, internet nélküli belső hálózat):**
+
+| Eset | Figyelő socketek (IPv4) | Egyéb |
+|---|---|---|
+| VPN ki | `172.20.0.2:6881` és `127.0.0.1:6881` (TCP, UDP), `0.0.0.0:7070` | A közvetlen szabály az indulás után érvényesült; a `vpn` beállítássor létrejött. |
+| VPN be, konfiguráció nélkül | `0.0.0.0:7070`, és egy **`0.0.0.0:<véletlen>` UDP-socket** | A 6881-es porton semmi; a napló `operation=vpn-config reason=missing-config`. Fail-closed. |
+
+- **G2-höz fontos:** a `0.0.0.0`-ra kötött UDP-socket csak VPN módban jelenik meg, tehát a libtorrent proxymódjához tartozik (valószínűleg a SOCKS5 UDP-hez). A `listen_interfaces="127.0.0.1:0"` nem köti loopbackre. A G2 vizsgálja meg, hogy az `outgoing_interfaces="127.0.0.1"` megköti-e, és hogy erről a socketről megy-e ki bármi a proxy megkerülésével (a PoC szerint nem).
+- A leállítás mindhárom indításnál 0-s kilépési kóddal, cleanup-hiba nélkül futott le. Új tesztek: `test_relay_network_policy.py`, `test_vpn_wireguard_config.py`, `test_vpn_secret_store.py`, `test_vpn_proxy_supervisor.py` (valódi alfolyamat, hamis wireproxyval), `test_vpn_manager.py`, és a `test_lifespan_cleanup.py` sorrendtesztje (szabály a visszatöltés előtt, wireproxy a natív session után). Élő Proton, Docker-image és szivárgásmérés nem futott (F3, G1–G6).
 
 ### F2 — API és GUI
 - **Tartalom:** 6.5 és 7. pont, a `prepare_for_stream` 503-as ága (R10).

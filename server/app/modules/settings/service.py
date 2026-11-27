@@ -11,6 +11,8 @@ from app.modules.settings.schemas.internal import (
     RelaySettingsUpdate,
     SystemSettings,
     SystemSettingsUpdate,
+    VpnSettings,
+    VpnSettingsUpdate,
 )
 
 
@@ -73,6 +75,28 @@ class SettingsService:
         if not relay_settings:
             raise ValueError("A Relay beállítások nem léteznek.")
         return relay_settings
+
+    # VPN Settings
+
+    def save_vpn(self, payload: VpnSettingsUpdate) -> VpnSettings:
+        vpn_settings = self.find_vpn() or VpnSettings()
+
+        data = payload.model_dump(exclude_unset=True)
+        updated = VpnSettings.model_validate(
+            {**vpn_settings.model_dump(), **data}
+        )
+        self._settings_repository.save(SettingsKeyEnum.VPN, updated.model_dump(mode="json"))
+
+        return updated
+
+    def find_vpn(self) -> VpnSettings | None:
+        record = self._settings_repository.find_one(SettingsKeyEnum.VPN.value)
+        if not record or not record.value:
+            return None
+        return VpnSettings.model_validate(record.value)
+
+    def get_vpn(self) -> VpnSettings:
+        return self.find_vpn() or VpnSettings()
 
     # Network Settings
 

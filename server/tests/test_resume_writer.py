@@ -314,6 +314,18 @@ async def test_lifespan_always_unregisters_and_drains_its_writer(monkeypatch, fa
         return writer
 
     relay = SimpleNamespace(on_save_resume=[], priority_manager_loop=producer, stop_admission=lambda:None, close_piece_requests=close, save_final_resume=close, close_native=close)
+    class VpnFactory:
+        def __init__(self):
+            self.vpn = SimpleNamespace(start=AsyncMock(), aclose=AsyncMock())
+
+        def __call__(self, relay):
+            return self.vpn
+
+        def cache_clear(self):
+            pass
+
+    vpn_factory = VpnFactory()
+
     @lru_cache
     def relay_factory():
         return relay
@@ -327,6 +339,7 @@ async def test_lifespan_always_unregisters_and_drains_its_writer(monkeypatch, fa
     monkeypatch.setattr(main, "resume_save_loop", producer)
     monkeypatch.setattr(main, "setup_scheduler", lambda:SimpleNamespace(start=lambda:None, stop_admission=lambda:None, aclose=close))
     monkeypatch.setattr(main, "get_relay_service", relay_factory)
+    monkeypatch.setattr(main, "get_vpn_manager", vpn_factory)
     monkeypatch.setattr(background_tasks, "get_relay_service", relay_factory)
     monkeypatch.setattr(main, "restore_torrents", restore)
     monkeypatch.setattr(main, "ResumeWriter", writer_factory)

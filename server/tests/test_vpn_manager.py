@@ -40,11 +40,15 @@ class Relay:
 
 
 class Supervisor:
-    def __init__(self, failures=0):
+    def __init__(self, failures=0, ready=True):
         self.failures = failures
         self.configs = []
         self.exit = asyncio.Event()
         self.stopped = False
+        self.ready: bool | None = ready
+
+    async def readiness(self):
+        return self.ready
 
     async def start(self, config_text, socks_port):
         if self.failures:
@@ -62,7 +66,7 @@ class Supervisor:
         self.exit.set()
 
 
-def _manager(settings, supervisor, store, saved=None, fast_retries=3):
+def _manager(settings, supervisor, store, saved=None, fast_retries=3, handshake_timeout=30.0):
     def load():
         if isinstance(settings, Exception):
             raise settings
@@ -78,6 +82,8 @@ def _manager(settings, supervisor, store, saved=None, fast_retries=3):
         fast_retries=fast_retries,
         backoff_base=0.01,
         backoff_max=0.02,
+        health_interval=0.01,
+        handshake_timeout=handshake_timeout,
     )
     return manager, relay
 
@@ -187,4 +193,33 @@ async def test_runtime_toggle_switches_policy_and_stops_the_proxy(store):
     assert supervisor.stopped
     assert relay.policies[-1] == DirectPolicy()
     assert manager.status.state == VpnState.DISABLED
+    await manager.aclose()
+
+
+async def test_connected_only_after_check_alive_replies_and_follows_the_tunnel(store):
+    supervisor = Supervisor(ready=False)
+    settings = VpnSettings(vpn_enabled=True, encrypted_config=store.encrypt(_wireguard_text()))
+    manager, _ = _manager(settings, supervisor, store, handshake_timeout=0.3)
+    await manager.start()
+    await _until(lambda: len(supervisor.configs) == 1)
+    config_text = supervisor.configs[0][0]
+    assert "CheckAlive = 10.2.0.1" in config_text
+    assert manager.check_alive_configured
+    # A proxy fut, de a tunnelen át még nincs válasz: nem CONNECTED, a forgalom áll.
+    await asyncio.sleep(0.1)
+    assert manager.status.state == VpnState.STARTING
+    assert not manager.torrent_traffic_available()
+
+    supervisor.ready = True
+    await _until(lambda: manager.status.state == VpnState.CONNECTED)
+    assert manager.torrent_traffic_available()
+
+    supervisor.ready = False
+    await _until(lambda: manager.status.state == VpnState.RECONNECTING)
+    await _until(lambda: manager.status.state == VpnState.ERROR)
+    assert manager.status.error_code == "no-handshake"
+
+    supervisor.ready = True
+    await _until(lambda: manager.status.state == VpnState.CONNECTED)
+    assert len(supervisor.configs) == 1  # a wireproxy nem indult újra, csak az állapot követte
     await manager.aclose()

@@ -127,6 +127,9 @@ class Config(BaseSettings):
     vpn_wireproxy_path: Path = Path("/usr/local/bin/wireproxy")
     # A nyílt WireGuard-konfiguráció csak itt (tmpfs) él a wireproxy indulásáig.
     vpn_runtime_dir: Path = Path("/dev/shm/stremhu-vpn")
+    # G6: a tunnelen át pingelt címek (wireproxy CheckAlive). Üresen a konfiguráció DNS-címei.
+    vpn_check_alive: list[str] = Field(default_factory=list)
+    vpn_check_alive_interval: int = Field(default=5, ge=1, le=300)
     host_ip: str = Field(
         default="",
     )

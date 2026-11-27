@@ -168,10 +168,26 @@ def parse_wireguard_config(text: str) -> WireGuardConfig:
     )
 
 
+def check_alive_targets(config: WireGuardConfig, override: list[str] | None = None) -> tuple[str, ...]:
+    """A tunnelen át pingelt címek (G6): a megadott lista, különben a konfiguráció DNS-címei."""
+    if override:
+        return tuple(str(ipaddress.ip_address(item.strip())) for item in override)
+    return config.dns
+
+
 def render_wireproxy_config(
-    config: WireGuardConfig, socks_port: int, username: str, password: str
+    config: WireGuardConfig,
+    socks_port: int,
+    username: str,
+    password: str,
+    check_alive: tuple[str, ...] = (),
+    check_alive_interval: int = 5,
 ) -> str:
-    """A wireproxy futási konfigurációja: WireGuard + hitelesített, loopbackre kötött SOCKS5."""
+    """A wireproxy futási konfigurációja: WireGuard + hitelesített, loopbackre kötött SOCKS5.
+
+    A `CheckAlive` címeket a wireproxy a tunnelen át pingeli; a `/readyz` csak akkor
+    ad 200-at, ha válaszolnak. Nélküle a `/readyz` mindig 200 (nem bizonyít kapcsolatot).
+    """
     interface = [
         "[Interface]",
         f"PrivateKey = {config.private_key}",
@@ -181,6 +197,9 @@ def render_wireproxy_config(
         interface.append(f"DNS = {', '.join(config.dns)}")
     if config.mtu is not None:
         interface.append(f"MTU = {config.mtu}")
+    if check_alive:
+        interface.append(f"CheckAlive = {', '.join(check_alive)}")
+        interface.append(f"CheckAliveInterval = {check_alive_interval}")
     peer = [
         "[Peer]",
         f"PublicKey = {config.peer_public_key}",

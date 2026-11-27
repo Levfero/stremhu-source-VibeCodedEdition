@@ -35,6 +35,8 @@ def get_vpn_manager(relay: RelayService) -> VpnManager:
         save_settings=_save_vpn_settings,
         secret_store_factory=create_secret_store,
         supervisor=ProxySupervisor(config.vpn_wireproxy_path, config.vpn_runtime_dir),
+        check_alive=config.vpn_check_alive,
+        check_alive_interval=config.vpn_check_alive_interval,
     )
 
 

@@ -142,8 +142,16 @@ class VpnService:
             except (OSError, TimeoutError):
                 reachable = False
         checks.append(VpnCheck(name="proxy-listening", ok=reachable))
-        # A WireGuard-handshake és a DNS-ellenőrzés a wireproxy /readyz és /metrics végpontjára
-        # épül; ez a G6 kapu után kerül be.
-        checks.append(VpnCheck(name="handshake", ok=None, code="not-implemented"))
+        # G6: a wireproxy /readyz-e csak akkor 200, ha a CheckAlive-címek a tunnelen át
+        # válaszolnak; CheckAlive nélkül nem bizonyít kapcsolatot.
+        if policy is None:
+            checks.append(VpnCheck(name="handshake", ok=None))
+        elif not self._manager.check_alive_configured:
+            checks.append(VpnCheck(name="handshake", ok=None, code="check-alive-not-configured"))
+        else:
+            ready = await self._manager.readiness()
+            checks.append(
+                VpnCheck(name="handshake", ok=ready is True, code=None if ready else "no-reply")
+            )
         return VpnTestResponse(state=self._manager.status.state, checks=checks)
 

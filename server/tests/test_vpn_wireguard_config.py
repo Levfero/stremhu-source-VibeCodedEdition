@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 from app.modules.vpn.wireguard_config import (
     WireGuardConfigError,
+    check_alive_targets,
     parse_wireguard_config,
     render_wireproxy_config,
 )
@@ -94,3 +95,15 @@ def test_malformed_private_key_never_echoes_the_value(proton_like):
         parse_wireguard_config(text.replace(private, broken))
     assert raised.value.code == "invalid-key"
     assert broken not in str(raised.value)
+
+
+def test_check_alive_defaults_to_config_dns_and_can_be_overridden(proton_like):
+    text, _, _ = proton_like
+    config = parse_wireguard_config(text)
+    assert check_alive_targets(config) == ("10.2.0.1",)
+    assert check_alive_targets(config, ["10.2.0.9"]) == ("10.2.0.9",)
+    rendered = render_wireproxy_config(config, 41234, "u", "p", check_alive=("10.2.0.1",), check_alive_interval=7)
+    assert "CheckAlive = 10.2.0.1" in rendered and "CheckAliveInterval = 7" in rendered
+    assert "CheckAlive" not in render_wireproxy_config(config, 41234, "u", "p")
+    with pytest.raises(ValueError):
+        check_alive_targets(config, ["not-an-ip"])

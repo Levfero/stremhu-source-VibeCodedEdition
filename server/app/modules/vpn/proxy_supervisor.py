@@ -18,7 +18,11 @@ from app.common.logger import logger
 
 _SECRET_LINE = re.compile(r"(?i)(privatekey|presharedkey|password|username)\s*[=:].*")
 _BASE64_KEY = re.compile(r"[A-Za-z0-9+/]{42,44}={0,2}")
+_TIMESTAMP = re.compile(r"^(ERROR:\s*)?\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\s*")
 _MAX_LOG_LINE = 300
+# Sikertelen CheckAlive-pingnél a wireproxy intervallumonként ugyanazt írja: egy üzenet
+# legfeljebb ennyi másodpercenként kerül a naplóba.
+_REPEAT_WINDOW_SECONDS = 60.0
 
 
 class ProxyStartError(Exception):
@@ -63,6 +67,7 @@ class ProxySupervisor:
         self._argv_factory = argv_factory
         self._process: asyncio.subprocess.Process | None = None
         self._output_task: asyncio.Task[None] | None = None
+        self._health_port: int | None = None
 
     @property
     def running(self) -> bool:
@@ -93,7 +98,8 @@ class ProxySupervisor:
             raise ProxyStartError("already-running")
         config_path = self._write_runtime_config(config_text)
         try:
-            argv = self._argv(config_path, reserve_loopback_port())
+            self._health_port = reserve_loopback_port()
+            argv = self._argv(config_path, self._health_port)
             try:
                 process = await asyncio.create_subprocess_exec(
                     *argv,
@@ -132,6 +138,40 @@ class ProxySupervisor:
             return
         raise ProxyStartError("not-ready")
 
+    async def readiness(self) -> bool | None:
+        """A wireproxy `/readyz` válasza: True (200), False (503), None (nem elérhető).
+
+        `CheckAlive` nélkül a wireproxy mindig 200-at ad; ez nem bizonyít kapcsolatot.
+        """
+        port = self._health_port
+        if not self.running or port is None:
+            return None
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", port), timeout=2.0
+            )
+        except (OSError, TimeoutError):
+            return None
+        try:
+            writer.write(b"GET /readyz HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+            await writer.drain()
+            status_line = await asyncio.wait_for(reader.readline(), timeout=2.0)
+        except (OSError, TimeoutError):
+            return None
+        finally:
+            writer.close()
+            with contextlib.suppress(OSError):
+                await writer.wait_closed()
+        parts = status_line.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            return None
+        status = int(parts[1])
+        if status == 200:
+            return True
+        if status == 503:
+            return False
+        return None
+
     async def wait(self) -> int:
         process = self._process
         if process is None:
@@ -142,10 +182,20 @@ class ProxySupervisor:
         stream = process.stdout
         if stream is None:
             return
+        loop = asyncio.get_running_loop()
+        last_logged: dict[str, float] = {}
         while line := await stream.readline():
-            text = line.decode("utf-8", errors="replace").rstrip()
-            if text:
-                logger.info("wireproxy: %s", redact_output(text))
+            text = redact_output(line.decode("utf-8", errors="replace").rstrip())
+            if not text:
+                continue
+            key = _TIMESTAMP.sub("", text)
+            now = loop.time()
+            if now - last_logged.get(key, -_REPEAT_WINDOW_SECONDS) < _REPEAT_WINDOW_SECONDS:
+                continue
+            last_logged[key] = now
+            if len(last_logged) > 256:
+                last_logged.clear()
+            logger.info("wireproxy: %s", text)
 
     async def stop(self) -> None:
         process, self._process = self._process, None

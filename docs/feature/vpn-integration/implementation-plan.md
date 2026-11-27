@@ -240,7 +240,7 @@ stateDiagram-v2
 | G3 | Futás közbeni módváltás (VPN be/ki) aktív torrentekkel: 0 közvetlen csomag a váltás alatt. | PoC-harness |
 | G4 | Magnet-metaadat (`ut_metadata`), web seed, HTTPS-tracker (SNI hostnévvel a proxyn át) szivárgásmentessége, és **a UDP-tracker a SOCKS5-ön** (R7): ha nem működik, VPN módban a UDP-trackerek elmaradnak, ezt a GUI jelzi. | PoC-harness |
 | G5 | NAS-erőforrásmérés a célgépen (CPU, RSS, 4K bitráta), `GOMEMLIMIT` hatása; arm64, ha releváns. | A felhasználó NAS-a |
-| G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | PoC-harness + G1 |
+| G6 | A `/readyz` és a `CheckAlive` használhatósága a Proton-tunnelen (célpont, ICMP), és a `/metrics` handshake-adata az állapotgéphez. | **Helyben kész** (kernel-WireGuard tesztszerverrel, lásd [G6 végrehajtási állapota](#g6-végrehajtási-állapot)); nyitott: a Proton belső címe válaszol-e a pingre (G1). A `/metrics` nincs bekötve. |
 
 ### F1 — Backend mag
 - **Tartalom:** a 6.1–6.4 és 6.6 pont: `vpn` modul, settings, secret store, supervisor, manager, relay hálózati szabály, zárt indulás.
@@ -335,9 +335,31 @@ stateDiagram-v2
 | A wireproxy kilövése (`kill -9`) | A felügyelő kb. 1 s alatt újraindította (új PID), a naplóban `operation=vpn-proxy-exit code=-9`. |
 | Leállítás | 0-s kilépési kód, cleanup-hiba nélkül. |
 
-**Fontos megfigyelés (G6):** elérhetetlen WireGuard-végpont mellett is elindul a SOCKS-proxy, így a mostani készenlét-ellenőrzés (SOCKS-port) szerint az állapot `CONNECTED`, holott handshake nem történt. A valódi kapcsolatot a `/readyz` + `CheckAlive` adja; amíg ez nincs bekötve (G6), a „Kapcsolódva” csak azt jelenti, hogy a proxy fut. A forgalom ettől még nem szivárog: tunnel nélkül a proxyn át sem megy semmi.
+**Megfigyelés (G6, azóta megoldva):** elérhetetlen WireGuard-végpont mellett is elindul a SOCKS-proxy, így a SOCKS-port alapú készenlét szerint az állapot `CONNECTED` volt, holott handshake nem történt. A [G6](#g6-végrehajtási-állapot) óta az állapot a `/readyz` + `CheckAlive` válaszát követi.
 
 **Nem futott:** a PoC-harness termékre portolt szivárgási tesztkészlete (0 közvetlen csomag), élő Proton (G1), NAS-mérés (G5).
+
+#### G6 végrehajtási állapot
+
+- **Megvalósítás:**
+  - A futási konfiguráció `[Interface]` szekciójába `CheckAlive` (alapból a konfiguráció DNS-címei, felülírható: `VPN_CHECK_ALIVE`) és `CheckAliveInterval` (`VPN_CHECK_ALIVE_INTERVAL`, alapból 5 s) kerül.
+  - A felügyelő a wireproxy `-i` health-portján lekérdezi a `/readyz`-t (`proxy_supervisor.readiness()`).
+  - A kezelő ebből számolja az állapotot: `CONNECTED` csak `200`-nál; korábbi `CONNECTED` után `503` → `RECONNECTING`; 30 s válasz nélkül → `ERROR` (`no-handshake`). A wireproxy ilyenkor nem indul újra, a WireGuard magától újrakapcsol.
+  - A `POST /api/vpn/test` `handshake` ellenőrzése a `/readyz`-t használja.
+  - Az ismétlődő wireproxy-kimenet (pl. sikertelen ping) üzenetenként legfeljebb 60 s-onként kerül a naplóba.
+- **Kipróbált wireproxy-viselkedés (v1.1.3, az image-ben):** a `CheckAlive` és a `CheckAliveInterval` az `[Interface]` szekcióban érvényes (`-n` configtest), az utóbbi csak `CheckAlive`-val együtt. Elérhetetlen végpontnál a `/readyz` `503`, `CheckAlive` nélkül mindig `200`.
+- **Helyi Docker-próba (2026-11-27):**
+  - Tesztkörnyezet: a PoC kernel-WireGuard tesztszervere (`10.2.0.1`; csak ez kap `NET_ADMIN`-t) és az ág image-e alapjogosultsággal, eldobható kulcsokkal, internet nélküli belső hálózaton.
+
+  | Lépés | Eredmény |
+  |---|---|
+  | Indulás bekapcsolt VPN-nel | Valódi handshake (a szerver is látja); a `/readyz` 1 s-on belül `200`, a tunnelen át érkező pingválasszal. |
+  | A szerver `wg0` leállítva | A `/readyz` 4 s alatt `503`; kb. 30 s után a napló: `operation=vpn-health reason=no-handshake`. |
+  | A szerver `wg0` visszakapcsolva | A `/readyz` 8 s alatt újra `200`. |
+  | Napló és leállítás | A klienskulcs nem szerepel a naplóban, pinghiba-sor nem jelent meg; leállítás 0-s kóddal, hiba nélkül. |
+
+- **Ellenőrzés:** Ruff hibátlan, basedpyright 0 hiba, teljes `pytest tests` 892 passed (új esetek: `/readyz`-alapú állapotváltások, `CheckAlive`-renderelés és -felülírás, valódi alfolyamatos `/readyz`, ismétlődő naplósor korlátozása).
+- **Nyitott (G1):** hogy a Proton belső DNS-címe (a konfigban a `DNS`) válaszol-e ICMP-pingre a tunnelen át. Ha nem, a `VPN_CHECK_ALIVE` egy válaszoló címre állítandó, különben a VPN `ERROR` állapotban marad, és a forgalom áll.
 
 ### F4 — Validáció és dokumentáció
 - **Tartalom:** a G1 és G5 kapu a felhasználóval, telepítési útmutató, README.

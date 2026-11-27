@@ -32,6 +32,7 @@ export const ContentType = {
   series: 'series',
   channel: 'channel',
   tv: 'tv',
+  anime: 'anime',
 } as const
 
 export interface DDNSProviderResponse {
@@ -212,6 +213,7 @@ export type MediaType = (typeof MediaType)[keyof typeof MediaType]
 export const MediaType = {
   movie: 'movie',
   series: 'series',
+  anime: 'anime',
 } as const
 
 export type PosterShape = (typeof PosterShape)[keyof typeof PosterShape]
@@ -373,11 +375,11 @@ export interface UserResponse {
   createdAt: string
   torrentSeed: number | null
   enableSmartFilter: boolean
-  enableStreamDeduplication: boolean
+  enableStreamDeduplication?: boolean
   smartFilterGroupingPreferenceId: string | null
   smartFilterLimit: number
-  enableFallbackSubtitles: boolean
-  enableCatalogSearch: boolean
+  enableFallbackSubtitles?: boolean
+  enableCatalogSearch?: boolean
   enableDownloadedMarker: boolean
   maxConcurrentStreams: number | null
 }
@@ -486,16 +488,28 @@ export interface StremioCatalogResponse {
   metas: MetaPreview[]
 }
 
+export interface StremioSubtitle {
+  id: string
+  url: string
+  lang: string
+  label?: string | null
+}
+
 export interface StremioStream {
   name: string
   description: string
   url?: string | null
   externalUrl?: string | null
+  subtitles?: StremioSubtitle[] | null
   behaviorHints?: BehaviorHints | null
 }
 
 export interface StremioStreams {
   streams: StremioStream[]
+}
+
+export interface StremioSubtitles {
+  subtitles?: StremioSubtitle[]
 }
 
 export interface SuccessResponse {
@@ -576,15 +590,25 @@ export interface UserUpdateRequest {
   maxConcurrentStreams?: number | null
 }
 
+export type SubtitlesHeadStreamSubtitle2Params = {
+  filename?: string | null
+}
+
+export type SubtitlesStreamSubtitle2Params = {
+  filename?: string | null
+}
+
+export type StremioSubtitles2Params = {
+  extra?: string | null
+}
+
 export type KodiFindStreamsParams = {
   season?: number | null
   episode?: number | null
 }
 
 export type PlaybacksGetHistoryListParams = {
-  /**
-   * @minimum 1
-   */
+  /** @minimum 1 */
   page?: number
   /**
    * @minimum 1
@@ -1534,6 +1558,72 @@ export const streamStream = (
 }
 
 /**
+ * @summary Stream Subtitle
+ */
+export const subtitlesHeadStreamSubtitle = (
+  apiKey: string,
+  streamToken: string,
+  filename: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    {
+      url: `/api/${apiKey}/subtitles/${streamToken}/${filename}`,
+      method: 'HEAD',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesStreamSubtitle = (
+  apiKey: string,
+  streamToken: string,
+  filename: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    {
+      url: `/api/${apiKey}/subtitles/${streamToken}/${filename}`,
+      method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesHeadStreamSubtitle2 = (
+  apiKey: string,
+  streamToken: string,
+  params?: SubtitlesHeadStreamSubtitle2Params,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    { url: `/api/${apiKey}/subtitles/${streamToken}`, method: 'HEAD', params },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesStreamSubtitle2 = (
+  apiKey: string,
+  streamToken: string,
+  params?: SubtitlesStreamSubtitle2Params,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    { url: `/api/${apiKey}/subtitles/${streamToken}`, method: 'GET', params },
+    options,
+  )
+}
+
+/**
  * @summary Manifest
  */
 export const stremioManifest = (
@@ -1572,6 +1662,45 @@ export const stremioStreams = (
     {
       url: `/api/${apiKey}/stremio/stream/${mediaType}/${streamId}.json`,
       method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Subtitles
+ */
+export const stremioSubtitles = (
+  apiKey: string,
+  mediaType: MediaType,
+  streamId: string,
+  extra: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<StremioSubtitles>>,
+) => {
+  return sourceClientInstance<StremioSubtitles>(
+    {
+      url: `/api/${apiKey}/stremio/subtitles/${mediaType}/${streamId}/${extra}.json`,
+      method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Subtitles
+ */
+export const stremioSubtitles2 = (
+  apiKey: string,
+  mediaType: MediaType,
+  streamId: string,
+  params?: StremioSubtitles2Params,
+  options?: SecondParameter<typeof sourceClientInstance<StremioSubtitles>>,
+) => {
+  return sourceClientInstance<StremioSubtitles>(
+    {
+      url: `/api/${apiKey}/stremio/subtitles/${mediaType}/${streamId}.json`,
+      method: 'GET',
+      params,
     },
     options,
   )
@@ -1956,6 +2085,18 @@ export type StreamHeadStreamResult = NonNullable<
 export type StreamStreamResult = NonNullable<
   Awaited<ReturnType<typeof streamStream>>
 >
+export type SubtitlesHeadStreamSubtitleResult = NonNullable<
+  Awaited<ReturnType<typeof subtitlesHeadStreamSubtitle>>
+>
+export type SubtitlesStreamSubtitleResult = NonNullable<
+  Awaited<ReturnType<typeof subtitlesStreamSubtitle>>
+>
+export type SubtitlesHeadStreamSubtitle2Result = NonNullable<
+  Awaited<ReturnType<typeof subtitlesHeadStreamSubtitle2>>
+>
+export type SubtitlesStreamSubtitle2Result = NonNullable<
+  Awaited<ReturnType<typeof subtitlesStreamSubtitle2>>
+>
 export type StremioManifestResult = NonNullable<
   Awaited<ReturnType<typeof stremioManifest>>
 >
@@ -1964,6 +2105,12 @@ export type StremioConfigureResult = NonNullable<
 >
 export type StremioStreamsResult = NonNullable<
   Awaited<ReturnType<typeof stremioStreams>>
+>
+export type StremioSubtitlesResult = NonNullable<
+  Awaited<ReturnType<typeof stremioSubtitles>>
+>
+export type StremioSubtitles2Result = NonNullable<
+  Awaited<ReturnType<typeof stremioSubtitles2>>
 >
 export type StremioCatalogResult = NonNullable<
   Awaited<ReturnType<typeof stremioCatalog>>

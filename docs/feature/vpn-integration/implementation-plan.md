@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag) elkészült** a `feature/vpn-integration` ágon, lásd az [F1 végrehajtási állapotát](#f1-végrehajtási-állapot). F2–F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag) és az F2 (API és felület) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot) és az [F2 végrehajtási állapotát](#f2-végrehajtási-állapot). Az F3–F4 és a G1–G6 kapuk nyitottak ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -287,6 +287,26 @@ stateDiagram-v2
   - a kikapcsolás megerősítés nélkül elutasítva;
   - VPN módban a port-, UPnP- és uTP-mező zárolt, és API-n át sem kapcsolható be;
   - frontend lint/format/build zöld, a kapcsolók viselkedési tesztjei zöldek.
+
+#### F2 végrehajtási állapot
+
+| Elem | Hely | Állapot |
+|---|---|---|
+| Admin-API | `vpn/router.py`, `vpn/service.py`, `vpn/schemas.py` | Kész: `GET/PUT /api/vpn`, `DELETE /api/vpn/config`, `GET /api/vpn/status`, `POST /api/vpn/test`. Az admin-ellenőrzés a szolgáltatás előtt fut. A kikapcsoláshoz `confirmUnprotected`, a bekapcsoláshoz mentett konfiguráció kell; bekapcsolt VPN mellett a konfiguráció nem törölhető (`409`). |
+| Futás közbeni váltás (L4) | `vpn/manager.py` (`apply_settings`) | Kész. Be: a relay azonnal proxymódba vált, a forgalom a tunnelig áll; ki: a felügyelő leáll, majd közvetlen mód. |
+| Lejátszás tunnelhiba alatt (R10) | `stream/service.py` (`prepare_for_stream`), `relay/entities.py` (`File.has_byte`), `vpn/state.py` | Kész: `503` + `Retry-After: 5`, ha a VPN be van kapcsolva, nem `CONNECTED`, és a kért első darab nincs meg helyben. |
+| Relay-mezők zárolása | `relay_settings/service.py`, `settings/schemas/api.py` (`vpn_managed`) | Kész: VPN módban a port, az UPnP/NAT-PMP és az uTP módosítása `409`; a válaszban `vpnManaged`. |
+| Felület | `client/src/routes/_protected/dashboard/system/vpn/`, `-features/vpn-info.tsx`, `relay/settings/-features/port.tsx`, `peer-protocol.tsx` | Kész: „VPN & Adatvédelem” oldal (beillesztés/feltöltés, kapcsoló megerősítéssel, állapot, teszt), kártya a Rendszer oldalon, zárolt port-, UPnP- és uTP-mező. |
+
+**Eltérések (F2):**
+- A kliens VPN-hívásai kézzel írtak (`client/src/shared/lib/source/vpn-client.ts`), mert a generált `source-client.ts` már a VPN előtt el volt csúszva a szerverhez képest (feliratvégpontok, opcionális mezők). Az újragenerálás külön feladat.
+- A `POST /api/vpn/test` és a `GET /api/vpn/status` még nem ad handshake-, DNS- és forgalmi adatot; ezek a wireproxy `/readyz` és `/metrics` végpontjára épülnek (G6).
+
+**Ellenőrzés (2026-11-27):**
+- Backend: Ruff hibátlan, basedpyright 0 hiba; teljes `pytest tests` Windowson 889 passed, Linux-konténerben 2/2 futás 889 passed. Új: `test_vpn_api.py` (titokmentes válasz, megerősítés, törlési tilalom, admin-védelem, relay-zárolás, `503`-ág), a `test_vpn_manager.py` futás közbeni váltása.
+- Kliens: a teljes `npm run lint` és `npm run format` hibátlan, `npx vitest run` 15 passed (új: `-vpn-page.test.tsx`: kikapcsolás csak megerősítés után, konfiguráció nélkül nem kapcsolható be), `npm run build` sikeres.
+- Docker (az ág image-e, belső hálózat): az app elindul, a VPN-végpontok munkamenet nélkül `401`-et adnak, a leállítás 0-s kilépési kóddal fut le.
+- **Nem futott:** bejelentkezett, végponttól végpontig tartó próba Dockerben (admin-bootstrap kell), valódi wireproxy (F3), élő Proton.
 
 ### F3 — Docker
 - **Tartalom:** 8. pont.

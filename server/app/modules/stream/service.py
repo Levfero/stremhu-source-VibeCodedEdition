@@ -33,6 +33,7 @@ from app.modules.torrents.dependencies import (
 )
 from app.modules.torrents.schemas.internal import TorrentWithRelay
 from app.modules.torrents.service import TorrentsService
+from app.modules.vpn.state import torrent_traffic_available
 
 torrent_locks = KeyedLock()
 playback_history_lock = KeyedLock()
@@ -200,6 +201,15 @@ class StreamService:
             file_size=file.size,
             range_header=range_header,
         )
+
+        # VPN-terv R10: ha a tunnel nem él, csak a helyben meglévő rész játszható le;
+        # különben még a fejlécek előtt egyértelmű 503 megy, nem csonka válasz.
+        if not torrent_traffic_available() and not file.has_byte(parsed_range_header.start_byte):
+            raise HTTPException(
+                503,
+                "A VPN-kapcsolat nem áll készen, és a kért rész még nincs letöltve.",
+                headers={"Retry-After": "5", "Cache-Control": "no-store"},
+            )
 
         return parsed_range_header, file
 

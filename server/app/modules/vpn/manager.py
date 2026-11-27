@@ -22,6 +22,7 @@ from app.modules.settings.schemas.internal import (
     VpnSettings,
     VpnSettingsUpdate,
 )
+from app.modules.vpn import state as vpn_state
 from app.modules.vpn.proxy_supervisor import ProxyStartError, reserve_loopback_port
 from app.modules.vpn.secret_store import SecretStore, SecretStoreError
 from app.modules.vpn.wireguard_config import (
@@ -66,7 +67,7 @@ class VpnManager:
         relay: NetworkPolicyTarget,
         *,
         load_settings: Callable[[], VpnSettings],
-        save_settings: Callable[[VpnSettingsUpdate], None],
+        save_settings: Callable[[VpnSettingsUpdate], object],
         secret_store_factory: Callable[[], SecretStore],
         supervisor: Supervisor,
         fast_retries: int = 5,
@@ -85,6 +86,14 @@ class VpnManager:
         self._policy: VpnProxyPolicy | None = None
         self._task: asyncio.Task[None] | None = None
         self._closing = False
+        self._change_lock = asyncio.Lock()
+
+    def torrent_traffic_available(self) -> bool:
+        return self._status.state in (VpnState.DISABLED, VpnState.CONNECTED)
+
+    @property
+    def policy(self) -> VpnProxyPolicy | None:
+        return self._policy
 
     @property
     def status(self) -> VpnStatus:
@@ -100,6 +109,7 @@ class VpnManager:
 
     async def start(self) -> None:
         """Alkalmazza a hálózati szabályt; csak utána kerülhet torrent a relaybe."""
+        vpn_state.register(self.torrent_traffic_available)
         try:
             settings = await owned_to_thread(self._load_settings)
         except Exception as error:
@@ -108,12 +118,22 @@ class VpnManager:
             self._set(VpnState.ERROR, "settings-unavailable")
             return
 
+        await self._apply(settings)
+
+    async def apply_settings(self, settings: VpnSettings) -> None:
+        """Futás közbeni váltás (L4): a beállítás mentése után, felhasználói műveletre."""
+        async with self._change_lock:
+            await self._stop_supervision()
+            await self._apply(settings)
+
+    async def _apply(self, settings: VpnSettings) -> None:
         if not settings.vpn_enabled:
             self._relay.apply_network_policy(DirectPolicy())
+            self._policy = None
             self._status = VpnStatus(state=VpnState.DISABLED)
             return
 
-        policy = VpnProxyPolicy(
+        policy = self._policy or VpnProxyPolicy(
             port=reserve_loopback_port(),
             username=secrets.token_urlsafe(16),
             password=secrets.token_urlsafe(24),
@@ -123,6 +143,14 @@ class VpnManager:
         self._policy = policy
         self._status = VpnStatus(state=VpnState.STARTING, metadata=settings.config_metadata)
         self._task = asyncio.create_task(self._run(settings, policy), name="vpn-supervisor")
+
+    async def _stop_supervision(self) -> None:
+        task, self._task = self._task, None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(task, return_exceptions=True)
+        await self._supervisor.stop()
 
     def _decrypt_config(self, settings: VpnSettings) -> WireGuardConfig:
         if not settings.encrypted_config:
@@ -177,9 +205,5 @@ class VpnManager:
     async def aclose(self) -> None:
         """A relay natív sessionje után áll le, így leállításkor sincs közvetlen ablak."""
         self._closing = True
-        task, self._task = self._task, None
-        if task is not None:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.gather(task, return_exceptions=True)
-        await self._supervisor.stop()
+        vpn_state.unregister(self.torrent_traffic_available)
+        await self._stop_supervision()

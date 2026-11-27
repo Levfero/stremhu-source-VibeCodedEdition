@@ -444,6 +444,11 @@ class File:
 
         self.streams: dict[str, Stream] = {}
 
+    def has_byte(self, position: int) -> bool:
+        """Megvan-e helyben a fájl adott bájtját tartalmazó darab (VPN-terv R10)."""
+        piece_index = (self.offset + max(0, position)) // self.torrent.piece_size
+        return bool(self.torrent.torrent_handle.have_piece(piece_index))
+
     def get_matched_subtitle_pieces(self) -> list[int]:
         if self._matched_subtitle_pieces is not None:
             return self._matched_subtitle_pieces

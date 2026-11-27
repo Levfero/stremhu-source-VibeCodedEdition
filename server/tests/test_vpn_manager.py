@@ -169,3 +169,22 @@ async def test_config_under_previous_key_is_reencrypted_with_current_key():
     assert len(saved) == 1 and saved[0].encrypted_config is not None
     assert SecretStore([new]).decrypt(saved[0].encrypted_config) == (text, False)
     await manager.aclose()
+
+
+async def test_runtime_toggle_switches_policy_and_stops_the_proxy(store):
+    supervisor = Supervisor()
+    enabled = VpnSettings(vpn_enabled=True, encrypted_config=store.encrypt(_wireguard_text()))
+    manager, relay = _manager(VpnSettings(vpn_enabled=False), supervisor, store)
+    await manager.start()
+    assert relay.policies == [DirectPolicy()]
+
+    await manager.apply_settings(enabled)
+    await _until(lambda: manager.status.state == VpnState.CONNECTED)
+    assert isinstance(relay.policies[-1], VpnProxyPolicy)
+    assert manager.torrent_traffic_available()
+
+    await manager.apply_settings(VpnSettings(vpn_enabled=False))
+    assert supervisor.stopped
+    assert relay.policies[-1] == DirectPolicy()
+    assert manager.status.state == VpnState.DISABLED
+    await manager.aclose()

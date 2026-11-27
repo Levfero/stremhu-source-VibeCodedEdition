@@ -265,6 +265,24 @@ class RelayService:
     def network_policy(self) -> NetworkPolicy | None:
         return getattr(self, "_network_policy", None)
 
+    _NETWORK_KEYS = (
+        "listen_interfaces",
+        "enable_dht",
+        "enable_lsd",
+        "enable_upnp",
+        "enable_natpmp",
+        "enable_outgoing_utp",
+        "enable_incoming_utp",
+        "proxy_type",
+        "proxy_hostname",
+        "proxy_port",
+    )
+
+    def network_settings(self) -> dict[str, object]:
+        """A session hálózati beállításai diagnosztikához (titok nélkül: nincs proxy-jelszó)."""
+        values = dict(self._libtorrent_session.get_settings())
+        return {key: values.get(key) for key in self._NETWORK_KEYS}
+
     def apply_network_policy(self, policy: NetworkPolicy) -> None:
         """Alkalmazza a hálózati szabályt (VPN-terv L4, L6).
 

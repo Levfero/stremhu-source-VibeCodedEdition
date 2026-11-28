@@ -266,7 +266,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény (2026-11-28, a függőségfrissítés után): Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **912 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény (2026-11-28, a függőségfrissítés és a libtorrent 2.1.3 után): Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **912 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 

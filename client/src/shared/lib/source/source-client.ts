@@ -32,6 +32,7 @@ export const ContentType = {
   series: 'series',
   channel: 'channel',
   tv: 'tv',
+  anime: 'anime',
 } as const
 
 export interface DDNSProviderResponse {
@@ -212,6 +213,7 @@ export type MediaType = (typeof MediaType)[keyof typeof MediaType]
 export const MediaType = {
   movie: 'movie',
   series: 'series',
+  anime: 'anime',
 } as const
 
 export type PosterShape = (typeof PosterShape)[keyof typeof PosterShape]
@@ -373,11 +375,11 @@ export interface UserResponse {
   createdAt: string
   torrentSeed: number | null
   enableSmartFilter: boolean
-  enableStreamDeduplication: boolean
+  enableStreamDeduplication?: boolean
   smartFilterGroupingPreferenceId: string | null
   smartFilterLimit: number
-  enableFallbackSubtitles: boolean
-  enableCatalogSearch: boolean
+  enableFallbackSubtitles?: boolean
+  enableCatalogSearch?: boolean
   enableDownloadedMarker: boolean
   maxConcurrentStreams: number | null
 }
@@ -469,6 +471,7 @@ export interface RelaySettingsResponse {
   enableUpnpAndNatpmp: boolean
   encryption: RelayEncryptionEnum
   enableUtp: boolean
+  vpnManaged?: boolean
 }
 
 export interface RelaySettingsUpdateRequest {
@@ -486,16 +489,28 @@ export interface StremioCatalogResponse {
   metas: MetaPreview[]
 }
 
+export interface StremioSubtitle {
+  id: string
+  url: string
+  lang: string
+  label?: string | null
+}
+
 export interface StremioStream {
   name: string
   description: string
   url?: string | null
   externalUrl?: string | null
+  subtitles?: StremioSubtitle[] | null
   behaviorHints?: BehaviorHints | null
 }
 
 export interface StremioStreams {
   streams: StremioStream[]
+}
+
+export interface StremioSubtitles {
+  subtitles?: StremioSubtitle[]
 }
 
 export interface SuccessResponse {
@@ -576,15 +591,102 @@ export interface UserUpdateRequest {
   maxConcurrentStreams?: number | null
 }
 
+export interface VpnCheck {
+  name: string
+  ok: boolean | null
+  code?: string | null
+}
+
+export interface VpnMetadataResponse {
+  addresses: string[]
+  dns: string[]
+  endpoint: string
+  peerPublicKey: string
+  clientPublicKeyFingerprint: string
+}
+
+export interface VpnConfigResponse {
+  id: string
+  name: string
+  metadata: VpnMetadataResponse
+}
+
+export type VpnState = (typeof VpnState)[keyof typeof VpnState]
+
+export const VpnState = {
+  disabled: 'disabled',
+  starting: 'starting',
+  connected: 'connected',
+  reconnecting: 'reconnecting',
+  error: 'error',
+} as const
+
+export interface VpnResponse {
+  state: VpnState
+  errorCode?: string | null
+  connectedAt?: string | null
+  activeConfigId?: string | null
+  failoverAt?: string | null
+  enabled: boolean
+  hasConfig: boolean
+  metadata?: VpnMetadataResponse | null
+  configs?: VpnConfigResponse[]
+  autoFailover?: boolean
+}
+
+export interface VpnSpeedTestResponse {
+  configId?: string | null
+  downloadMbps: number
+  downloadedBytes: number
+  durationSeconds: number
+  latencyMs?: number | null
+  exitIp?: string | null
+  exitCountry?: string | null
+  exitDiffersFromDirect?: boolean | null
+}
+
+export interface VpnStatusResponse {
+  state: VpnState
+  errorCode?: string | null
+  connectedAt?: string | null
+  activeConfigId?: string | null
+  failoverAt?: string | null
+}
+
+export interface VpnTestResponse {
+  state: VpnState
+  checks: VpnCheck[]
+}
+
+export interface VpnUpdateRequest {
+  config?: string | null
+  name?: string | null
+  enabled?: boolean | null
+  confirmUnprotected?: boolean
+  autoFailover?: boolean | null
+  activeConfigId?: string | null
+  order?: string[] | null
+}
+
+export type SubtitlesHeadStreamSubtitle2Params = {
+  filename?: string | null
+}
+
+export type SubtitlesStreamSubtitle2Params = {
+  filename?: string | null
+}
+
+export type StremioSubtitles2Params = {
+  extra?: string | null
+}
+
 export type KodiFindStreamsParams = {
   season?: number | null
   episode?: number | null
 }
 
 export type PlaybacksGetHistoryListParams = {
-  /**
-   * @minimum 1
-   */
+  /** @minimum 1 */
   page?: number
   /**
    * @minimum 1
@@ -1395,6 +1497,85 @@ export const relayUpdateSettingsWithApiKey = (
 }
 
 /**
+ * @summary Get Vpn
+ */
+export const vpnGetVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    { url: `/api/vpn`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Update Vpn
+ */
+export const vpnUpdateVpn = (
+  vpnUpdateRequest: VpnUpdateRequest,
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    {
+      url: `/api/vpn`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      data: vpnUpdateRequest,
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Delete Vpn Config
+ */
+export const vpnDeleteVpnConfig = (
+  configId: string,
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    { url: `/api/vpn/configs/${configId}`, method: 'DELETE' },
+    options,
+  )
+}
+
+/**
+ * @summary Get Vpn Status
+ */
+export const vpnGetVpnStatus = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnStatusResponse>>,
+) => {
+  return sourceClientInstance<VpnStatusResponse>(
+    { url: `/api/vpn/status`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Test Vpn
+ */
+export const vpnTestVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnTestResponse>>,
+) => {
+  return sourceClientInstance<VpnTestResponse>(
+    { url: `/api/vpn/test`, method: 'POST' },
+    options,
+  )
+}
+
+/**
+ * @summary Speed Test Vpn
+ */
+export const vpnSpeedTestVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnSpeedTestResponse>>,
+) => {
+  return sourceClientInstance<VpnSpeedTestResponse>(
+    { url: `/api/vpn/speedtest`, method: 'POST' },
+    options,
+  )
+}
+
+/**
  * @summary Get Settings
  */
 export const networkGetSettings = (
@@ -1534,6 +1715,72 @@ export const streamStream = (
 }
 
 /**
+ * @summary Stream Subtitle
+ */
+export const subtitlesHeadStreamSubtitle = (
+  apiKey: string,
+  streamToken: string,
+  filename: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    {
+      url: `/api/${apiKey}/subtitles/${streamToken}/${filename}`,
+      method: 'HEAD',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesStreamSubtitle = (
+  apiKey: string,
+  streamToken: string,
+  filename: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    {
+      url: `/api/${apiKey}/subtitles/${streamToken}/${filename}`,
+      method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesHeadStreamSubtitle2 = (
+  apiKey: string,
+  streamToken: string,
+  params?: SubtitlesHeadStreamSubtitle2Params,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    { url: `/api/${apiKey}/subtitles/${streamToken}`, method: 'HEAD', params },
+    options,
+  )
+}
+
+/**
+ * @summary Stream Subtitle
+ */
+export const subtitlesStreamSubtitle2 = (
+  apiKey: string,
+  streamToken: string,
+  params?: SubtitlesStreamSubtitle2Params,
+  options?: SecondParameter<typeof sourceClientInstance<unknown>>,
+) => {
+  return sourceClientInstance<unknown>(
+    { url: `/api/${apiKey}/subtitles/${streamToken}`, method: 'GET', params },
+    options,
+  )
+}
+
+/**
  * @summary Manifest
  */
 export const stremioManifest = (
@@ -1572,6 +1819,45 @@ export const stremioStreams = (
     {
       url: `/api/${apiKey}/stremio/stream/${mediaType}/${streamId}.json`,
       method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Subtitles
+ */
+export const stremioSubtitles = (
+  apiKey: string,
+  mediaType: MediaType,
+  streamId: string,
+  extra: string | null,
+  options?: SecondParameter<typeof sourceClientInstance<StremioSubtitles>>,
+) => {
+  return sourceClientInstance<StremioSubtitles>(
+    {
+      url: `/api/${apiKey}/stremio/subtitles/${mediaType}/${streamId}/${extra}.json`,
+      method: 'GET',
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Subtitles
+ */
+export const stremioSubtitles2 = (
+  apiKey: string,
+  mediaType: MediaType,
+  streamId: string,
+  params?: StremioSubtitles2Params,
+  options?: SecondParameter<typeof sourceClientInstance<StremioSubtitles>>,
+) => {
+  return sourceClientInstance<StremioSubtitles>(
+    {
+      url: `/api/${apiKey}/stremio/subtitles/${mediaType}/${streamId}.json`,
+      method: 'GET',
+      params,
     },
     options,
   )
@@ -1929,6 +2215,22 @@ export type RelayGetSettingsWithApiKeyResult = NonNullable<
 export type RelayUpdateSettingsWithApiKeyResult = NonNullable<
   Awaited<ReturnType<typeof relayUpdateSettingsWithApiKey>>
 >
+export type VpnGetVpnResult = NonNullable<Awaited<ReturnType<typeof vpnGetVpn>>>
+export type VpnUpdateVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnUpdateVpn>>
+>
+export type VpnDeleteVpnConfigResult = NonNullable<
+  Awaited<ReturnType<typeof vpnDeleteVpnConfig>>
+>
+export type VpnGetVpnStatusResult = NonNullable<
+  Awaited<ReturnType<typeof vpnGetVpnStatus>>
+>
+export type VpnTestVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnTestVpn>>
+>
+export type VpnSpeedTestVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnSpeedTestVpn>>
+>
 export type NetworkGetSettingsResult = NonNullable<
   Awaited<ReturnType<typeof networkGetSettings>>
 >
@@ -1956,6 +2258,18 @@ export type StreamHeadStreamResult = NonNullable<
 export type StreamStreamResult = NonNullable<
   Awaited<ReturnType<typeof streamStream>>
 >
+export type SubtitlesHeadStreamSubtitleResult = NonNullable<
+  Awaited<ReturnType<typeof subtitlesHeadStreamSubtitle>>
+>
+export type SubtitlesStreamSubtitleResult = NonNullable<
+  Awaited<ReturnType<typeof subtitlesStreamSubtitle>>
+>
+export type SubtitlesHeadStreamSubtitle2Result = NonNullable<
+  Awaited<ReturnType<typeof subtitlesHeadStreamSubtitle2>>
+>
+export type SubtitlesStreamSubtitle2Result = NonNullable<
+  Awaited<ReturnType<typeof subtitlesStreamSubtitle2>>
+>
 export type StremioManifestResult = NonNullable<
   Awaited<ReturnType<typeof stremioManifest>>
 >
@@ -1964,6 +2278,12 @@ export type StremioConfigureResult = NonNullable<
 >
 export type StremioStreamsResult = NonNullable<
   Awaited<ReturnType<typeof stremioStreams>>
+>
+export type StremioSubtitlesResult = NonNullable<
+  Awaited<ReturnType<typeof stremioSubtitles>>
+>
+export type StremioSubtitles2Result = NonNullable<
+  Awaited<ReturnType<typeof stremioSubtitles2>>
 >
 export type StremioCatalogResult = NonNullable<
   Awaited<ReturnType<typeof stremioCatalog>>

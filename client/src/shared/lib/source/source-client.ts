@@ -471,6 +471,7 @@ export interface RelaySettingsResponse {
   enableUpnpAndNatpmp: boolean
   encryption: RelayEncryptionEnum
   enableUtp: boolean
+  vpnManaged?: boolean
 }
 
 export interface RelaySettingsUpdateRequest {
@@ -588,6 +589,83 @@ export interface UserUpdateRequest {
   enableCatalogSearch?: boolean | null
   enableDownloadedMarker?: boolean | null
   maxConcurrentStreams?: number | null
+}
+
+export interface VpnCheck {
+  name: string
+  ok: boolean | null
+  code?: string | null
+}
+
+export interface VpnMetadataResponse {
+  addresses: string[]
+  dns: string[]
+  endpoint: string
+  peerPublicKey: string
+  clientPublicKeyFingerprint: string
+}
+
+export interface VpnConfigResponse {
+  id: string
+  name: string
+  metadata: VpnMetadataResponse
+}
+
+export type VpnState = (typeof VpnState)[keyof typeof VpnState]
+
+export const VpnState = {
+  disabled: 'disabled',
+  starting: 'starting',
+  connected: 'connected',
+  reconnecting: 'reconnecting',
+  error: 'error',
+} as const
+
+export interface VpnResponse {
+  state: VpnState
+  errorCode?: string | null
+  connectedAt?: string | null
+  activeConfigId?: string | null
+  failoverAt?: string | null
+  enabled: boolean
+  hasConfig: boolean
+  metadata?: VpnMetadataResponse | null
+  configs?: VpnConfigResponse[]
+  autoFailover?: boolean
+}
+
+export interface VpnSpeedTestResponse {
+  configId?: string | null
+  downloadMbps: number
+  downloadedBytes: number
+  durationSeconds: number
+  latencyMs?: number | null
+  exitIp?: string | null
+  exitCountry?: string | null
+  exitDiffersFromDirect?: boolean | null
+}
+
+export interface VpnStatusResponse {
+  state: VpnState
+  errorCode?: string | null
+  connectedAt?: string | null
+  activeConfigId?: string | null
+  failoverAt?: string | null
+}
+
+export interface VpnTestResponse {
+  state: VpnState
+  checks: VpnCheck[]
+}
+
+export interface VpnUpdateRequest {
+  config?: string | null
+  name?: string | null
+  enabled?: boolean | null
+  confirmUnprotected?: boolean
+  autoFailover?: boolean | null
+  activeConfigId?: string | null
+  order?: string[] | null
 }
 
 export type SubtitlesHeadStreamSubtitle2Params = {
@@ -1419,6 +1497,85 @@ export const relayUpdateSettingsWithApiKey = (
 }
 
 /**
+ * @summary Get Vpn
+ */
+export const vpnGetVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    { url: `/api/vpn`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Update Vpn
+ */
+export const vpnUpdateVpn = (
+  vpnUpdateRequest: VpnUpdateRequest,
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    {
+      url: `/api/vpn`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      data: vpnUpdateRequest,
+    },
+    options,
+  )
+}
+
+/**
+ * @summary Delete Vpn Config
+ */
+export const vpnDeleteVpnConfig = (
+  configId: string,
+  options?: SecondParameter<typeof sourceClientInstance<VpnResponse>>,
+) => {
+  return sourceClientInstance<VpnResponse>(
+    { url: `/api/vpn/configs/${configId}`, method: 'DELETE' },
+    options,
+  )
+}
+
+/**
+ * @summary Get Vpn Status
+ */
+export const vpnGetVpnStatus = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnStatusResponse>>,
+) => {
+  return sourceClientInstance<VpnStatusResponse>(
+    { url: `/api/vpn/status`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * @summary Test Vpn
+ */
+export const vpnTestVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnTestResponse>>,
+) => {
+  return sourceClientInstance<VpnTestResponse>(
+    { url: `/api/vpn/test`, method: 'POST' },
+    options,
+  )
+}
+
+/**
+ * @summary Speed Test Vpn
+ */
+export const vpnSpeedTestVpn = (
+  options?: SecondParameter<typeof sourceClientInstance<VpnSpeedTestResponse>>,
+) => {
+  return sourceClientInstance<VpnSpeedTestResponse>(
+    { url: `/api/vpn/speedtest`, method: 'POST' },
+    options,
+  )
+}
+
+/**
  * @summary Get Settings
  */
 export const networkGetSettings = (
@@ -2057,6 +2214,22 @@ export type RelayGetSettingsWithApiKeyResult = NonNullable<
 >
 export type RelayUpdateSettingsWithApiKeyResult = NonNullable<
   Awaited<ReturnType<typeof relayUpdateSettingsWithApiKey>>
+>
+export type VpnGetVpnResult = NonNullable<Awaited<ReturnType<typeof vpnGetVpn>>>
+export type VpnUpdateVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnUpdateVpn>>
+>
+export type VpnDeleteVpnConfigResult = NonNullable<
+  Awaited<ReturnType<typeof vpnDeleteVpnConfig>>
+>
+export type VpnGetVpnStatusResult = NonNullable<
+  Awaited<ReturnType<typeof vpnGetVpnStatus>>
+>
+export type VpnTestVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnTestVpn>>
+>
+export type VpnSpeedTestVpnResult = NonNullable<
+  Awaited<ReturnType<typeof vpnSpeedTestVpn>>
 >
 export type NetworkGetSettingsResult = NonNullable<
   Awaited<ReturnType<typeof networkGetSettings>>

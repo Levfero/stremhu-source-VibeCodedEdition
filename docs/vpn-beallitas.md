@@ -7,7 +7,7 @@ audience: ["operator"]
 tags: ["vpn", "proton", "wireguard", "wireproxy", "privacy", "relay", "kill-switch", "troubleshooting"]
 source_commit: "4cecffb8"
 baseline: null
-verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and a screenshot of the Proton WireGuard configuration page (2026-11-28: field names, expiry, delete button)"
+verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)"
 structure_reviewed: "2026-11-27"
 related_docs: ["README.md", "docs/README.md", "docs/atallas-es-visszaallas.md", "docs/feature/vpn-integration/implementation-plan.md"]
 source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_policy.py", "server/app/modules/stream/service.py", "server/app/config.py", "client/src/routes/_protected/dashboard/system/vpn/"]
@@ -65,15 +65,20 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 <a id="doc-wireguard-konfiguracio-a-protontol"></a>
 ## WireGuard-konfiguráció a Protontól
 
-1. Jelentkezz be az `account.protonvpn.com` oldalon, és nyisd meg: **Downloads → WireGuard configuration**. Az oldal tetején a korábban generált konfigurációid látszanak, mindegyik a lejárati dátumával (*expires …*) és egy × törlőgombbal.
-2. **Device/certificate name:** adj nevet a konfigurációnak (pl. `stremhu`). **Select platform:** a StremHU konténere Linuxon fut, ezért ha a listában van GNU/Linux, azt válaszd.
-3. A VPN-beállítások:
-   - **NAT-PMP (port forwarding):** nem kell, mert VPN módban a StremHU nem fogad bejövő kapcsolatot.
-   - **Moderate NAT:** nem kell.
-   - **NetShield:** biztonság kedvéért kapcsold ki, hogy a DNS-szűrés ne akadályozhassa egy tracker nevének feloldását.
+1. Jelentkezz be az `account.protonvpn.com` oldalon, és nyisd meg a **Downloads** oldalt. Görgess le az alkalmazások alatti **WireGuard configuration** részhez. Fent a korábban generált konfigurációid látszanak, mindegyik a lejárati dátumával (*expires …*) és egy × törlőgombbal.
+2. **1. Device/certificate name:** adj nevet a konfigurációnak, pl. `stremhu`.
+3. **2. Select platform:** **GNU/Linux** (a StremHU konténere Linuxon fut).
+4. **3. Select VPN options:**
+   - **Level for NetShield blocker filtering:** *No filter*, hogy a DNS-szűrés ne akadályozhassa egy tracker nevének feloldását.
+   - **Moderate NAT:** ki.
+   - **NAT-PMP (Port Forwarding):** ki, mert VPN módban a StremHU nem fogad bejövő kapcsolatot.
    - **VPN Accelerator:** maradhat az alapértéken.
-4. Szervernek **P2P szervert** válassz: ezeket a listában kétirányú nyíl jelöli. Egy közeli ország, pl. Magyarország, általában gyorsabb.
-5. **Create**, majd **Download**: egy `.conf` fájlt kapsz.
+5. **4. Select a server to connect to:**
+   - A *Use the best server…* javaslatot ne használd: az oldal távoli szervert is ajánlhat (a mi képernyőképünkön egy amerikait).
+   - Válaszd az **Or select a particular server → Standard server configs** lehetőséget (a *Secure Core* több országon vezeti át a forgalmat, lassabb).
+   - Nyisd le az országot, pl. **Hungary**, és válassz egy **P2P szervert**: a ⇄ (kétirányú nyíl) jel mutatja a P2P-támogatást.
+   - Ha egy konkrét szervert keresel, a lap alján a **Search for additional servers** mezőben név szerint is megtalálod (pl. `HU#35`).
+6. A kiválasztott szervernél **Create**, majd **Download**: egy `.conf` fájlt kapsz. Tartalék szerverhez ismételd meg a 2–6. lépést egy másik szerverrel.
 
 > [!WARNING]
 > **Vigyázz a fájlra.** A `.conf` egy privát kulcsot tartalmaz, amellyel bárki a te VPN-fiókodon csatlakozhat. Ne küldd el senkinek, és ne tedd fel nyilvános helyre. Ha kiszivárgott, készíts újat, és a régit töröld a Proton-fiókodban.

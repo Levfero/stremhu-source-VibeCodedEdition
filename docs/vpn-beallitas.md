@@ -7,7 +7,7 @@ audience: ["operator"]
 tags: ["vpn", "proton", "wireguard", "wireproxy", "privacy", "relay", "kill-switch", "troubleshooting"]
 source_commit: "4cecffb8"
 baseline: null
-verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27)"
+verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and a screenshot of the Proton WireGuard configuration page (2026-11-28: field names, expiry, delete button)"
 structure_reviewed: "2026-11-27"
 related_docs: ["README.md", "docs/README.md", "docs/atallas-es-visszaallas.md", "docs/feature/vpn-integration/implementation-plan.md"]
 source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_policy.py", "server/app/modules/stream/service.py", "server/app/config.py", "client/src/routes/_protected/dashboard/system/vpn/"]
@@ -65,8 +65,8 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 <a id="doc-wireguard-konfiguracio-a-protontol"></a>
 ## WireGuard-konfiguráció a Protontól
 
-1. Jelentkezz be az `account.protonvpn.com` oldalon, és nyisd meg: **Downloads → WireGuard configuration**.
-2. Adj nevet a konfigurációnak (pl. `stremhu`). Platformnak a Linuxot válaszd (a StremHU konténere Linuxon fut).
+1. Jelentkezz be az `account.protonvpn.com` oldalon, és nyisd meg: **Downloads → WireGuard configuration**. Az oldal tetején a korábban generált konfigurációid látszanak, mindegyik a lejárati dátumával (*expires …*) és egy × törlőgombbal.
+2. **Device/certificate name:** adj nevet a konfigurációnak (pl. `stremhu`). **Select platform:** a StremHU konténere Linuxon fut, ezért ha a listában van GNU/Linux, azt válaszd.
 3. A VPN-beállítások:
    - **NAT-PMP (port forwarding):** nem kell, mert VPN módban a StremHU nem fogad bejövő kapcsolatot.
    - **Moderate NAT:** nem kell.
@@ -77,6 +77,9 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 
 > [!WARNING]
 > **Vigyázz a fájlra.** A `.conf` egy privát kulcsot tartalmaz, amellyel bárki a te VPN-fiókodon csatlakozhat. Ne küldd el senkinek, és ne tedd fel nyilvános helyre. Ha kiszivárgott, készíts újat, és a régit töröld a Proton-fiókodban.
+
+> [!IMPORTANT]
+> **A Proton-konfiguráció lejár.** A WireGuard-konfigurációk kb. egy évig érvényesek; a dátumot a Proton-oldalon a konfiguráció mellett látod (*expires …*). Lejárat után a VPN nem kapcsolódik (🔴 `no-handshake`), és a torrentforgalom áll. Lejárat előtt generálj újat, töltsd fel, majd a régit töröld a StremHU listájából és a Proton-oldalon (×). Az egyszerre generált tartalék konfigurációk egyszerre járnak le, ezért az automatikus átállás a lejárat ellen nem véd.
 
 > [!TIP]
 > **Külön konfigurációt használj a StremHU-hoz.** Ugyanazt a `.conf`-ot ne használd egyszerre a telefonon vagy a gépen is: két eszköz egy kulccsal zavarja egymás kapcsolatát. Tartalék szerverhez (automatikus átálláshoz) mindegyik szerverhez külön konfigurációt generálj.
@@ -206,7 +209,7 @@ services:
 
 | Hibakód | Mit jelent | Mit tegyél |
 |---|---|---|
-| `no-handshake` | 30 s óta nem jön válasz a VPN-szerverről a tunnelen át. A helyi próbában a szerver leállítása után a felületen kb. 10 s-mal jelent meg a 🟡 *Újrakapcsolódás...*, kb. 35–40 s-mal ez a hiba, és a szerver visszakapcsolása után kb. 10–15 s-mal újra 🟢. | Ellenőrizd, hogy a konfigurációt nem törölted-e a Proton-fiókban. Próbálj másik szervert (új `.conf`). Nézd meg, hogy a hálózatod engedi-e a kimenő UDP-forgalmat a konfiguráció `Endpoint` portjára (Protonnál jellemzően 51820). Ha a VPN valójában működik, csak a DNS-cím nem válaszol pingre, állítsd a `VPN_CHECK_ALIVE`-ot egy válaszoló címre. Több mentett konfigurációval és bekapcsolt automatikus átállással a StremHU kb. 60 s után magától a következőre vált. |
+| `no-handshake` | 30 s óta nem jön válasz a VPN-szerverről a tunnelen át. A helyi próbában a szerver leállítása után a felületen kb. 10 s-mal jelent meg a 🟡 *Újrakapcsolódás...*, kb. 35–40 s-mal ez a hiba, és a szerver visszakapcsolása után kb. 10–15 s-mal újra 🟢. | Ellenőrizd, hogy a konfiguráció nem járt-e le, és nem törölted-e a Proton-fiókban (a Proton-oldalon a konfiguráció mellett: *expires …*). Próbálj másik szervert (új `.conf`). Nézd meg, hogy a hálózatod engedi-e a kimenő UDP-forgalmat a konfiguráció `Endpoint` portjára (Protonnál jellemzően 51820). Ha a VPN valójában működik, csak a DNS-cím nem válaszol pingre, állítsd a `VPN_CHECK_ALIVE`-ot egy válaszoló címre. Több mentett konfigurációval és bekapcsolt automatikus átállással a StremHU kb. 60 s után magától a következőre vált. |
 | `decrypt-failed` | A mentett konfiguráció a jelenlegi kulccsal nem fejthető vissza (elveszett `vpn.key` vagy megváltozott `VPN_SECRET_KEY`). | Töltsd fel újra a `.conf`-ot. |
 | `missing-config` | A VPN be van kapcsolva, de nincs mentett konfiguráció. | Töltsd fel a `.conf`-ot. |
 | `invalid-key` | A `VPN_SECRET_KEY` nem 32 bájtos base64-érték, vagy a `vpn.key` tartalma hibás. | Javítsd vagy töröld a változót, illetve állítsd vissza a `vpn.key`-t mentésből; ha nem megy, töltsd fel újra a `.conf`-ot. |

@@ -2,7 +2,7 @@
 """Userspace-VPN PoC — the app side, run in a container with DEFAULT Docker privileges
 (no cap_add, no devices, no sysctl): this is the plug & play constraint under test.
 
-wireproxy (userspace WireGuard + netstack, SOCKS5 on 127.0.0.1:25344) carries libtorrent 2.1.1.
+wireproxy (userspace WireGuard + netstack, SOCKS5 on 127.0.0.1:25344) carries the image's libtorrent (2.1.1 until 2026-11-27, 2.1.3 from 2026-11-28).
 Scenarios (POC_SCENARIO):
   direct           positive control: no VPN, libtorrent talks to the swarm directly
   vpn_tcp          proxy only, TCP peers + HTTP tracker; DHT/LSD/UPnP/NAT-PMP/uTP off
@@ -308,13 +308,28 @@ def main() -> None:
     self_cpu = resource.getrusage(resource.RUSAGE_SELF)  # before hashing, so it measures the transfer only
     proxy_cpu = proxy.cpu_seconds()
     files = list(Path("/tmp/dl").rglob("*.mkv"))
-    digest = None
-    if files and done_at:
+
+    def file_digest() -> str:
         h = hashlib.sha256()
         with files[0].open("rb") as f:
             for block in iter(lambda: f.read(1 << 20), b""):
                 h.update(block)
-        digest = h.hexdigest()
+        return h.hexdigest()
+
+    # Az is_seeding után a pread lemez-I/O még tarthat ki nem írt blokkot a gyorsítótárban (2.1.3-ban
+    # mérve), ezért a fájl hash-e flush_cache után a mérvadó; az azonnali hash csak tájékoztató.
+    digest = digest_before_flush = None
+    flushed_s: float | None = None
+    if files and done_at:
+        digest_before_flush = file_digest()
+        flush_t0 = time.time()
+        handle.flush_cache()
+        while time.time() - flush_t0 < 15 and flushed_s is None:
+            for a in ses.pop_alerts():
+                if isinstance(a, lt.cache_flushed_alert):
+                    flushed_s = round(time.time() - flush_t0, 2)
+            time.sleep(0.05)
+        digest = file_digest()
     proxy.kill()
     time.sleep(1.0)
     bytes_after = iface_bytes()
@@ -353,6 +368,8 @@ def main() -> None:
         "scenario": SCENARIO, "tag": TAG, "vpn": VPN, "completed": done_at is not None,
         "seconds_to_complete": round(done_at, 2) if done_at else None, "wall_seconds": round(wall, 2),
         "sha256_ok": digest == expected if digest else False,
+        "sha256_ok_before_flush": digest_before_flush == expected if digest_before_flush else False,
+        "cache_flushed_s": flushed_s,
         "size_mib": round(sum(f.stat().st_size for f in files) / 2**20, 1) if files else 0,
         "libtorrent_process_cpu_s": round(self_cpu.ru_utime + self_cpu.ru_stime, 2),
         "libtorrent_process_maxrss_mib": round(self_cpu.ru_maxrss / 1024, 1),

@@ -110,7 +110,7 @@ flowchart LR
 
 | Réteg | Mechanizmus | Bizonyítottság |
 |---|---|---|
-| L1 | A session VPN módban **csak proxyval** fut: `proxy_type=socks5_pw`, `proxy_hostname=127.0.0.1`, `proxy_hostnames`, `proxy_peer_connections`, `proxy_tracker_connections`; DHT, LSD, UPnP, NAT-PMP, uTP ki; `dht_bootstrap_nodes=""` (6.3). | PoC: 0 közvetlen csomag; a DHT bootstrap helyi DNS-szivárgása miatt kötelező a DHT tiltása. A beállításnevek a libtorrent 2.1.1-ben ellenőrizve (2026-11-27). |
+| L1 | A session VPN módban **csak proxyval** fut: `proxy_type=socks5_pw`, `proxy_hostname=127.0.0.1`, `proxy_hostnames`, `proxy_peer_connections`, `proxy_tracker_connections`; DHT, LSD, UPnP, NAT-PMP, uTP ki; `dht_bootstrap_nodes=""` (6.3). | PoC: 0 közvetlen csomag; a DHT bootstrap helyi DNS-szivárgása miatt kötelező a DHT tiltása. A beállításnevek a libtorrent 2.1.1-ben (2026-11-27) és 2.1.3-ban (2026-11-28) ellenőrizve. |
 | L2 | **Proxy nélkül nincs út.** Ha a wireproxy nem fut, vagy a tunnel nem él, a SOCKS-kapcsolat meghiúsul, és a libtorrent megáll; közvetlen tartaléka nincs. | PoC `killswitch_tunnel`, `killswitch_proxy`: megállás, 0 közvetlen csomag, magától folytatja. |
 | L3 | **Loopback-kötés** (defense in depth): `outgoing_interfaces="127.0.0.1"` és `listen_interfaces="127.0.0.1:0"`. Egy proxyt megkerülő kapcsolat loopback forráscímről indulna. | **G2-ben mérve:** mindkettővel megy a letöltés, 0 közvetlen csomag, TCP-listener nincs. A libtorrent SOCKS5-UDP socketje ezektől is `0.0.0.0:<véletlen>`-re köt; azon nem ment ki csomag, és a PoC szerint a bejövő forgalomra sem válaszol. |
 | L4 | **Módváltás csak felhasználói művelettel:** be/ki kapcsoláskor `session.pause()` → beállítás → (VPN-nél) proxy kész → `resume()`. Automatikus visszaesés közvetlen módra nincs. A kikapcsoláshoz megerősítés kell. | **G3 kapu** (futás közbeni váltás aktív torrentekkel). |
@@ -391,7 +391,7 @@ stateDiagram-v2
 - **Következmények:**
   - A `socks5_pw` hitelesítés működik a wireproxyval (L7).
   - Az `outgoing_interfaces="127.0.0.1"` nem rontja a proxyn át menő forgalmat, ezért a G2 óta a termékcsomag része (`network_policy.vpn_settings()`; közvetlen módban üres).
-  - A libtorrent SOCKS5-UDP socketje egyik beállítással sem köthető loopbackre. Ezen a mérésben nem ment ki semmi; a kockázat elfogadott, libtorrent-frissítéskor újramérendő.
+  - A libtorrent SOCKS5-UDP socketje egyik beállítással sem köthető loopbackre. Ezen a mérésben nem ment ki semmi; a kockázat elfogadott, libtorrent-frissítéskor újramérendő (2.1.3: [újramérve](#libtorrent-213-végrehajtási-állapota), 2026-11-28).
   - A UDP-tracker a SOCKS5-ön át működik (R7 feloldva).
 
 #### G4 végrehajtási állapot
@@ -588,6 +588,56 @@ stateDiagram-v2
   - Kikapcsolt VPN mellett és a `wg0` leállítása után 409.
   - A kulcs nem szerepelt a naplóban; a felület az eredményt a Chrome-ban helyesen mutatta.
 - **Nem futott:** mérés a valódi Cloudflare-célponttal és valódi Proton-szerverrel. Ezt a felhasználó a saját szerverén a gombbal tudja elvégezni.
+
+### Libtorrent 2.1.3 — a szivárgási tesztsor újrafuttatása
+
+A terv szerint libtorrent-frissítéskor a PoC szivárgási tesztsorát újra kell futtatni (lásd a G2 következményeit). A 2.1.2 (2026-09-25) és a 2.1.3 (2026-11-23) biztonsági és stabilitási javításokat hoz:
+- határon túli olvasás a bdecode-ban;
+- use-after-free a pread lemez-I/O-ban és a UPnP-ben;
+- web seed SSRF-védelem IPv6-ra;
+- szigorúbb HTTP-átirányítás.
+
+A VPN-t közvetlenül érinti a `proxy_hostnames` javítása (#8782). `proxy_hostnames` és proxyzott peerkapcsolat mellett a trackertől kapott, hosztnévvel megadott peereket a libtorrent már eldobja, nem a helyi DNS-sel oldja fel. Ez egy olyan DNS-szivárgási utat zár le, amelyet a PoC nem fed le, mert a teszt-tracker csak IP-címes peert ad.
+
+#### Libtorrent 2.1.3 végrehajtási állapota
+
+- **Termékcsomagok (2026-11-28):**
+  - a `server/.venv` libtorrent `2.1.3.0`-ján a `closed_network_settings()`, a `vpn_settings()` és a `direct_settings()` csomag váltakozva alkalmazva (zárt → VPN → közvetlen → VPN), a visszaolvasott értékek mind egyeznek;
+  - a backend ellenőrzései: Ruff és basedpyright hibátlan, teljes `pytest tests` 910 passed / 64 snapshot.
+- **PoC-image:**
+  - a 2.1.3-as termékimage-ből (`docker build --pull`) készült, a `Dockerfile.poc` változtatása nélkül, BuildKit névvel ellátott kontextussal;
+  - a wireproxy ugyanabból az image-ből kimásolt, ellenőrzött v1.1.3 bináris (`70ae5e52…466d`);
+  - futtatás: `POC_IMAGE=stremhu-vpn-poc:lt213`, lásd a [PoC README-t](poc/userspace/README.md).
+- **Futások:**
+  - 1. futás: mind a 16 forgatókönyv, az addigi, azonnali fájl-hash-sel ([`lt213-leak-suite-run1-results.json`](poc/userspace/results/lt213-leak-suite-run1-results.json));
+  - 2. futás: ugyanez flush utáni hash-sel ([`lt213-leak-suite-results.json`](poc/userspace/results/lt213-leak-suite-results.json));
+  - a G2 és a G3 négy forgatókönyve külön is, ahogy eredetileg mértük őket ([`lt213-g2-g3-isolated-results.json`](poc/userspace/results/lt213-g2-g3-isolated-results.json)).
+
+| Kapu / forgatókönyv | 2.1.3 eredmény | 2.1.1 (korábbi) |
+|---|---|---|
+| G2 `vpn_product_bind` (a termék csomagja) | Letöltés kész, SHA ok; 0 közvetlen csomag (swarm és WAN), 0 helyi DNS, mindhárom futásban | 0 / 0, 0 DNS |
+| G2 `vpn_product` (kötés nélkül, kontroll) | Külön futtatva 0 / 0. A teljes sorban 2 csomag: egy **bejövő** TCP SYN a seedertől a közvetlen cím 6881-es portjára és a kernel RST-je (nincs ott listener). A seeder a címet az előtte futó `inbound_direct` forgatókönyvből ismerte. | 0 / 0 (külön futtatva) |
+| G3 `switch_to_vpn` | Külön futtatva: a türelmi időben 142, **utána 0** közvetlen csomag. A teljes sorban utána 2: ugyanaz a bejövő SYN és kernel-RST. Hasznos adatot vivő csomag 0. A WAN-oldali 2–4 SYN a váltás *előtti* közvetlen fázisból való, mint a `direct` kontrollban. | türelmi időben 278, utána 0 |
+| G3 `switch_to_direct` | A váltás után szándékosan közvetlen; a türelmi időben 0 | ugyanaz |
+| G4 `vpn_magnet`, `vpn_webseed`, `vpn_https_tracker` | Mind kész, SHA ok (flush után); 0 / 0, 0 helyi DNS | 0 / 0, 0 DNS |
+| G4 `vpn_https_untrusted` | Ismeretlen CA-val nincs letöltés (a tanúsítványt elutasítja) | ugyanaz |
+| Kill switch (`killswitch_tunnel`, `killswitch_proxy`) | A szakadás után a letöltés áll, 0 közvetlen swarmcsomag; a WAN-oldali 2, illetve 11–12 csomag ICMP „port unreachable” a WireGuard-végpont felé | 3, illetve 11 ugyanilyen |
+| `vpn_udp_probe` (szándékosan bekapcsolt DHT) | Helyi DNS a `dht.poc.test` felé; ezért van a DHT VPN módban kikapcsolva | ugyanaz |
+| `direct` (pozitív kontroll) | 234 714 közvetlen csomag: a rögzítés működik | 234 617 |
+
+- **Fájl-hash eltérés az 1. futásban:**
+  - a `vpn_https_tracker` letöltése kész volt, de a közvetlenül utána számolt fájl-hash nem egyezett;
+  - a 2. futásban a PoC-kliens kétszer hash-elt: azonnal, valamint `flush_cache` és `cache_flushed_alert` után;
+  - két letöltésnél (`vpn_product_bind`, `vpn_webseed`) az azonnali hash rossz, a flush utáni jó volt; a flush utáni hash mind a 12 befejezett letöltésnél egyezik;
+  - a 2.1.3 tehát a seedelés kezdetén még tarthat ki nem írt blokkot a lemezgyorsítótárban; adatsérülés nincs.
+  - A terméket ez nem érinti: a streamelt adatot a `read_piece`-szel, a libtorrent lemezrétegén át olvassa, a letöltött fájlt közvetlenül nem nyitja meg.
+- **Letöltési idők:** a VPN-es forgatókönyvekben 2,0–2,5 s. A G4 2.1.1-gyel is ennyit mért a seeder-várakozás javítása óta, így ez nem a libtorrent érdeme. A korábbi 12,5 s-os értékek a javítás előttiek.
+- **Termékimage-füstteszt:** a 2.1.3-as image eldobható kötettel indítva 14/14 PASS:
+  - első admin, health, Stremio-manifest, hibás kulcs → 401;
+  - VPN-állapot és -sebességteszt (kikapcsolva 409);
+  - relay-beállítások, indexerlista, felület.
+- **Értékelés:** a 2.1.3 a G2, a G3 és a G4 feltételét ugyanúgy teljesíti, mint a 2.1.1. A SOCKS5-UDP socket továbbra is `0.0.0.0`-ra köt, és rajta most sem ment ki semmi.
+- **Nem futott:** élő Proton- és élő swarm-teszt a 2.1.3-mal; ezt a felhasználó a saját szerverén a frissített image-dzsel ellenőrizheti.
 
 ## 10. Viszony a beolvasztott munkákhoz
 

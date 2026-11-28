@@ -7,7 +7,7 @@ audience: ["developer", "ai-agent", "operator"]
 tags: ["vpn", "proton", "wireguard", "wireproxy", "socks5", "kill-switch", "failover", "speed-test", "relay"]
 source_commit: "17bd23e1"
 baseline: "s4pp1/stremhu-source@8c99c7d (feature origin); main@7bf93aa (PR)"
-verification: "source at source_commit; backend Ruff, basedpyright and full pytest (910 passed), client vitest (19), lint, format and build on 2026-11-28; gates G1 (live Proton P2P), G2-G4 and G6 (local air-gapped Docker PoC), G5 (user's server, read-only), F5 and F6 (local Docker with PoC test exits, API and Chrome); details in the implementation plan, chapter 9"
+verification: "source at source_commit; backend Ruff, basedpyright and full pytest (910 passed), client vitest (19), lint, format and build on 2026-11-28; gates G1 (live Proton P2P), G2-G4 and G6 (local air-gapped Docker PoC), G5 (user's server, read-only), F5 and F6 (local Docker with PoC test exits, API and Chrome); G2-G4 rerun on libtorrent 2.1.3 (2026-11-28, local air-gapped Docker PoC); details in the implementation plan, chapter 9"
 structure_reviewed: "2026-11-28"
 related_docs: ["docs/feature/vpn-integration/README.md", "docs/feature/vpn-integration/implementation-plan.md", "docs/vpn-beallitas.md", "docs/AI-INDEX.md"]
 source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_policy.py", "server/app/modules/relay/service.py", "server/app/modules/relay_settings/service.py", "server/app/modules/stream/service.py", "server/app/main.py", "server/app/config.py", "Dockerfile", "docker/fetch_wireproxy.py", "client/src/routes/_protected/dashboard/system/vpn/"]
@@ -161,14 +161,15 @@ stateDiagram-v2
 | Felület (F4) | Az útmutató lépései Chrome-ban végigkattintva | [Terv: F4](vpn-integration/implementation-plan.md#f4-végrehajtási-állapot) |
 | Átállás (F5) | Migráció, átállás 34 s alatt (30 s-os küszöbbel), nincs visszaugrás, újraindítás, kézi váltás, visszalépés a korábbi buildre | [Terv: F5](vpn-integration/implementation-plan.md#f5-végrehajtási-állapot) |
 | Sebességteszt (F6) | 3 × 25 MB egy teszt-tunnelen át, helyes kilépőcím; nem kapcsolódott VPN mellett 409 | [Terv: F6](vpn-integration/implementation-plan.md#f6-végrehajtási-állapot) |
+| libtorrent 2.1.3 (2026-11-28) | A G2–G4 újrafuttatva: a termékcsomaggal 0 közvetlen csomag, 0 helyi DNS; VPN-re váltás után 2 s-on belül 0 | [Terv: libtorrent 2.1.3](vpn-integration/implementation-plan.md#libtorrent-213-végrehajtási-állapota) |
 
-A CI az ágra a PR megnyitásakor fut először.
+A #17 PR-ellenőrzése (szerver és kliens) sikeres volt.
 
 <!-- doc-anchor:doc-korlatok-es-nyitott-pontok -->
 <a id="doc-korlatok-es-nyitott-pontok"></a>
 ## Korlátok és nyitott pontok
 
-- **Alkalmazásszintű védelem:** a maradék kockázat egy olyan libtorrent-kódút, amely nem tartja be a proxyt. libtorrent-frissítéskor a PoC szivárgási tesztkészletét újra kell futtatni.
+- **Alkalmazásszintű védelem:** a maradék kockázat egy olyan libtorrent-kódút, amely nem tartja be a proxyt. libtorrent-frissítéskor a PoC szivárgási tesztkészletét újra kell futtatni (a 2.1.3-ra frissítéskor megtörtént, 2026-11-28).
 - **A libtorrent SOCKS5-UDP socketje** `0.0.0.0`-ra köt (elfogadott kockázat; a mérésekben nem ment rajta ki semmi).
 - **VPN módban:** nincs bejövő kapcsolat és porttovábbítás, a DHT és az uTP ki van kapcsolva.
 - **Átállás:** a trackerek új IP-címet látnak. A Proton-konfigurációk kb. egy évig érvényesek, az együtt generáltak együtt járnak le.

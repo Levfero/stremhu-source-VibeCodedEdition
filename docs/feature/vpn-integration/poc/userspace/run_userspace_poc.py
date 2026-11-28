@@ -11,6 +11,7 @@ Only the simulated exit (vpnpoc-wg) gets NET_ADMIN; it is test infrastructure, n
 
 Usage (from any directory):
   POC_WIREPROXY_DIR=<folder holding the verified wireproxy binary> python run_userspace_poc.py
+  POC_IMAGE=<image> overrides the PoC image (e.g. one built on a newer libtorrent).
 Writes results/userspace-poc-results.json next to this file; removes every vpnpoc-* object afterwards.
 WireGuard test keys and the G4 test CA / tracker certificate live only in the throwaway volume and are
 never printed.
@@ -24,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-IMG = "stremhu-vpn-phase0-poc:rev4"
+IMG = os.environ.get("POC_IMAGE", "stremhu-vpn-phase0-poc:rev4")
 NETS = {"vpnpoc-wan": "172.30.10.0/24", "vpnpoc-swarm": "172.30.20.0/24"}
 VOL = "vpnpoc-share"
 HERE = Path(__file__).resolve().parent
@@ -210,6 +211,8 @@ def main() -> int:
     env = {
         "docker_server": docker("version", "--format", "{{.Server.Version}}"),
         "image": IMG, "image_id": docker("image", "inspect", IMG, "--format", "{{.Id}}"),
+        "libtorrent": docker("run", "--rm", "--network", "none", "--entrypoint", "python3", IMG, "-c",
+                             "import libtorrent; print(libtorrent.__version__)"),
         "wireproxy_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "wireproxy_release": "v1.1.3 linux_amd64 (github.com/whyvl/wireproxy)",
     }

@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](../README.md) · [AI-index](../AI-INDEX.md)
 
-> **Státusz:** Kész a `feature/vpn-integration` ágon, és PR-ral a fork `main` felé megy (2026-11-28). Fork-saját funkció, az upstream PR-felbontásban nem szerepel. A részletes állapot a [terv 9. fejezetében](vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) van.
+> **Státusz:** Kész, beolvasztva a fork `main` ágába (#17, 2026-11-28). Fork-saját funkció, az upstream PR-felbontásban nem szerepel. A részletes állapot a [terv 9. fejezetében](vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) van.
 
 **Kapcsolódó:** [Dokumentumtérkép](vpn-integration/README.md) · [Implementációs terv](vpn-integration/implementation-plan.md) · [Felhasználói útmutató](../vpn-beallitas.md)
 

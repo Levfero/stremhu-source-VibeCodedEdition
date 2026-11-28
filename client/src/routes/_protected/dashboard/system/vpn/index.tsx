@@ -34,6 +34,7 @@ import { Switch } from '@/shared/components/ui/switch'
 import { Textarea } from '@/shared/components/ui/textarea'
 import type {
   VpnConfigEntry,
+  VpnSpeedTestResponse,
   VpnState,
   VpnTestResponse,
 } from '@/shared/lib/source/vpn-client'
@@ -41,6 +42,7 @@ import { formatDateTime, parseApiError } from '@/shared/lib/utils'
 import {
   getVpn,
   useDeleteVpnConfig,
+  useSpeedTestVpn,
   useTestVpn,
   useUpdateVpn,
 } from '@/shared/queries/vpn'
@@ -59,6 +61,18 @@ const stateLabels: Record<VpnState, string> = {
   error: '🔴 Hiba: a torrentforgalom áll',
 }
 
+const numberFormat = new Intl.NumberFormat('hu-HU', {
+  maximumFractionDigits: 1,
+})
+
+// Tájékoztató sávszélesség-igény (egy film, a többi torrent nélkül).
+function speedHint(mbps: number): string {
+  if (mbps >= 80) return '🟢 4K remuxhoz is elég.'
+  if (mbps >= 25) return '🟢 4K WEB-DL-hez elég; 4K remuxhoz kevés lehet.'
+  if (mbps >= 10) return '🟡 1080p-hez elég; 4K-hoz kevés lehet.'
+  return '🔴 Lassú: a lejátszás akadhat. Próbálj másik szervert.'
+}
+
 const checkLabels: Record<string, string> = {
   'vpn-enabled': 'VPN bekapcsolva',
   'relay-proxy-mode': 'A torrentforgalom proxyn megy',
@@ -72,10 +86,15 @@ export function VpnRoute() {
   const { mutateAsync: updateVpn, isPending: isUpdating } = useUpdateVpn()
   const { mutateAsync: deleteConfig } = useDeleteVpnConfig()
   const { mutateAsync: testVpn, isPending: isTesting } = useTestVpn()
+  const { mutateAsync: speedTestVpn, isPending: isSpeedTesting } =
+    useSpeedTestVpn()
   const confirmDialog = useConfirmDialog()
   const [configText, setConfigText] = useState('')
   const [configName, setConfigName] = useState('')
   const [testResult, setTestResult] = useState<VpnTestResponse | null>(null)
+  const [speedResult, setSpeedResult] = useState<VpnSpeedTestResponse | null>(
+    null,
+  )
 
   const active =
     vpn.configs.find((config) => config.id === vpn.activeConfigId) ?? null
@@ -151,6 +170,17 @@ export function VpnRoute() {
       },
     })
   }
+
+  const handleSpeedTest = async () => {
+    setSpeedResult(null)
+    await run(async () => {
+      setSpeedResult(await speedTestVpn())
+    })
+  }
+
+  const speedConfig = speedResult
+    ? vpn.configs.find((config) => config.id === speedResult.configId)
+    : undefined
 
   const handleTest = async () => {
     await run(async () => {
@@ -360,7 +390,7 @@ export function VpnRoute() {
         <Separator />
 
         <div className="grid gap-2">
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               disabled={isTesting}
@@ -368,7 +398,53 @@ export function VpnRoute() {
             >
               Teszt
             </Button>
+            <Button
+              variant="outline"
+              disabled={isSpeedTesting || vpn.state !== 'connected'}
+              onClick={() => void handleSpeedTest()}
+            >
+              {isSpeedTesting ? 'Mérés folyamatban...' : 'Sebességteszt'}
+            </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            A sebességteszt kapcsolódott VPN mellett, kérésre fut: legfeljebb
+            kb. 25 MB-ot tölt le a VPN-en át (kb. 15 s). Futó torrentek mellett
+            csak a maradék sávszélességet méri.
+          </p>
+          {speedResult && (
+            <ul className="grid gap-1 text-sm">
+              <li>
+                ⬇️ Letöltés:{' '}
+                <span className="font-medium">
+                  {numberFormat.format(speedResult.downloadMbps)} Mbit/s
+                </span>{' '}
+                ({numberFormat.format(speedResult.downloadedBytes / 1_000_000)}{' '}
+                MB, {numberFormat.format(speedResult.durationSeconds)} s)
+                {speedConfig && <> · {speedConfig.name}</>}
+              </li>
+              <li>{speedHint(speedResult.downloadMbps)}</li>
+              {speedResult.latencyMs !== null && (
+                <li>
+                  Késleltetés: {numberFormat.format(speedResult.latencyMs)} ms
+                </li>
+              )}
+              {speedResult.exitIp && (
+                <li>
+                  Kilépő IP:{' '}
+                  <span className="font-mono">{speedResult.exitIp}</span>
+                  {speedResult.exitCountry && <> ({speedResult.exitCountry})</>}
+                </li>
+              )}
+              <li>
+                {speedResult.exitDiffersFromDirect === true &&
+                  '🟢 A kilépő IP eltér a saját IP-címedtől.'}
+                {speedResult.exitDiffersFromDirect === false &&
+                  '🔴 A kilépő IP megegyezik a saját IP-címeddel!'}
+                {speedResult.exitDiffersFromDirect === null &&
+                  '⚪ A saját IP-címeddel nem volt összevethető.'}
+              </li>
+            </ul>
+          )}
           {testResult && (
             <ul className="grid gap-1 text-sm">
               {testResult.checks.map((check) => (

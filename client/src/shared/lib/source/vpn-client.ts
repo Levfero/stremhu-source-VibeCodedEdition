@@ -57,6 +57,17 @@ export interface VpnTestResponse {
   checks: VpnCheck[]
 }
 
+export interface VpnSpeedTestResponse {
+  configId: string | null
+  downloadMbps: number
+  downloadedBytes: number
+  durationSeconds: number
+  latencyMs: number | null
+  exitIp: string | null
+  exitCountry: string | null
+  exitDiffersFromDirect: boolean | null
+}
+
 export const vpnGet = () =>
   sourceClientInstance<VpnResponse>({ url: '/api/vpn', method: 'GET' })
 
@@ -77,5 +88,11 @@ export const vpnDeleteConfig = (configId: string) =>
 export const vpnTest = () =>
   sourceClientInstance<VpnTestResponse>({
     url: '/api/vpn/test',
+    method: 'POST',
+  })
+
+export const vpnSpeedTest = () =>
+  sourceClientInstance<VpnSpeedTestResponse>({
+    url: '/api/vpn/speedtest',
     method: 'POST',
   })

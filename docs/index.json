@@ -2514,6 +2514,7 @@
         "privacy",
         "proton",
         "relay",
+        "speed-test",
         "troubleshooting",
         "vpn",
         "wireguard",
@@ -2521,7 +2522,7 @@
       ],
       "source_commit": "4cecffb8",
       "baseline": null,
-      "verification": "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)",
+      "verification": "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; F6 speed test checked on 2026-11-28 through a PoC test tunnel (download, exit IP, refusal when not connected) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)",
       "structure_reviewed": "2026-11-27",
       "related_docs": [
         "README.md",
@@ -2570,6 +2571,11 @@
         {
           "title": "Több konfiguráció és automatikus átállás",
           "anchor": "doc-tobb-konfiguracio-es-automatikus-atallas",
+          "level": 2
+        },
+        {
+          "title": "Sebességteszt",
+          "anchor": "doc-sebessegteszt",
           "level": 2
         },
         {

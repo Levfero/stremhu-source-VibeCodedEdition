@@ -150,6 +150,9 @@ class Tracker(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlsplit(self.path)
+        if parsed.path in ("/__down", "/cdn-cgi/trace"):
+            self._speedtest(parsed)
+            return
         if parsed.path != "/announce":
             self.send_error(404)
             return
@@ -178,6 +181,26 @@ class Tracker(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _speedtest_body(parsed, src: str) -> bytes:
+    if parsed.path == "/cdn-cgi/trace":
+        return f"ip={src}\nloc=XX\n".encode()
+    size = int(urllib.parse.parse_qs(parsed.query).get("bytes", ["1000000"])[0])
+    return b"x" * min(max(size, 0), 50_000_000)
+
+
+def _speedtest(self, parsed) -> None:
+    """F6: a sebességteszt célpontja a tunnel túloldalán (letöltés és kilépő IP)."""
+    body = _speedtest_body(parsed, self.client_address[0])
+    self.send_response(200)
+    self.send_header("Content-Type", "application/octet-stream")
+    self.send_header("Content-Length", str(len(body)))
+    self.end_headers()
+    self.wfile.write(body)
+
+
+Tracker._speedtest = _speedtest  # type: ignore[attr-defined]
 
 
 class TlsTrackerServer(ThreadingHTTPServer):

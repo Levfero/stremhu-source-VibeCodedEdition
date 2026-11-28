@@ -70,7 +70,7 @@
 | **Lejátszás indítása** | A fájl első és utolsó darabja azonnali | Ugyanígy, az upstream határidő-képletével (SP02, mérve gyorsabb indulás); a korábbi 3+3 darabos indulás `RELAY_START_POLICY=legacy` és `RELAY_READAHEAD_POLICY=legacy` értékkel visszaállítható |
 | **Letöltöttség jelzése** | Torrentszinten | Fájlszintű `file_progress`; csak a kész videófájl kap `⚡ Letöltve` jelzést, a katalógusból megnyitott torrent fájllistájában is; a jelölés és az előresorolás a Preferenciák között kikapcsolható |
 | **Gyorsítótár** | Rövid tracker-cache | IMDb-keresés 1800 s, szöveges keresés 300 s TTL, generációs stream-cache; tech-info cache 3600 s; lejárt trackerlista azonnal, háttérfrissítéssel, 24 órás kemény határig (SP07) |
-| **Torrent-VPN** | — | Beépített WireGuard (pl. Proton P2P szerver) csak a torrentforgalomhoz: feltöltés és kapcsoló a webes felületen, extra Docker-jogosultság nélkül; kapcsolatvesztéskor a torrentforgalom leáll (kill switch), a streamelés és a felület a szokásos hálózaton marad ([útmutató](./docs/vpn-beallitas.md)) |
+| **Torrent-VPN** | — | Beépített WireGuard (pl. Proton P2P szerver) csak a torrentforgalomhoz: feltöltés és kapcsoló a webes felületen, extra Docker-jogosultság nélkül; kapcsolatvesztéskor a torrentforgalom leáll (kill switch); több szerver automatikus átállással és sebességteszt a felületen; a streamelés és a felület a szokásos hálózaton marad ([útmutató](./docs/vpn-beallitas.md)) |
 | **Webes felület** | Fix 1 s-os frissítés | Adaptív frissítés: 1,5 s aktív letöltésnél, 5 s egyébként, háttérben szünetel |
 
 ### 1.2 Stabilitási és biztonsági munkacsomagok (CR01–CR19)
@@ -266,7 +266,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény (2026-11-28, a VPN-funkcióval és az automatikus átállással): Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **903 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény (2026-11-28, a VPN-funkcióval és az automatikus átállással): Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **910 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 
@@ -277,7 +277,7 @@ npm run format
 npm run build
 ```
 
-`--fix` és teljes repóformázás nélkül; utolsó ellenőrzött eredmény (2026-11-28): vitest 4 tesztfájl / 18 teszt, lint, format és build sikeres.
+`--fix` és teljes repóformázás nélkül; utolsó ellenőrzött eredmény (2026-11-28): vitest 4 tesztfájl / 19 teszt, lint, format és build sikeres.
 
 **Dokumentáció**
 - Belépési pont: [docs/README.md](./docs/README.md)

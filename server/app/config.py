@@ -132,6 +132,9 @@ class Config(BaseSettings):
     vpn_check_alive_interval: int = Field(default=5, ge=1, le=300)
     # F5: ennyi másodperc válasz nélkül a kezelő a következő mentett konfigurációra vált.
     vpn_failover_after: int = Field(default=60, ge=20, le=3600)
+    # F6: a sebességteszt célpontjai (a tunnelen át); csak http(s).
+    vpn_speedtest_download_url: str = "https://speed.cloudflare.com/__down?bytes=25000000"
+    vpn_speedtest_trace_url: str = "https://speed.cloudflare.com/cdn-cgi/trace"
     host_ip: str = Field(
         default="",
     )
@@ -305,6 +308,13 @@ class Config(BaseSettings):
                 )
 
         return self
+
+    @field_validator("vpn_speedtest_download_url", "vpn_speedtest_trace_url")
+    @classmethod
+    def validate_vpn_speedtest_url(cls, value: str) -> str:
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("A VPN-sebességteszt URL-je csak http(s) lehet.")
+        return value
 
     @field_validator("reverse_proxy_domain")
     @classmethod

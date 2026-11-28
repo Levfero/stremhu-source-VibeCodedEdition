@@ -7,7 +7,7 @@ audience: ["operator"]
 tags: ["vpn", "proton", "wireguard", "wireproxy", "privacy", "relay", "kill-switch", "troubleshooting"]
 source_commit: "4cecffb8"
 baseline: null
-verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)"
+verification: "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; F6 speed test checked on 2026-11-28 through a PoC test tunnel (download, exit IP, refusal when not connected) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)"
 structure_reviewed: "2026-11-27"
 related_docs: ["README.md", "docs/README.md", "docs/atallas-es-visszaallas.md", "docs/feature/vpn-integration/implementation-plan.md"]
 source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_policy.py", "server/app/modules/stream/service.py", "server/app/config.py", "client/src/routes/_protected/dashboard/system/vpn/"]
@@ -18,7 +18,7 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 <!-- doc-nav:start -->
 **Navigáció:** [Dokumentáció](README.md) · [AI-index](AI-INDEX.md)
 
-> **Státusz:** Felhasználói útmutató. A funkció a `feature/vpn-integration` ágon van, a fork `main` ágába még nem került; amíg ott nincs, a fork kiadott image-ében sem érhető el. A leírt működést a [VPN-terv](feature/vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) mérései igazolják: élő Proton P2P szerver (G1), valamint helyi, internet nélküli Docker-tesztek (G2–G4, G6). A felület lépéseit egy eldobható helyi konténeren, teszt-VPN-szerverrel böngészőben (Chrome) végigkattintottuk, és API-n át is kipróbáltuk (2026-11-27): feltöltés, hibás fájl, bekapcsolás, Teszt, relay-zárolás, kapcsolatvesztés és visszaállás, kikapcsolás, törlés. Egy éles Ubuntu-szerveren valódi Proton-kapcsolattal, 4K lejátszás közben is fut, ott az erőforrás-használatot is mértük ([Korlátok](#doc-korlatok)); ARM-gépen nem mértük. A több konfiguráció és az automatikus átállás helyben, két teszt-VPN-szerverrel, API-n át és böngészőben kipróbálva (2026-11-28).
+> **Státusz:** Felhasználói útmutató. A funkció a `feature/vpn-integration` ágon van, a fork `main` ágába még nem került; amíg ott nincs, a fork kiadott image-ében sem érhető el. A leírt működést a [VPN-terv](feature/vpn-integration/implementation-plan.md#9-fázisok-kapuk-és-elfogadási-feltételek) mérései igazolják: élő Proton P2P szerver (G1), valamint helyi, internet nélküli Docker-tesztek (G2–G4, G6). A felület lépéseit egy eldobható helyi konténeren, teszt-VPN-szerverrel böngészőben (Chrome) végigkattintottuk, és API-n át is kipróbáltuk (2026-11-27): feltöltés, hibás fájl, bekapcsolás, Teszt, relay-zárolás, kapcsolatvesztés és visszaállás, kikapcsolás, törlés. Egy éles Ubuntu-szerveren valódi Proton-kapcsolattal, 4K lejátszás közben is fut, ott az erőforrás-használatot is mértük ([Korlátok](#doc-korlatok)); ARM-gépen nem mértük. A több konfiguráció, az automatikus átállás és a sebességteszt helyben, teszt-VPN-szerverekkel, API-n át és böngészőben kipróbálva (2026-11-28).
 
 **Kapcsolódó:** [Fő README](../README.md) · [Átállás és visszaállás](atallas-es-visszaallas.md) · [VPN-terv](feature/vpn-integration/implementation-plan.md)
 
@@ -32,6 +32,7 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
 - [Mi változik bekapcsolt VPN mellett?](#doc-mi-valtozik-bekapcsolt-vpn-mellett)
 - [Állapotok](#doc-allapotok)
 - [Több konfiguráció és automatikus átállás](#doc-tobb-konfiguracio-es-automatikus-atallas)
+- [Sebességteszt](#doc-sebessegteszt)
 - [Kikapcsolás, csere, törlés](#doc-kikapcsolas-csere-torles)
 - [Biztonság és mentés](#doc-biztonsag-es-mentes)
 - [Haladó beállítások](#doc-halado-beallitasok)
@@ -110,6 +111,7 @@ source_paths: ["server/app/modules/vpn/", "server/app/modules/relay/network_poli
    | WireGuard-kapcsolat ellenőrzése | A VPN-szerver a tunnelen át válaszol. `no-reply`: nem válaszol, lásd a `no-handshake` hibát. |
 
 5. A **Relay → Beállítások** oldalon a port, az UPnP / NAT-PMP és az uTP mező ezután zárolt, *„VPN által kezelt”* jelzéssel.
+6. Ha kíváncsi vagy a VPN sebességére, nyomd meg a **Sebességteszt** gombot ([Sebességteszt](#doc-sebessegteszt)).
 
 <!-- doc-anchor:doc-mi-valtozik-bekapcsolt-vpn-mellett -->
 <a id="doc-mi-valtozik-bekapcsolt-vpn-mellett"></a>
@@ -162,6 +164,31 @@ Ha az aktív Proton-szerver leáll, a StremHU magától átállhat egy másik me
   - az aktív szerver leállítása után kb. 10 s-mal jött a 🟡, és 34–36 s-mal 🟢 lett a másik szerveren (30 s-os `VPN_FAILOVER_AFTER` beállítással; az alapértelmezett 60 s-mal ez kb. 65 s);
   - az eredeti szerver visszatérése és a konténer újraindítása után is a másikon maradt.
 
+<!-- doc-anchor:doc-sebessegteszt -->
+<a id="doc-sebessegteszt"></a>
+## Sebességteszt
+
+A VPN-oldalon a **Sebességteszt** gomb megméri, milyen gyors az aktív VPN-szerver.
+
+- **Mikor indítható:** csak kapcsolódott VPN mellett (🟢), és egyszerre csak egy mérés futhat. Magától soha nem fut.
+- **Mit csinál:** egy próbafájlt tölt le a VPN-en át, legfeljebb 25 MB-ot és legfeljebb kb. 15 s-ig. A célpont alapból a Cloudflare sebességteszt-szervere (`speed.cloudflare.com`). A nevet a VPN DNS-e oldja fel, ugyanúgy, mint a trackerekét.
+- **Mit mutat:**
+  - **Letöltés:** Mbit/s, a letöltött mennyiség és az idő, valamint melyik konfigurációval mért.
+  - **Tájékoztató 4K-hoz:** 80 Mbit/s felett 4K remuxhoz is elég; 25 felett 4K WEB-DL-hez elég; 10 felett 1080p-hez elég; ez alatt a lejátszás akadhat.
+  - **Késleltetés:** az első válaszbájtig eltelt idő a VPN-en át.
+  - **Kilépő IP:** a VPN-szerver kilépő címe és országkódja, ahogy a célpont látja.
+  - **Összevetés:** eltér-e a kilépő IP a saját címedtől (🟢 eltér, 🔴 megegyezik, ⚪ nem volt összevethető). Ehhez a StremHU a saját hálózatodon is lekérdezi a címedet; ezt a címet nem jeleníti meg és nem naplózza. Ha a két cím eltérő IP-verziójú (IPv4 vagy IPv6), nem összevethető.
+- **Több konfiguráció összehasonlítása:** a mérés mindig az aktív konfigurációra vonatkozik. A **Használat** gombbal váltogatva összehasonlíthatod a szervereidet.
+- **Korlátok:**
+  - Futó torrentek mellett csak a maradék sávszélességet méri.
+  - Egyetlen kapcsolattal mér, így a teljes sávszélességet kissé alábecsülheti.
+  - A Cloudflare a VPN kilépő címét látja, az összevetéskor pedig a saját címedet is.
+- **Hibák:**
+  - *„A sebességteszthez kapcsolódott VPN kell.”*: a VPN nincs 🟢 állapotban.
+  - *„Már fut egy sebességteszt.”*: várd meg az előzőt.
+  - *„A sebességteszt nem sikerült (…)”* (`timeout`, `proxy-refused`, `proxy-connect-failed`, `tls-error`, `http-error`, `network-error`): a VPN-en át nem sikerült elérni a célpontot. Próbáld újra, vagy válts szervert.
+- **Helyi próba (2026-11-28):** egy teszt-VPN-szerveren át 25 MB letöltés, helyes kilépőcímmel. Kikapcsolt VPN mellett és megszakadt kapcsolatnál a felület elutasító üzenetet adott. A felület az eredményt böngészőben is helyesen mutatta.
+
 <!-- doc-anchor:doc-kikapcsolas-csere-torles -->
 <a id="doc-kikapcsolas-csere-torles"></a>
 ## Kikapcsolás, csere, törlés
@@ -195,6 +222,8 @@ Normál használathoz egyiket sem kell megadni.
 | `VPN_CHECK_ALIVE` | A kapcsolatellenőrzés ezeket a címeket pingeli a tunnelen át. Alapból a konfiguráció IPv4-es DNS-címei (Protonnál `10.2.0.1`). | JSON-lista, pl. `["10.2.0.1"]` |
 | `VPN_CHECK_ALIVE_INTERVAL` | Az ellenőrzés gyakorisága másodpercben. | 1–300, alapból 5 |
 | `VPN_FAILOVER_AFTER` | Ennyi másodperc válasz nélkül vált a StremHU a következő mentett konfigurációra. | 20–3600, alapból 60 |
+| `VPN_SPEEDTEST_DOWNLOAD_URL` | A sebességteszt letöltési célpontja (pl. saját mérőszerver). | `http(s)://…`, alapból `https://speed.cloudflare.com/__down?bytes=25000000` |
+| `VPN_SPEEDTEST_TRACE_URL` | A kilépő IP lekérdezése; `ip=` és `loc=` sorokat váró válasz. | `http(s)://…`, alapból `https://speed.cloudflare.com/cdn-cgi/trace` |
 
 ```yaml
 services:

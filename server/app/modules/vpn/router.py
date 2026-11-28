@@ -9,6 +9,7 @@ from app.modules.users.models import UserModel
 from app.modules.vpn.dependencies import get_vpn_service
 from app.modules.vpn.schemas import (
     VpnResponse,
+    VpnSpeedTestResponse,
     VpnStatusResponse,
     VpnTestResponse,
     VpnUpdateRequest,
@@ -50,3 +51,8 @@ def get_vpn_status(_: AdminUser, service: Service):
 @router.post("/vpn/test", response_model=VpnTestResponse, include_in_schema=show_internal_routes())
 async def test_vpn(_: AdminUser, service: Service):
     return await service.test()
+
+
+@router.post("/vpn/speedtest", response_model=VpnSpeedTestResponse, include_in_schema=show_internal_routes())
+async def speed_test_vpn(_: AdminUser, service: Service):
+    return await service.speed_test()

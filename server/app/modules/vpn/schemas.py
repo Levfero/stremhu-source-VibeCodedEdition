@@ -58,6 +58,18 @@ class VpnUpdateRequest(_CamelModel):
     order: list[str] | None = Field(default=None, max_length=MAX_VPN_CONFIGS)
 
 
+class VpnSpeedTestResponse(_CamelModel):
+    config_id: str | None = None
+    download_mbps: float
+    downloaded_bytes: int
+    duration_seconds: float
+    latency_ms: float | None = None
+    # A VPN kilépő címe; a saját címet a szerver soha nem adja vissza.
+    exit_ip: str | None = None
+    exit_country: str | None = None
+    exit_differs_from_direct: bool | None = None
+
+
 class VpnCheck(_CamelModel):
     name: str
     ok: bool | None

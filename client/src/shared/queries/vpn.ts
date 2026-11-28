@@ -8,6 +8,7 @@ import type { VpnUpdateRequest } from '../lib/source/vpn-client'
 import {
   vpnDeleteConfig,
   vpnGet,
+  vpnSpeedTest,
   vpnTest,
   vpnUpdate,
 } from '../lib/source/vpn-client'
@@ -56,6 +57,15 @@ export function useDeleteVpnConfig() {
       await queryClient.invalidateQueries({
         queryKey: getRelaySettings.queryKey,
       })
+    },
+  })
+}
+
+export function useSpeedTestVpn() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await vpnSpeedTest()
+      return response
     },
   })
 }

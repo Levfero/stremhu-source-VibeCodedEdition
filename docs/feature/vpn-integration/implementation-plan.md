@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; az F5 (több konfiguráció, automatikus átállás) helyben kész; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; az F5 (több konfiguráció, automatikus átállás) és az F6 (sebességteszt) helyben kész; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -194,6 +194,7 @@ stateDiagram-v2
 | `PUT /api/vpn` | `.conf` import (szövegként, F5 óta a listához adva, opcionális névvel) és/vagy `enabled` kapcsoló; F5: `order`, `activeConfigId`, `autoFailover`. A kikapcsoláshoz `confirmUnprotected: true` kell. Validálás, titkosított mentés, az L4 módváltás alkalmazása. |
 | `DELETE /api/vpn/configs/{id}` | Egy mentett konfiguráció törlése (F5; korábban `DELETE /api/vpn/config`). Bekapcsolt VPN mellett az utolsó nem törölhető. |
 | `GET /api/vpn/status` | Állapot, utolsó handshake, hibakód, a tunnel átviteli számlálói (`/metrics`-ből). |
+| `POST /api/vpn/speedtest` | Sebességteszt a tunnelen át (F6): letöltés, késleltetés, kilépő IP, összevetés a saját címmel (azt nem adja vissza). Csak kapcsolódott VPN mellett, egyszerre egy. |
 | `POST /api/vpn/test` | Diagnosztika: handshake, DNS a tunnelen, próbakapcsolat a proxyn át, és annak ellenőrzése, hogy a libtorrent-beállítások a 6.3 szerintiek. |
 
 ### 6.6. Titokkezelés
@@ -558,6 +559,35 @@ stateDiagram-v2
   - Átálláskor új a VPN kilépő IP-címe, így a trackerek is másik címet látnak; ezért kikapcsolható az átállás.
   - Ha minden szerver áll, a kezelő `failover_after`-enként forgatja őket; a forgalom közben áll.
   - Élő Proton-szerverekkel az átállást nem próbáltuk ki.
+
+### F6 — Sebességteszt a VPN-en át
+
+- **Igény (felhasználó, 2026-11-28):** a VPN-oldalon lehessen mérni a kapcsolat sebességét.
+- **Megvalósítás (`vpn/speedtest.py`):**
+  - Minimális SOCKS5-kliens (RFC 1928/1929, felhasználónév és jelszó) a kezelő aktuális proxyszabályával. A hostnevet tartománynévként adja át, így a tunnel DNS-e oldja fel.
+  - A TLS a proxykapcsolaton belül épül fel (`StreamWriter.start_tls`), új függőség nincs.
+  - Egy `trace` kérés adja a kilépő IP-t, az országkódot és a késleltetést (az első válaszbájtig). Utána egy letöltés fut (`__down`), legfeljebb 25 MB-ig és 15 s-ig; a teljes időkorlát 30 s.
+  - A saját IP-cím csak az összehasonlításhoz kell: IPv4-en, a normál hálózaton kérdezi le, és nem adja vissza és nem naplózza. Eltérő IP-verziónál az eredmény „nem összevethető”.
+  - Célpont: alapból `speed.cloudflare.com`, `VPN_SPEEDTEST_DOWNLOAD_URL` és `VPN_SPEEDTEST_TRACE_URL` változóval felülírható (csak http(s); a konfiguráció ellenőrzi). Az URL API-n át nem állítható.
+- **API:** `POST /api/vpn/speedtest` (admin).
+  - Csak kapcsolódott VPN mellett fut, egyszerre egy (409).
+  - Hibánál 502, titokmentes kóddal: `timeout`, `proxy-refused`, `proxy-connect-failed`, `tls-error`, `http-error`, `network-error`.
+  - Napló: `operation=vpn-speedtest`.
+- **Felület:**
+  - **Sebességteszt** gomb a **Teszt** mellett, csak 🟢 állapotban aktív;
+  - eredmény: Mbit/s, mennyiség és idő, a konfiguráció neve, 4K-tájékoztató, késleltetés, kilépő IP és országkód, valamint az összevetés.
+
+#### F6 végrehajtási állapot
+
+- **Ellenőrzés (2026-11-28):**
+  - Ruff hibátlan, basedpyright 0 hiba, teljes `pytest tests` 910 passed.
+  - Új esetek: mérés kamu SOCKS5-proxyn át (a név a proxyhoz megy), azonos és hiányzó saját cím, bájtkorlát, rossz proxyjelszó, elakadt letöltés (`timeout`), csak http(s) URL, a szolgáltatás feltételei (csak `connected`, egyszerre egy, 502 kóddal).
+  - Kliens: vitest 4 fájl / 19 teszt, lint, format, build sikeres.
+- **Helyi Docker-próba:** a PoC teszt-kilépő HTTP-szervere `__down` és `cdn-cgi/trace` végpontot kapott, a célpont `tracker.poc.test` volt (csak a tunnel DNS-ével oldható fel).
+  - 3 × 25 MB, kb. 1,1 Gbit/s (helyi tunnel); a kilépő a tunnelcímet (`10.2.0.2`) látta; az összevetés „nem összevethető”, mert a célpont közvetlenül nem érhető el.
+  - Kikapcsolt VPN mellett és a `wg0` leállítása után 409.
+  - A kulcs nem szerepelt a naplóban; a felület az eredményt a Chrome-ban helyesen mutatta.
+- **Nem futott:** mérés a valódi Cloudflare-célponttal és valódi Proton-szerverrel. Ezt a felhasználó a saját szerverén a gombbal tudja elvégezni.
 
 ## 10. Viszony a beolvasztott munkákhoz
 

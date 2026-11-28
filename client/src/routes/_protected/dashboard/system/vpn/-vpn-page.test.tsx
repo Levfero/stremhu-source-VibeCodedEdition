@@ -11,9 +11,10 @@ import { getVpn } from '@/shared/queries/vpn'
 
 import { VpnRoute } from './index'
 
-const { vpnUpdate, vpnDeleteConfig } = vi.hoisted(() => ({
+const { vpnUpdate, vpnDeleteConfig, vpnSpeedTest } = vi.hoisted(() => ({
   vpnUpdate: vi.fn(),
   vpnDeleteConfig: vi.fn(),
+  vpnSpeedTest: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/source/vpn-client', () => ({
@@ -21,6 +22,7 @@ vi.mock('@/shared/lib/source/vpn-client', () => ({
   vpnUpdate,
   vpnDeleteConfig,
   vpnTest: vi.fn(),
+  vpnSpeedTest,
 }))
 
 function entry(id: string, name: string): VpnConfigEntry {
@@ -79,6 +81,7 @@ afterEach(() => {
   cleanup()
   vpnUpdate.mockReset()
   vpnDeleteConfig.mockReset()
+  vpnSpeedTest.mockReset()
   useDialogsStore.setState({ dialogs: [] })
 })
 
@@ -166,5 +169,35 @@ describe('VPN page', () => {
     expect(
       screen.getByRole('button', { name: 'Budapest törlése' }),
     ).toHaveProperty('disabled', true)
+  })
+
+  it('runs the speed test only on a connected VPN and shows the result', async () => {
+    renderPage(vpn({ state: 'reconnecting' }))
+    expect(
+      screen.getByRole('button', { name: 'Sebességteszt' }),
+    ).toHaveProperty('disabled', true)
+    cleanup()
+
+    vpnSpeedTest.mockResolvedValue({
+      configId: 'a',
+      downloadMbps: 66.4,
+      downloadedBytes: 25_000_000,
+      durationSeconds: 3,
+      latencyMs: 35,
+      exitIp: '203.0.113.7',
+      exitCountry: 'HU',
+      exitDiffersFromDirect: true,
+    })
+    renderPage(vpn({}))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Sebességteszt' }))
+      await Promise.resolve()
+    })
+    expect(vpnSpeedTest).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText(/66,4 Mbit\/s/)).toBeTruthy()
+    expect(screen.getByText('203.0.113.7')).toBeTruthy()
+    expect(
+      screen.getByText('🟢 A kilépő IP eltér a saját IP-címedtől.'),
+    ).toBeTruthy()
   })
 })

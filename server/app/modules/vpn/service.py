@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import secrets
 from collections.abc import Callable
+from dataclasses import asdict
 
 from fastapi import HTTPException
 
@@ -24,11 +25,13 @@ from app.modules.vpn.schemas import (
     VpnConfigResponse,
     VpnMetadataResponse,
     VpnResponse,
+    VpnSpeedTestResponse,
     VpnStatusResponse,
     VpnTestResponse,
     VpnUpdateRequest,
 )
 from app.modules.vpn.secret_store import SecretStore, SecretStoreError
+from app.modules.vpn.speedtest import SocksAuth, SpeedTestError, VpnSpeedTest
 from app.modules.vpn.wireguard_config import (
     WireGuardConfigError,
     parse_wireguard_config,
@@ -56,12 +59,16 @@ class VpnService:
         save_settings: Callable[[VpnSettingsUpdate], VpnSettings],
         secret_store_factory: Callable[[], SecretStore],
         network_settings: Callable[[], dict[str, object]],
+        speed_test_factory: Callable[[], VpnSpeedTest] | None = None,
+        speed_test_lock: asyncio.Lock | None = None,
     ):
         self._manager = manager
         self._load = load_settings
         self._save = save_settings
         self._secret_store_factory = secret_store_factory
         self._network_settings = network_settings
+        self._speed_test_factory = speed_test_factory
+        self._speed_test_lock = speed_test_lock or asyncio.Lock()
 
     def _status(self) -> VpnStatusResponse:
         status = self._manager.status
@@ -208,6 +215,25 @@ class VpnService:
         if restart:
             await self._manager.apply_settings(saved)
         return self._response(saved)
+
+    async def speed_test(self) -> VpnSpeedTestResponse:
+        """Letöltési sebesség, késleltetés és kilépő IP a tunnelen át (F6)."""
+        policy = self._manager.policy
+        status = self._manager.status
+        if policy is None or status.state != VpnState.CONNECTED or self._speed_test_factory is None:
+            raise HTTPException(409, "A sebességteszthez kapcsolódott VPN kell.")
+        if self._speed_test_lock.locked():
+            raise HTTPException(409, "Már fut egy sebességteszt.")
+        async with self._speed_test_lock:
+            try:
+                result = await self._speed_test_factory().run(
+                    SocksAuth(port=policy.port, username=policy.username, password=policy.password)
+                )
+            except SpeedTestError as error:
+                logger.warning("operation=vpn-speedtest reason=%s", error.code)
+                raise HTTPException(502, f"A sebességteszt nem sikerült ({error.code}).") from None
+        logger.info("operation=vpn-speedtest mbps=%s", result.download_mbps)
+        return VpnSpeedTestResponse(config_id=status.active_config_id, **asdict(result))
 
     async def test(self) -> VpnTestResponse:
         settings = await owned_to_thread(self._load)

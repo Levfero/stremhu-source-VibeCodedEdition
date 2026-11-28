@@ -266,7 +266,7 @@ Push-Location server
 Pop-Location
 ```
 
-Utolsó ellenőrzött eredmény: Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **847 passed / 64 snapshot**.
+Utolsó ellenőrzött eredmény (2026-11-28, a VPN-funkcióval): Ruff `All checks passed!`, basedpyright `0 errors, 0 warnings, 0 notes`, pytest **892 passed / 64 snapshot**.
 
 **Frontend** (a `client/` könyvtárban):
 
@@ -277,13 +277,14 @@ npm run format
 npm run build
 ```
 
-`--fix` és teljes repóformázás nélkül; utolsó ellenőrzött eredmény: vitest 3 tesztfájl / 13 teszt, lint, format és build sikeres.
+`--fix` és teljes repóformázás nélkül; utolsó ellenőrzött eredmény (2026-11-28): vitest 4 tesztfájl / 15 teszt, lint, format és build sikeres.
 
 **Dokumentáció**
 - Belépési pont: [docs/README.md](./docs/README.md)
 - Téma- és forrásindex (AI-ágenseknek is): [docs/AI-INDEX.md](./docs/AI-INDEX.md)
 - Stabilitási terv és végrehajtási napló: [docs/feature/stability-and-optimization.md](./docs/feature/stability-and-optimization.md)
 - Streamgyorsítási terv és végrehajtási napló: [docs/feature/stream-performance.md](./docs/feature/stream-performance.md)
+- Beépített torrent-VPN: [felhasználói útmutató](./docs/vpn-beallitas.md), [terv, mérések és kapuk](./docs/feature/vpn-integration/README.md)
 
 ---
 

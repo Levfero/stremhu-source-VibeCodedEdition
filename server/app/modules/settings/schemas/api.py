@@ -48,6 +48,8 @@ class RelaySettingsResponse(BaseModel):
     enable_upnp_and_natpmp: bool
     encryption: RelayEncryptionEnum
     enable_utp: bool
+    # VPN módban a port, az UPnP/NAT-PMP és az uTP a VPN-hez kötött (VPN-terv 7. fejezet).
+    vpn_managed: bool = False
 
 
 class RelaySettingsUpdateRequest(RelaySettingsUpdate):

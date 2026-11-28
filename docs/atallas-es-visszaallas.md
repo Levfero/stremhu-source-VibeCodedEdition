@@ -107,6 +107,9 @@ Az első induláskor a fork frissíti az adatbázist. Utána egyszer újra be ke
 
 Két út van. Mindkettőnél előbb az adatbázist kell visszaállítani, és **csak utána** szabad az image sort visszaírni.
 
+> [!NOTE]
+> Ha a fork [beépített VPN-jét](vpn-beallitas.md) használtad: az eredetiben nincs VPN, ezért visszaváltás után a torrentforgalom a saját IP-címedről megy.
+
 ### A) Mentésből (a mentés pillanatára áll vissza)
 
 1. Írd vissza az image sort:

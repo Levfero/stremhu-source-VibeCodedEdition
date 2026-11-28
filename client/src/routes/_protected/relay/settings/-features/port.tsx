@@ -24,6 +24,7 @@ const schema = z.object({
 
 export function Port() {
   const { data: relaySettings } = useSuspenseQuery(getRelaySettings)
+  const vpnManaged = relaySettings.vpnManaged === true
 
   const { mutateAsync: updateSetting } = useUpdateRelaySetting()
 
@@ -70,6 +71,7 @@ export function Port() {
               <InputGroup>
                 <InputGroupInput
                   placeholder="Nincs limitálva"
+                  disabled={vpnManaged}
                   inputMode="numeric"
                   id={field.name}
                   name={field.name}
@@ -98,6 +100,7 @@ export function Port() {
               <Switch
                 id={field.name}
                 checked={field.state.value}
+                disabled={vpnManaged}
                 onCheckedChange={field.handleChange}
               />
               <Label htmlFor="airplane-mode">
@@ -106,6 +109,11 @@ export function Port() {
             </div>
           )}
         </form.Field>
+        {vpnManaged && (
+          <p className="text-sm text-muted-foreground">
+            VPN által kezelt: VPN módban nincs bejövő port és porttovábbítás.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

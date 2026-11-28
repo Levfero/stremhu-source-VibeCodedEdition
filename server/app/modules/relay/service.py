@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import socket
 import threading
 from collections.abc import Callable
@@ -13,6 +14,15 @@ from app.common.singleflight import SearchStoppingError
 from app.common.torrent_info import parse_torrent_info
 from app.config import config
 from app.modules.relay.entities import File, Stream, Torrent
+from app.modules.relay.network_policy import (
+    DirectPolicy,
+    NetworkPolicy,
+    UserNetworkSettings,
+    VpnProxyPolicy,
+    closed_network_settings,
+    direct_settings,
+    vpn_settings,
+)
 from app.modules.relay.schemas import (
     RelaySettingsUpdate,
     RelayTorrent,
@@ -77,7 +87,10 @@ class RelayService:
         self._alert_task: asyncio.Task[None] | None = None
         self._alert_failed = False
         self._resume_pending: dict[str, asyncio.Future[bool]] = {}
-        self._libtorrent_session = libtorrent.session()
+        # Hálózati szabály (VPN-terv L6): amíg nincs alkalmazva, torrent nem kerülhet a sessionbe.
+        self._network_lock = threading.RLock()
+        self._network_policy: NetworkPolicy | None = None
+        self._user_network = UserNetworkSettings(port=config.libtorrent_port)
 
         alert_mask = (
             libtorrent.alert_category.error
@@ -86,13 +99,13 @@ class RelayService:
             | libtorrent.alert_category.piece_progress
         )
 
-        self._libtorrent_session.apply_settings(
+        # A session már a konstruktorban a zárt csomaggal jön létre: a libtorrent
+        # alapértékei (UPnP/NAT-PMP be, listener minden interfészen) egy pillanatra sem élnek.
+        self._libtorrent_session = libtorrent.session(
             {
+                **closed_network_settings(),
                 "alert_mask": alert_mask,
-                "listen_interfaces": f"0.0.0.0:{config.libtorrent_port},[::]:{config.libtorrent_port}",
                 "connections_limit": 300,
-                "enable_dht": False,
-                "enable_lsd": False,
                 "auto_sequential": False,
                 "piece_extent_affinity": True,
                 "peer_timeout": 60,
@@ -207,10 +220,6 @@ class RelayService:
         if payload.connections_limit is not None:
             apply_settings["connections_limit"] = payload.connections_limit
 
-        if payload.enable_upnp_and_natpmp is not None:
-            apply_settings["enable_upnp"] = payload.enable_upnp_and_natpmp
-            apply_settings["enable_natpmp"] = payload.enable_upnp_and_natpmp
-
         if payload.torrent_connections_limit is not None:
             with self._connection_policy_lock:
                 self._torrent_connections_limit = payload.torrent_connections_limit
@@ -220,16 +229,81 @@ class RelayService:
         if payload.encryption is not None:
             apply_settings.update(encryption_settings(payload.encryption))
 
-        if payload.enable_utp is not None:
-            apply_settings["enable_outgoing_utp"] = payload.enable_utp
-            apply_settings["enable_incoming_utp"] = payload.enable_utp
+        # A port, az UPnP/NAT-PMP és az uTP hálózati beállítás: csak közvetlen módban
+        # érvényes. VPN módban és a szabály alkalmazása előtt csak megjegyezzük.
+        network_lock = getattr(self, "_network_lock", None)
+        with network_lock if network_lock is not None else contextlib.nullcontext():
+            user = getattr(self, "_user_network", None)
+            if user is not None:
+                self._user_network = UserNetworkSettings(
+                    port=payload.port if payload.port is not None else user.port,
+                    enable_upnp_and_natpmp=(
+                        payload.enable_upnp_and_natpmp
+                        if payload.enable_upnp_and_natpmp is not None
+                        else user.enable_upnp_and_natpmp
+                    ),
+                    enable_utp=(
+                        payload.enable_utp if payload.enable_utp is not None else user.enable_utp
+                    ),
+                )
+            # Konstruktor nélkül (tesztben) létrehozott példány: a korábbi, közvetlen viselkedés.
+            if isinstance(getattr(self, "_network_policy", DirectPolicy()), DirectPolicy):
+                if payload.enable_upnp_and_natpmp is not None:
+                    apply_settings["enable_upnp"] = payload.enable_upnp_and_natpmp
+                    apply_settings["enable_natpmp"] = payload.enable_upnp_and_natpmp
+                if payload.enable_utp is not None:
+                    apply_settings["enable_outgoing_utp"] = payload.enable_utp
+                    apply_settings["enable_incoming_utp"] = payload.enable_utp
+                if payload.port is not None:
+                    apply_settings["listen_interfaces"] = (
+                        f"0.0.0.0:{payload.port},[::]:{payload.port}"
+                    )
 
-        if payload.port is not None:
-            apply_settings["listen_interfaces"] = (
-                f"0.0.0.0:{payload.port},[::]:{payload.port}"
-            )
+            self._libtorrent_session.apply_settings(apply_settings)
 
-        self._libtorrent_session.apply_settings(apply_settings)
+    @property
+    def network_policy(self) -> NetworkPolicy | None:
+        return getattr(self, "_network_policy", None)
+
+    _NETWORK_KEYS = (
+        "listen_interfaces",
+        "enable_dht",
+        "enable_lsd",
+        "enable_upnp",
+        "enable_natpmp",
+        "enable_outgoing_utp",
+        "enable_incoming_utp",
+        "proxy_type",
+        "proxy_hostname",
+        "proxy_port",
+    )
+
+    def network_settings(self) -> dict[str, object]:
+        """A session hálózati beállításai diagnosztikához (titok nélkül: nincs proxy-jelszó)."""
+        values = dict(self._libtorrent_session.get_settings())
+        return {key: values.get(key) for key in self._NETWORK_KEYS}
+
+    def apply_network_policy(self, policy: NetworkPolicy) -> None:
+        """Alkalmazza a hálózati szabályt (VPN-terv L4, L6).
+
+        Futás közbeni váltáskor a session szünetel, amíg az új beállítás érvénybe
+        lép. Ha a beállítás hibát dob, a session szüneteltetve marad, és nincs
+        érvényes szabály: új torrent nem kerülhet be, közvetlen forgalom nem indul.
+        """
+        with self._network_lock:
+            previous = self._network_policy
+            switching = previous is not None and previous != policy
+            if switching:
+                self._libtorrent_session.pause()
+            self._network_policy = None
+            if isinstance(policy, VpnProxyPolicy):
+                pack = vpn_settings(policy)
+            else:
+                pack = direct_settings(self._user_network)
+            self._libtorrent_session.apply_settings(pack)
+            self._network_policy = policy
+            if switching:
+                self._libtorrent_session.resume()
 
     def apply_torrent_connection_policy(self, torrent: Torrent) -> None:
         with self._connection_policy_lock:
@@ -399,6 +473,13 @@ class RelayService:
     ) -> RelayTorrent:
         if not getattr(self, "_accepting", True):
             raise SearchStoppingError("Relay is stopping")
+        # Konstruktor nélkül (tesztben) létrehozott példánynál nincs szabálykapu.
+        if hasattr(self, "_network_policy") and self._network_policy is None:
+            raise HTTPException(
+                503,
+                "A torrenthálózat még nem áll készen.",
+                headers={"Retry-After": "5"},
+            )
         save_path = str(config.downloads_dir.absolute())
 
         try:

@@ -1,0 +1,18 @@
+# VPN-integráció — dokumentumtérkép
+
+Beépített Proton VPN a StremHU torrentforgalmához. **Csak a torrent le- és feltöltése megy VPN-en; a streamelés, a webes felület és az indexerek nem.**
+
+| Dokumentum | Típus | Státusz |
+|---|---|---|
+| [`../vpn-integration.md`](../vpn-integration.md) | Branch-összefoglaló (diffmátrix, modulok, invariánsok, bizonyítékok) | **Aktuális** (2026-11-28, `17bd23e1`). |
+| [`implementation-plan.md`](implementation-plan.md) | Implementációs terv, Rev. 5 (userspace, plug & play) | **Aktuális** (2026-11-27, fork `main` `7bf93aa`-hoz igazítva). **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker, wireproxy az image-ben) elkészült, a G2 (termékcsomag-szivárgásmérés), a G3 (futás közbeni váltás), a G4 (magnet-metaadat, web seed, HTTPS-tracker) és a G6 (valódi kapcsolatjelzés) helyben kész, a G1 élő Proton-teszt P2P szerverrel lefutott, az F4 felhasználói útmutatója ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)) elkészült, a G5 (erőforrásmérés 4K lejátszás közben) a felhasználó szerverén lefutott, az F5 (több konfiguráció, automatikus átállás) és az F6 (sebességteszt) helyben kész** ezen az ágon; nyitott a G1 maradéka (normál szerver) és a beolvasztás a `main`-be. A Rev. 4-hez képesti változások a terv 0. fejezetében, az F1–F6 és a G1–G6 állapota a 9. fejezetben. |
+| [`userspace-poc-report.md`](userspace-poc-report.md) | PoC-mérési jelentés | Lezárva (2026-11-08): 8 forgatókönyv, helyi Docker, élő Proton nélkül. |
+| [`review-rev3-findings.md`](review-rev3-findings.md) | A Rev. 3 felülvizsgálata | Lezárva (2026-11-08). |
+| [`phase0-evidence-report.md`](phase0-evidence-report.md) | Phase 0 mérési jelentés a Rev. 3-hoz | Történeti (2026-11-04). |
+| [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) | Előző terv (netns + kernel WireGuard + worker) | **Archivált**, a Rev. 4 váltotta fel. |
+| [`poc/userspace/`](poc/userspace/) | A userspace PoC szkriptjei és eredmény-JSON-jai | A Rev. 4 bizonyítéka, valamint a Rev. 5 G2, G3 és G4 mérései. |
+| [`poc/`](poc/) (többi fájl) | Rev. 3 Phase 0 PoC-k | Történeti. |
+
+**Döntések (felhasználó, 2026-11-08):**
+1. A VPN-integráció legyen plug & play: a felhasználó csak elindítja a konténert, és a GUI-ban konfigurálja a VPN-t.
+2. Az irány a teljes userspace megoldás (a PoC alapján).

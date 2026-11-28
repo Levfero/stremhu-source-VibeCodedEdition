@@ -12,8 +12,8 @@ async def test_native_alert_bridge_never_calls_python_notify(monkeypatch):
     descriptors = []
 
     class NativeProxy:
-        def __init__(self):
-            self.native = native_class()
+        def __init__(self, *args):
+            self.native = native_class(*args)
 
         def __getattr__(self, name):
             return getattr(self.native, name)

@@ -46,6 +46,8 @@ Ez a könyvtár felhasználói útmutatót, fejlesztői referenciát, történet
 | AI agent célzott forráskeresése | [AI téma- és forrásindex](AI-INDEX.md) | Csak az érintett feature és forrásfájlok |
 | Telepítés, DNS, HTTPS, Tailscale, Caddy | [Hálózati és üzemeltetési útmutató](STREMHU-UNIVERSAL-SETUP-GUIDE.md) | A saját platformhoz tartozó előfeltételek/tesztkapuk |
 | Átállás az eredeti StremHU-ról, visszaállás, mentés | [Átállás és visszaállás](atallas-es-visszaallas.md) | Mentés az átállás előtt |
+| Torrentforgalom VPN-en (Proton WireGuard) | [Beépített VPN a torrentforgalomhoz](vpn-beallitas.md) | A [VPN-terv](feature/vpn-integration/README.md) mérései és korlátai |
+| A VPN-funkció fejlesztése, invariánsai | [VPN branch-összefoglaló](feature/vpn-integration.md) | [Implementációs terv](feature/vpn-integration/implementation-plan.md), 9. fejezet |
 | Anime, TVDB, Kitsu, MAL, fájlfeloldás | [Feature-katalógus](feature/README.md) | Anime és keresési referenciák |
 | Felirat, MediaInfo, magyar hangsáv | [Feature-katalógus](feature/README.md) | Felirat- és audioattribútum-leírások |
 | CR01–CR19 audit vagy implementáció | [Stabilitási munkacsomag](feature/stability-and-optimization/README.md) | Audit → értékelt terv → érintett forrás |
@@ -64,6 +66,7 @@ docs/
 ├── fejlesztoi-dokumentacio.md         # fejlesztői környezet és ellenőrzés
 ├── STREMHU-UNIVERSAL-SETUP-GUIDE.md    # részletes Linux/hálózati üzemeltetési útmutató
 ├── atallas-es-visszaallas.md          # átállás az eredetiről a forkra és vissza, mentéssel
+├── vpn-beallitas.md                   # beépített VPN a torrentforgalomhoz (Proton WireGuard)
 ├── feature/
 │   ├── README.md                     # feature-katalógus
 │   ├── <feature>.md                  # funkcióeredet, modulok, invariánsok

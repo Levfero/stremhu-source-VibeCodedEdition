@@ -21,6 +21,7 @@ from app.modules.system.router import router as system_router
 from app.modules.torrents.router import router as torrents_router
 from app.modules.torznab.router import router as torznab_router
 from app.modules.users.router import router as users_router
+from app.modules.vpn.router import router as vpn_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -52,6 +53,10 @@ api_router.include_router(
     include_in_schema=show_internal_routes(),
 )
 api_router.include_router(relay_settings_router)
+api_router.include_router(
+    vpn_router,
+    include_in_schema=show_internal_routes(),
+)
 api_router.include_router(
     network_router,
     include_in_schema=show_internal_routes(),

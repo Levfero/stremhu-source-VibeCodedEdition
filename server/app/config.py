@@ -121,6 +121,20 @@ class Config(BaseSettings):
     session_secret: str = Field(default="", repr=False)
     session_secret_file: Path | None = Field(default=None, repr=False)
     session_allowed_origins: list[str] = Field(default_factory=list, repr=False)
+    # VPN (terv Rev. 5): a konfiguráció titkosítókulcsa (base64, 32 bájt). Üresen az első
+    # induláskor generált data/system/vpn.key érvényes; a SESSION_SECRET-től független.
+    vpn_secret_key: str | None = Field(default=None, repr=False)
+    vpn_wireproxy_path: Path = Path("/usr/local/bin/wireproxy")
+    # A nyílt WireGuard-konfiguráció csak itt (tmpfs) él a wireproxy indulásáig.
+    vpn_runtime_dir: Path = Path("/dev/shm/stremhu-vpn")
+    # G6: a tunnelen át pingelt címek (wireproxy CheckAlive). Üresen a konfiguráció IPv4-es DNS-címei.
+    vpn_check_alive: list[str] = Field(default_factory=list)
+    vpn_check_alive_interval: int = Field(default=5, ge=1, le=300)
+    # F5: ennyi másodperc válasz nélkül a kezelő a következő mentett konfigurációra vált.
+    vpn_failover_after: int = Field(default=60, ge=20, le=3600)
+    # F6: a sebességteszt célpontjai (a tunnelen át); csak http(s).
+    vpn_speedtest_download_url: str = "https://speed.cloudflare.com/__down?bytes=25000000"
+    vpn_speedtest_trace_url: str = "https://speed.cloudflare.com/cdn-cgi/trace"
     host_ip: str = Field(
         default="",
     )
@@ -294,6 +308,13 @@ class Config(BaseSettings):
                 )
 
         return self
+
+    @field_validator("vpn_speedtest_download_url", "vpn_speedtest_trace_url")
+    @classmethod
+    def validate_vpn_speedtest_url(cls, value: str) -> str:
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("A VPN-sebességteszt URL-je csak http(s) lehet.")
+        return value
 
     @field_validator("reverse_proxy_domain")
     @classmethod

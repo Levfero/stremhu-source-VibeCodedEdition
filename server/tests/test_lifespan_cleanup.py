@@ -489,6 +489,17 @@ def lifecycle_harness(monkeypatch):
     def adapters_factory():
         return Adapters()
 
+    class Vpn:
+        async def start(self):
+            events.append("vpn-policy-applied")
+
+        async def aclose(self):
+            events.append("vpn-closed")
+
+    @lru_cache(maxsize=1)
+    def vpn_factory(relay):
+        return Vpn()
+
     async def producer():
         try:
             await asyncio.Future()
@@ -504,7 +515,8 @@ def lifecycle_harness(monkeypatch):
     monkeypatch.setattr(main, "get_indexer_definitions_service", adapters_factory)
     monkeypatch.setattr(main, "sync_database_and_settings", sync)
     monkeypatch.setattr(main, "initialize_bootstrap_state", lambda:None)
-    monkeypatch.setattr(main, "restore_torrents", lambda:None)
+    monkeypatch.setattr(main, "restore_torrents", lambda:events.append("torrents-restored"))
+    monkeypatch.setattr(main, "get_vpn_manager", vpn_factory)
     monkeypatch.setattr(main, "ResumeWriter", lambda:ResumeWriter(lambda batch:saved.update((item.info_hash,item.data) for item in batch)))
     monkeypatch.setattr(main, "setup_scheduler", ManagedScheduler)
     monkeypatch.setattr(main, "resume_save_loop", producer)
@@ -740,3 +752,14 @@ async def test_network_restart_is_one_owned_task_and_stops_with_network_setup(mo
         await network.close_network_setup()
     finally:
         await network.close_network_setup()
+
+
+async def test_network_policy_precedes_restore_and_proxy_outlives_native_session(lifecycle_harness):
+    # VPN-terv L6: torrent csak a hálózati szabály után kerülhet a relaybe; leállításkor a
+    # wireproxy a natív session után áll le, így egyik irányban sincs közvetlen ablak.
+    fixture = lifecycle_harness
+    async with fixture.lifespan(fixture.app):
+        await asyncio.sleep(0)
+    events = fixture.events
+    assert events.index("vpn-policy-applied") < events.index("torrents-restored")
+    assert events.index("native-closed") < events.index("vpn-closed")

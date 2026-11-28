@@ -41,6 +41,7 @@ const schema = z.object({
 
 export function PeerProtocol() {
   const { data: relaySettings } = useSuspenseQuery(getRelaySettings)
+  const vpnManaged = relaySettings.vpnManaged === true
 
   const { mutateAsync: updateSetting } = useUpdateRelaySetting()
 
@@ -118,6 +119,7 @@ export function PeerProtocol() {
                 <Switch
                   id={field.name}
                   checked={field.state.value}
+                  disabled={vpnManaged}
                   onCheckedChange={field.handleChange}
                 />
                 <Label htmlFor={field.name}>
@@ -125,8 +127,9 @@ export function PeerProtocol() {
                 </Label>
               </div>
               <FieldDescription>
-                Kikapcsolva csak TCP kapcsolatok jönnek létre. Egyes routereken
-                a sok uTP kapcsolat megnövelheti a hálózat késleltetését.
+                {vpnManaged
+                  ? 'VPN által kezelt: VPN módban az uTP ki van kapcsolva, csak TCP kapcsolatok jönnek létre.'
+                  : 'Kikapcsolva csak TCP kapcsolatok jönnek létre. Egyes routereken a sok uTP kapcsolat megnövelheti a hálózat késleltetését.'}
               </FieldDescription>
             </Field>
           )}

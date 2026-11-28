@@ -1790,6 +1790,294 @@
       ]
     },
     {
+      "path": "docs/feature/vpn-integration.md",
+      "doc_id": "feature-vpn-integration",
+      "title": "Beépített torrent-VPN — branch-összefoglaló",
+      "kind": "feature-overview",
+      "status": "implemented",
+      "audience": [
+        "developer",
+        "ai-agent",
+        "operator"
+      ],
+      "tags": [
+        "vpn",
+        "proton",
+        "wireguard",
+        "wireproxy",
+        "socks5",
+        "kill-switch",
+        "failover",
+        "speed-test",
+        "relay"
+      ],
+      "source_commit": "17bd23e1",
+      "baseline": "s4pp1/stremhu-source@8c99c7d (feature origin); main@7bf93aa (PR)",
+      "verification": "source at source_commit; backend Ruff, basedpyright and full pytest (910 passed), client vitest (19), lint, format and build on 2026-11-28; gates G1 (live Proton P2P), G2-G4 and G6 (local air-gapped Docker PoC), G5 (user's server, read-only), F5 and F6 (local Docker with PoC test exits, API and Chrome); details in the implementation plan, chapter 9",
+      "structure_reviewed": "2026-11-28",
+      "related_docs": [
+        "docs/feature/vpn-integration/README.md",
+        "docs/feature/vpn-integration/implementation-plan.md",
+        "docs/vpn-beallitas.md",
+        "docs/AI-INDEX.md"
+      ],
+      "source_paths": [
+        "server/app/modules/vpn/",
+        "server/app/modules/relay/network_policy.py",
+        "server/app/modules/relay/service.py",
+        "server/app/modules/relay_settings/service.py",
+        "server/app/modules/stream/service.py",
+        "server/app/main.py",
+        "server/app/config.py",
+        "Dockerfile",
+        "docker/fetch_wireproxy.py",
+        "client/src/routes/_protected/dashboard/system/vpn/"
+      ],
+      "sections": [
+        {
+          "title": "Cél",
+          "anchor": "doc-cel",
+          "level": 2
+        },
+        {
+          "title": "Kanonikus dokumentumok",
+          "anchor": "doc-kanonikus-dokumentumok",
+          "level": 2
+        },
+        {
+          "title": "Diffmátrix",
+          "anchor": "doc-diffmatrix",
+          "level": 2
+        },
+        {
+          "title": "Forgalmi utak",
+          "anchor": "doc-forgalmi-utak",
+          "level": 2
+        },
+        {
+          "title": "Érintett modulok",
+          "anchor": "doc-erintett-modulok",
+          "level": 2
+        },
+        {
+          "title": "Kritikus invariánsok",
+          "anchor": "doc-kritikus-invariansok",
+          "level": 2
+        },
+        {
+          "title": "Bizonyítékok",
+          "anchor": "doc-bizonyitekok",
+          "level": 2
+        },
+        {
+          "title": "Korlátok és nyitott pontok",
+          "anchor": "doc-korlatok-es-nyitott-pontok",
+          "level": 2
+        },
+        {
+          "title": "Visszaállás",
+          "anchor": "doc-visszaallas",
+          "level": 2
+        }
+      ]
+    },
+    {
+      "path": "docs/feature/vpn-integration/README.md",
+      "doc_id": "vpn-integration-readme",
+      "title": "VPN-integráció — dokumentumtérkép",
+      "kind": "navigation",
+      "status": "navigation",
+      "audience": [
+        "developer",
+        "ai-agent"
+      ],
+      "tags": [
+        "vpn",
+        "documentation",
+        "index"
+      ],
+      "source_commit": null,
+      "baseline": null,
+      "verification": "structure-only",
+      "structure_reviewed": "2026-11-28",
+      "related_docs": [
+        "docs/feature/vpn-integration.md",
+        "docs/feature/vpn-integration/implementation-plan.md"
+      ],
+      "source_paths": [],
+      "sections": []
+    },
+    {
+      "path": "docs/feature/vpn-integration/implementation-plan.md",
+      "doc_id": "vpn-integration-plan",
+      "title": "Beépített Proton VPN a torrentforgalomhoz: implementációs terv (Rev. 5)",
+      "kind": "implementation-plan",
+      "status": "implemented",
+      "audience": [
+        "developer",
+        "ai-agent"
+      ],
+      "tags": [
+        "vpn",
+        "wireproxy",
+        "socks5",
+        "kill-switch",
+        "failover",
+        "speed-test",
+        "gates"
+      ],
+      "source_commit": "17bd23e1",
+      "baseline": "main@7bf93aa",
+      "verification": "execution records per phase and gate in chapter 9 (F1-F6, G1-G6), each with its own date and evidence type",
+      "structure_reviewed": "2026-11-28",
+      "related_docs": [
+        "docs/feature/vpn-integration.md",
+        "docs/vpn-beallitas.md",
+        "docs/feature/vpn-integration/userspace-poc-report.md"
+      ],
+      "source_paths": [
+        "server/app/modules/vpn/",
+        "server/app/modules/relay/network_policy.py",
+        "Dockerfile"
+      ],
+      "sections": [
+        {
+          "title": "0. Mi változott a Rev. 4-hez képest",
+          "anchor": "0-mi-változott-a-rev-4-hez-képest",
+          "level": 2
+        },
+        {
+          "title": "1. Döntés röviden",
+          "anchor": "1-döntés-röviden",
+          "level": 2
+        },
+        {
+          "title": "2. Követelmények és nem-célok",
+          "anchor": "2-követelmények-és-nem-célok",
+          "level": 2
+        },
+        {
+          "title": "3. Kiinduló állapot (kód, fork `main` `7bf93aa`)",
+          "anchor": "3-kiinduló-állapot-kód-fork-main-7bf93aa",
+          "level": 2
+        },
+        {
+          "title": "4. Architektúra",
+          "anchor": "4-architektúra",
+          "level": 2
+        },
+        {
+          "title": "5. Biztonsági modell és kill switch",
+          "anchor": "5-biztonsági-modell-és-kill-switch",
+          "level": 2
+        },
+        {
+          "title": "6. Backend-terv (fájlszinten)",
+          "anchor": "6-backend-terv-fájlszinten",
+          "level": 2
+        },
+        {
+          "title": "7. Frontend",
+          "anchor": "7-frontend",
+          "level": 2
+        },
+        {
+          "title": "8. Docker",
+          "anchor": "8-docker",
+          "level": 2
+        },
+        {
+          "title": "9. Fázisok, kapuk és elfogadási feltételek",
+          "anchor": "9-fázisok-kapuk-és-elfogadási-feltételek",
+          "level": 2
+        },
+        {
+          "title": "10. Viszony a beolvasztott munkákhoz",
+          "anchor": "10-viszony-a-beolvasztott-munkákhoz",
+          "level": 2
+        },
+        {
+          "title": "11. Kockázatok",
+          "anchor": "11-kockázatok",
+          "level": 2
+        },
+        {
+          "title": "12. Visszaállítás és kompatibilitás",
+          "anchor": "12-visszaállítás-és-kompatibilitás",
+          "level": 2
+        },
+        {
+          "title": "13. Hivatkozások",
+          "anchor": "13-hivatkozások",
+          "level": 2
+        }
+      ]
+    },
+    {
+      "path": "docs/feature/vpn-integration/userspace-poc-report.md",
+      "doc_id": "vpn-integration-userspace-poc",
+      "title": "Userspace VPN PoC — mérési jelentés",
+      "kind": "historical-report",
+      "status": "historical-results",
+      "audience": [
+        "developer",
+        "ai-agent"
+      ],
+      "tags": [
+        "vpn",
+        "poc",
+        "wireproxy",
+        "leak-test"
+      ],
+      "source_commit": null,
+      "baseline": null,
+      "verification": "local air-gapped Docker PoC, 2026-11-08; later gate runs are recorded in the implementation plan",
+      "structure_reviewed": "2026-11-28",
+      "related_docs": [
+        "docs/feature/vpn-integration/implementation-plan.md"
+      ],
+      "source_paths": [
+        "docs/feature/vpn-integration/poc/userspace/"
+      ],
+      "sections": [
+        {
+          "title": "1. Kérdések",
+          "anchor": "1-kérdések",
+          "level": 2
+        },
+        {
+          "title": "2. Környezet és topológia",
+          "anchor": "2-környezet-és-topológia",
+          "level": 2
+        },
+        {
+          "title": "3. Eredmények",
+          "anchor": "3-eredmények",
+          "level": 2
+        },
+        {
+          "title": "4. Megállapítások",
+          "anchor": "4-megállapítások",
+          "level": 2
+        },
+        {
+          "title": "5. Korlátok (nem igazolt)",
+          "anchor": "5-korlátok-nem-igazolt",
+          "level": 2
+        },
+        {
+          "title": "6. Következmény a tervre",
+          "anchor": "6-következmény-a-tervre",
+          "level": 2
+        },
+        {
+          "title": "7. Reprodukció",
+          "anchor": "7-reprodukció",
+          "level": 2
+        }
+      ]
+    },
+    {
       "path": "docs/feature/stremio-catalog-search.md",
       "doc_id": "feature-stremio-catalog-search",
       "title": "Fejlesztői Dokumentáció: feature/stremio-catalog-search",
@@ -2495,6 +2783,117 @@
         {
           "title": "Hibaelhárítás",
           "anchor": "doc-hibaelharitas",
+          "level": 2
+        }
+      ]
+    },
+    {
+      "path": "docs/vpn-beallitas.md",
+      "doc_id": "vpn-beallitas",
+      "title": "Beépített VPN a torrentforgalomhoz",
+      "kind": "operator-guide",
+      "status": "instructions-locally-verified",
+      "audience": [
+        "operator"
+      ],
+      "tags": [
+        "failover",
+        "kill-switch",
+        "privacy",
+        "proton",
+        "relay",
+        "speed-test",
+        "troubleshooting",
+        "vpn",
+        "wireguard",
+        "wireproxy"
+      ],
+      "source_commit": "4cecffb8",
+      "baseline": null,
+      "verification": "UI labels, states, error codes and environment variables read from the source at 4cecffb8 (feature/vpn-integration); F5 multiple configs and failover checked on 2026-11-28 with two local PoC WireGuard test exits (migration from the single-config build, failover, stickiness, restart, manual switch, downgrade) through the API and in Chrome; F6 speed test checked on 2026-11-28 through a PoC test tunnel (download, exit IP, refusal when not connected) through the API and in Chrome; VPN_CHECK_ALIVE parsing tried with the backend config class; the guide's flows run through the API on a throwaway container of the branch image with the PoC kernel-WireGuard test server (2026-11-27: invalid uploads, enable, Test, relay lock, outage to no-handshake and recovery, disable with confirmation, delete; private key absent from the logs) and the same flows clicked through in Chrome on that container (2026-11-27: navigation, file picker, invalid upload toast, save, enable, Test, relay lock texts, outage states, disable and delete dialogs); behaviour measured in the plan's gates: G1 live Proton P2P server (import, enable, handshake, about 66 Mbit/s), G2-G4 and G6 in local air-gapped Docker; the GUI steps were not clicked through in a browser; resource use measured read-only on the user's Ubuntu server (i7-4720HQ, host network mode, real Proton) during a 4K playback (G5, 2026-11-27); Proton steps from protonvpn.com support pages (2026-11-27) and screenshots of the Proton Downloads / WireGuard configuration page (2026-11-28: field names, platform list, VPN options, server picker, expiry, delete button)",
+      "structure_reviewed": "2026-11-27",
+      "related_docs": [
+        "README.md",
+        "docs/README.md",
+        "docs/atallas-es-visszaallas.md",
+        "docs/feature/vpn-integration/implementation-plan.md"
+      ],
+      "source_paths": [
+        "server/app/modules/vpn/",
+        "server/app/modules/relay/network_policy.py",
+        "server/app/modules/stream/service.py",
+        "server/app/config.py",
+        "client/src/routes/_protected/dashboard/system/vpn/"
+      ],
+      "sections": [
+        {
+          "title": "Röviden",
+          "anchor": "doc-roviden",
+          "level": 2
+        },
+        {
+          "title": "Mi kell hozzá?",
+          "anchor": "doc-mi-kell-hozza",
+          "level": 2
+        },
+        {
+          "title": "WireGuard-konfiguráció a Protontól",
+          "anchor": "doc-wireguard-konfiguracio-a-protontol",
+          "level": 2
+        },
+        {
+          "title": "Beállítás a StremHU-ban",
+          "anchor": "doc-beallitas-a-stremhu-ban",
+          "level": 2
+        },
+        {
+          "title": "Mi változik bekapcsolt VPN mellett?",
+          "anchor": "doc-mi-valtozik-bekapcsolt-vpn-mellett",
+          "level": 2
+        },
+        {
+          "title": "Állapotok",
+          "anchor": "doc-allapotok",
+          "level": 2
+        },
+        {
+          "title": "Több konfiguráció és automatikus átállás",
+          "anchor": "doc-tobb-konfiguracio-es-automatikus-atallas",
+          "level": 2
+        },
+        {
+          "title": "Sebességteszt",
+          "anchor": "doc-sebessegteszt",
+          "level": 2
+        },
+        {
+          "title": "Kikapcsolás, csere, törlés",
+          "anchor": "doc-kikapcsolas-csere-torles",
+          "level": 2
+        },
+        {
+          "title": "Biztonság és mentés",
+          "anchor": "doc-biztonsag-es-mentes",
+          "level": 2
+        },
+        {
+          "title": "Haladó beállítások",
+          "anchor": "doc-halado-beallitasok",
+          "level": 2
+        },
+        {
+          "title": "Hibaelhárítás",
+          "anchor": "doc-hibaelharitas",
+          "level": 2
+        },
+        {
+          "title": "Visszaállás VPN nélküli változatra",
+          "anchor": "doc-visszaallas-vpn-nelkuli-valtozatra",
+          "level": 2
+        },
+        {
+          "title": "Korlátok",
+          "anchor": "doc-korlatok",
           "level": 2
         }
       ]

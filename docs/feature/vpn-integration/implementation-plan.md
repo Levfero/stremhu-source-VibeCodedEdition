@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; az F5 (több konfiguráció, automatikus átállás) és az F6 (sebességteszt) helyben kész; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; az F5 (több konfiguráció, automatikus átállás) és az F6 (sebességteszt) helyben kész; a funkció beolvasztva a fork `main` ágába (#17, 2026-11-28); nyitott a G1 maradéka (normál szerver) ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -509,7 +509,7 @@ stateDiagram-v2
   - Az útmutató ennek nyomán pontosabb lett: a navigáció (a felhasználónév menüje) és a Rendszer-kártya állapotszövegei. A beépített böngésző a helyi hálózati címen futó oldal fájljait letiltotta, ezért készült a bejárás a Chrome-ban.
 - **Nyitott:**
   - a G1 maradéka: normál (nem P2P) szerver, csomagrögzítéses szivárgásmérés élesben (az élő swarm a G5-ben működött);
-  - a VPN-ág beolvasztása a `main`-be, utána a kézzel írt `vpn-client.ts` cseréje a generált kliensre (a [PR #16](https://github.com/Levfero/stremhu-source-VibeCodedEdition/pull/16) után).
+  - a kézzel írt `vpn-client.ts` cseréje a generált kliensre (a [PR #16](https://github.com/Levfero/stremhu-source-VibeCodedEdition/pull/16) után). A VPN-ág beolvasztva a `main`-be (#17, 2026-11-28).
 
 ### F5 — Több konfiguráció és automatikus átállás
 
@@ -603,7 +603,8 @@ A VPN-t közvetlenül érinti a `proxy_hostnames` javítása (#8782). `proxy_hos
 
 - **Termékcsomagok (2026-11-28):**
   - a `server/.venv` libtorrent `2.1.3.0`-ján a `closed_network_settings()`, a `vpn_settings()` és a `direct_settings()` csomag váltakozva alkalmazva (zárt → VPN → közvetlen → VPN), a visszaolvasott értékek mind egyeznek;
-  - a backend ellenőrzései: Ruff és basedpyright hibátlan, teljes `pytest tests` 910 passed / 64 snapshot.
+  - a backend ellenőrzései: Ruff és basedpyright hibátlan, teljes `pytest tests` 910 passed / 64 snapshot;
+  - a #18 (függőségfrissítések) beolvasztása után a `main`-nel egyesítve újra: Ruff és basedpyright hibátlan, 912 passed / 64 snapshot.
 - **PoC-image:**
   - a 2.1.3-as termékimage-ből (`docker build --pull`) készült, a `Dockerfile.poc` változtatása nélkül, BuildKit névvel ellátott kontextussal;
   - a wireproxy ugyanabból az image-ből kimásolt, ellenőrzött v1.1.3 bináris (`70ae5e52…466d`);
@@ -632,7 +633,7 @@ A VPN-t közvetlenül érinti a `proxy_hostnames` javítása (#8782). `proxy_hos
   - a 2.1.3 tehát a seedelés kezdetén még tarthat ki nem írt blokkot a lemezgyorsítótárban; adatsérülés nincs.
   - A terméket ez nem érinti: a streamelt adatot a `read_piece`-szel, a libtorrent lemezrétegén át olvassa, a letöltött fájlt közvetlenül nem nyitja meg.
 - **Letöltési idők:** a VPN-es forgatókönyvekben 2,0–2,5 s. A G4 2.1.1-gyel is ennyit mért a seeder-várakozás javítása óta, így ez nem a libtorrent érdeme. A korábbi 12,5 s-os értékek a javítás előttiek.
-- **Termékimage-füstteszt:** a 2.1.3-as image eldobható kötettel indítva 14/14 PASS:
+- **Termékimage-füstteszt:** a 2.1.3-as image, és a #18 utáni `main`-nel egyesített image is, eldobható kötettel indítva 14/14 PASS:
   - első admin, health, Stremio-manifest, hibás kulcs → 401;
   - VPN-állapot és -sebességteszt (kikapcsolva 409);
   - relay-beállítások, indexerlista, felület.

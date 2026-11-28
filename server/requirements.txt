@@ -1,9 +1,9 @@
-fastapi[standard]==0.162.2
+fastapi[standard]==0.165.0
 hypercorn==0.18.0
 aiolimiter==1.3.0
 libtorrent==2.1.3
-pydantic==2.14.3
-pydantic-settings==2.16.2
+pydantic==2.14.4
+pydantic-settings==2.16.3
 pydantic-xml==2.22.0
 debugpy==1.8.22
 content-types==0.5.7
@@ -12,22 +12,23 @@ pydash==8.1.0
 torf==4.3.1
 selectolax==1.0.2
 dnspython==2.9.2
-SQLAlchemy==2.1.8
+SQLAlchemy==2.1.9
 alembic==1.20.1
 itsdangerous==2.2.0
 argon2-cffi==25.1.0
+# pyotp 2.12+ rejects TOTP secrets under 112 bits; tracker 2FA secrets are often 80 bits (tests/test_indexer_totp_login.py).
 pyotp==2.10.0
 apscheduler==3.11.3
-openapi-python-client==0.29.1
-humanize==4.16.0
-tzlocal==5.4.4
+openapi-python-client==0.30.0
+humanize==4.17.0
+tzlocal==5.4.5
 cryptography==50.0.2
-acme==5.8.0
+acme==5.10.0
 rich==15.0.0
-email-validator==2.3.0
+email-validator==2.4.0
 
 # Development tools
-ruff==0.17.4
+ruff==0.17.6
 basedpyright==1.40.2
 pytest==9.2.0
 syrupy==6.1.1

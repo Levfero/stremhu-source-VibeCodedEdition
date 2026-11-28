@@ -1,0 +1,868 @@
+{
+ "environment": {
+  "docker_server": "29.9.2",
+  "image": "stremhu-vpn-phase0-poc:rev4",
+  "image_id": "sha256:1647f2e87c87db7af4c7057f6f670ac1acc885689d5027595294c9b22ffee686",
+  "wireproxy_sha256": "70ae5e52223dac7974af8d98a321f14a0e1689d2b14655ebc8dadfa1ec69466d",
+  "wireproxy_release": "v1.1.3 linux_amd64 (github.com/whyvl/wireproxy)",
+  "kernel": "6.18.58.1-microsoft-standard-WSL2"
+ },
+ "results": {
+  "vpn_tcp": {
+   "scenario": "vpn_tcp",
+   "tag": "vpn_tcp",
+   "vpn": true,
+   "completed": true,
+   "seconds_to_complete": 12.53,
+   "wall_seconds": 12.53,
+   "sha256_ok": true,
+   "size_mib": 256.0,
+   "libtorrent_process_cpu_s": 0.86,
+   "libtorrent_process_maxrss_mib": 52.8,
+   "wireproxy_cpu_s": 2.62,
+   "wireproxy_hwm_mib": 104.8,
+   "iface_bytes_delta": {
+    "lo": {
+     "rx": 269900265,
+     "tx": 269900265
+    },
+    "wan": {
+     "rx": 293952972,
+     "tx": 4855830
+    },
+    "swarm": {
+     "rx": 262,
+     "tx": 42
+    }
+   },
+   "leak_packets_direct_swarm": 0,
+   "leak_samples_direct_swarm": [],
+   "leak_packets_wan_non_tunnel": 0,
+   "leak_samples_wan_non_tunnel": [],
+   "dns_packets": 0,
+   "dns_samples": [],
+   "dns_local_query_names": [],
+   "sockets_at_5s": [
+    "udp UNCONN 0 0 0.0.0.0:60175 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=4))",
+    "udp UNCONN 0 0 0.0.0.0:34251 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=12))",
+    "udp UNCONN 0 0 0.0.0.0:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=7))",
+    "udp UNCONN 0 0 127.0.0.11:41550 0.0.0.0:*",
+    "udp UNCONN 0 0 [::]:60175 [::]:* users:((\"wireproxy\",pid=9,fd=7))",
+    "tcp LISTEN 0 4096 127.0.0.11:46013 0.0.0.0:*",
+    "tcp LISTEN 0 128 127.0.0.1:25344 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=1))",
+    "tcp ESTAB 0 0 127.0.0.1:25344 127.0.0.1:56795 users:((\"wireproxy\",pid=9,fd=11))",
+    "tcp ESTAB 0 0 127.0.0.1:56795 127.0.0.1:25344 users:((\"python3\",pid=1,fd=8))",
+    "tcp TIME-WAIT 0 0 127.0.0.1:57480 127.0.0.1:25344"
+   ],
+   "ipv6_non_icmp_packets": 10,
+   "ipv6_samples": [
+    "20:53:05.717708 eth1  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:06.101707 eth0  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:06.261733 eth1  M   IP6 fe80::84e1:43ff:fea0:c318 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:06.273696 eth1  M   IP6 fe80::84e1:43ff:fea0:c318 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:07.125700 eth1  M   IP6 fe80::84e1:43ff:fea0:c318 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:07.125707 eth1  M   IP6 fe80::84e1:43ff:fea0:c318 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:07.157737 eth0  M   IP6 fe80::907f:24ff:fe22:2b68 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:07.173691 eth0  M   IP6 fe80::907f:24ff:fe22:2b68 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28"
+   ],
+   "arp_packets": 13,
+   "peers_seen": {
+    "172.30.20.3:6881 tcp out": 239961781
+   },
+   "alerts": [
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 0.0.0.0:6881"
+    },
+    {
+     "t": 10.53,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:6881-v1] timed out \"\" (1)"
+    },
+    {
+     "t": 10.53,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:6881-v2] timed out \"\" (1)"
+    },
+    {
+     "t": 10.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:6881-v2] received peers: 1"
+    },
+    {
+     "t": 10.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:6881-v1] received peers: 1"
+    },
+    {
+     "t": 12.53,
+     "type": "peer_disconnected_alert",
+     "msg": "6add96 peer 172.30.20.3:6881 disconnecting (Socks5) [bittorrent] [libtorrent]: torrent finished (reason: 0)"
+    },
+    {
+     "t": 12.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:6881-v1] received peers: 1"
+    },
+    {
+     "t": 12.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:6881-v2] received peers: 1"
+    }
+   ],
+   "timeline": [
+    {
+     "t": 0.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 2.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 4.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 6.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 8.03,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 10.03,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 12.03,
+     "progress": 0.8939,
+     "rate": 30225631,
+     "peers": 1
+    },
+    {
+     "t": 12.53,
+     "progress": 1.0,
+     "rate": 49231230,
+     "peers": 0
+    }
+   ],
+   "exit_code": "0",
+   "outage": null,
+   "server_view": {
+    "dns_queries": {
+     "count": 5,
+     "sources": [
+      "10.2.0.2"
+     ],
+     "names": [
+      "tracker.poc.test."
+     ]
+    },
+    "announces": {
+     "count": 6,
+     "sources": [
+      "10.2.0.2",
+      "172.30.20.3"
+     ],
+     "names": []
+    },
+    "udp_tracker_packets": {
+     "count": 4,
+     "sources": [
+      "10.2.0.2"
+     ],
+     "names": []
+    }
+   },
+   "seeder_view": {
+    "incoming 172.30.20.2": {
+     "first": 1795812797.9092526,
+     "count": 1
+    },
+    "peer 172.30.20.2 tcp": {
+     "first": 1795812797.9093332,
+     "count": 0,
+     "bytes_up": 234220648
+    }
+   }
+  },
+  "vpn_product": {
+   "scenario": "vpn_product",
+   "tag": "vpn_product",
+   "vpn": true,
+   "completed": true,
+   "seconds_to_complete": 12.53,
+   "wall_seconds": 12.53,
+   "sha256_ok": true,
+   "size_mib": 256.0,
+   "libtorrent_process_cpu_s": 0.96,
+   "libtorrent_process_maxrss_mib": 41.5,
+   "wireproxy_cpu_s": 2.93,
+   "wireproxy_hwm_mib": 141.5,
+   "iface_bytes_delta": {
+    "lo": {
+     "rx": 270156656,
+     "tx": 270156656
+    },
+    "wan": {
+     "rx": 294049050,
+     "tx": 4671576
+    },
+    "swarm": {
+     "rx": 482,
+     "tx": 42
+    }
+   },
+   "leak_packets_direct_swarm": 0,
+   "leak_samples_direct_swarm": [],
+   "leak_packets_wan_non_tunnel": 0,
+   "leak_samples_wan_non_tunnel": [],
+   "dns_packets": 0,
+   "dns_samples": [],
+   "dns_local_query_names": [],
+   "sockets_at_5s": [
+    "udp UNCONN 0 0 0.0.0.0:60088 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=1))",
+    "udp UNCONN 0 0 0.0.0.0:33740 0.0.0.0:* users:((\"python3\",pid=1,fd=7))",
+    "udp UNCONN 0 0 0.0.0.0:40989 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=12))",
+    "udp UNCONN 0 0 127.0.0.11:42244 0.0.0.0:*",
+    "udp UNCONN 0 0 [::]:60088 [::]:* users:((\"wireproxy\",pid=9,fd=4))",
+    "tcp LISTEN 0 128 127.0.0.1:25344 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=10))",
+    "tcp LISTEN 0 4096 127.0.0.11:40413 0.0.0.0:*",
+    "tcp ESTAB 0 0 127.0.0.1:25344 127.0.0.1:58065 users:((\"wireproxy\",pid=9,fd=11))",
+    "tcp TIME-WAIT 0 0 127.0.0.1:47894 127.0.0.1:25344",
+    "tcp ESTAB 0 0 127.0.0.1:58065 127.0.0.1:25344 users:((\"python3\",pid=1,fd=8))"
+   ],
+   "ipv6_non_icmp_packets": 10,
+   "ipv6_samples": [
+    "20:53:23.797705 eth0  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:23.929702 eth1  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:24.085750 eth0  M   IP6 fe80::608b:43ff:fe71:28d0 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:24.101695 eth0  M   IP6 fe80::608b:43ff:fe71:28d0 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:24.241702 eth0  M   IP6 fe80::608b:43ff:fe71:28d0 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:24.949701 eth0  M   IP6 fe80::608b:43ff:fe71:28d0 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:24.981744 eth1  M   IP6 fe80::d49f:b7ff:fec6:c610 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:24.993697 eth1  M   IP6 fe80::d49f:b7ff:fec6:c610 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28"
+   ],
+   "arp_packets": 13,
+   "peers_seen": {
+    "172.30.20.3:6881 tcp out": 200219909
+   },
+   "alerts": [
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 0.0.0.0:33740"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:33740-v1] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:33740-v2] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:33740-v1] received peers: 1"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:33740-v2] received peers: 1"
+    },
+    {
+     "t": 12.53,
+     "type": "peer_disconnected_alert",
+     "msg": "6add96 peer 172.30.20.3:6881 disconnecting (Socks5) [bittorrent] [libtorrent]: torrent finished (reason: 0)"
+    },
+    {
+     "t": 12.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:33740-v1] received peers: 1"
+    },
+    {
+     "t": 12.53,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:33740-v2] received peers: 1"
+    }
+   ],
+   "timeline": [
+    {
+     "t": 0.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 2.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 4.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 6.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 8.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 10.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 12.03,
+     "progress": 0.7457,
+     "rate": 21275559,
+     "peers": 1
+    },
+    {
+     "t": 12.53,
+     "progress": 1.0,
+     "rate": 51038060,
+     "peers": 0
+    }
+   ],
+   "exit_code": "0",
+   "outage": null,
+   "server_view": {
+    "dns_queries": {
+     "count": 5,
+     "sources": [
+      "10.2.0.2"
+     ],
+     "names": [
+      "tracker.poc.test."
+     ]
+    },
+    "announces": {
+     "count": 6,
+     "sources": [
+      "10.2.0.2",
+      "172.30.20.3"
+     ],
+     "names": []
+    },
+    "udp_tracker_packets": {
+     "count": 6,
+     "sources": [
+      "10.2.0.2",
+      "172.30.20.3"
+     ],
+     "names": []
+    }
+   },
+   "seeder_view": {
+    "incoming 172.30.20.2": {
+     "first": 1795812797.9092526,
+     "count": 2
+    },
+    "peer 172.30.20.2 tcp": {
+     "first": 1795812797.9093332,
+     "count": 0,
+     "bytes_up": 245272983
+    }
+   }
+  },
+  "vpn_product_bind": {
+   "scenario": "vpn_product_bind",
+   "tag": "vpn_product_bind",
+   "vpn": true,
+   "completed": true,
+   "seconds_to_complete": 13.03,
+   "wall_seconds": 13.03,
+   "sha256_ok": true,
+   "size_mib": 256.0,
+   "libtorrent_process_cpu_s": 1.06,
+   "libtorrent_process_maxrss_mib": 41.3,
+   "wireproxy_cpu_s": 3.53,
+   "wireproxy_hwm_mib": 77.1,
+   "iface_bytes_delta": {
+    "lo": {
+     "rx": 270334317,
+     "tx": 270334317
+    },
+    "swarm": {
+     "rx": 482,
+     "tx": 42
+    },
+    "wan": {
+     "rx": 293920996,
+     "tx": 6438028
+    }
+   },
+   "leak_packets_direct_swarm": 0,
+   "leak_samples_direct_swarm": [],
+   "leak_packets_wan_non_tunnel": 0,
+   "leak_samples_wan_non_tunnel": [],
+   "dns_packets": 0,
+   "dns_samples": [],
+   "dns_local_query_names": [],
+   "sockets_at_5s": [
+    "udp UNCONN 0 0 127.0.0.11:53965 0.0.0.0:*",
+    "udp UNCONN 0 0 0.0.0.0:45509 0.0.0.0:* users:((\"python3\",pid=1,fd=7))",
+    "udp UNCONN 0 0 0.0.0.0:47045 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=12))",
+    "udp UNCONN 0 0 0.0.0.0:47287 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=4))",
+    "udp UNCONN 0 0 [::]:47287 [::]:* users:((\"wireproxy\",pid=9,fd=7))",
+    "tcp LISTEN 0 128 127.0.0.1:25344 0.0.0.0:* users:((\"wireproxy\",pid=9,fd=1))",
+    "tcp LISTEN 0 4096 127.0.0.11:37601 0.0.0.0:*",
+    "tcp ESTAB 0 0 127.0.0.1:25344 127.0.0.1:50571 users:((\"wireproxy\",pid=9,fd=11))",
+    "tcp ESTAB 0 0 127.0.0.1:50571 127.0.0.1:25344 users:((\"python3\",pid=1,fd=8))",
+    "tcp TIME-WAIT 0 0 127.0.0.1:57952 127.0.0.1:25344"
+   ],
+   "ipv6_non_icmp_packets": 10,
+   "ipv6_samples": [
+    "20:53:41.141342 eth1  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:41.141351 eth0  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:42.101372 eth1  M   IP6 fe80::9055:58ff:fe7f:b904 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:42.117372 eth1  M   IP6 fe80::9055:58ff:fe7f:b904 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:42.165351 eth1  M   IP6 fe80::9055:58ff:fe7f:b904 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:42.285342 eth1  M   IP6 fe80::9055:58ff:fe7f:b904 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:53:42.453408 eth0  M   IP6 fe80::2002:6bff:fea5:9658 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:53:42.465342 eth0  M   IP6 fe80::2002:6bff:fea5:9658 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28"
+   ],
+   "arp_packets": 13,
+   "peers_seen": {
+    "172.30.20.3:6881 tcp out": 230743901
+   },
+   "alerts": [
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 0.0.0.0:45509"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:45509-v1] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[0.0.0.0:45509-v2] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:45509-v1] received peers: 1"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:45509-v2] received peers: 1"
+    },
+    {
+     "t": 13.03,
+     "type": "peer_disconnected_alert",
+     "msg": "6add96 peer 172.30.20.3:6881 disconnecting (Socks5) [bittorrent] [libtorrent]: torrent finished (reason: 0)"
+    },
+    {
+     "t": 13.03,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:45509-v1] received peers: 1"
+    },
+    {
+     "t": 13.03,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[0.0.0.0:45509-v2] received peers: 1"
+    }
+   ],
+   "timeline": [
+    {
+     "t": 0.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 2.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 4.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 6.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 8.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 10.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 12.03,
+     "progress": 0.5573,
+     "rate": 15317407,
+     "peers": 1
+    },
+    {
+     "t": 13.03,
+     "progress": 1.0,
+     "rate": 43760697,
+     "peers": 0
+    }
+   ],
+   "exit_code": "0",
+   "outage": null,
+   "server_view": {
+    "dns_queries": {
+     "count": 5,
+     "sources": [
+      "10.2.0.2"
+     ],
+     "names": [
+      "tracker.poc.test."
+     ]
+    },
+    "announces": {
+     "count": 6,
+     "sources": [
+      "10.2.0.2",
+      "172.30.20.3"
+     ],
+     "names": []
+    },
+    "udp_tracker_packets": {
+     "count": 6,
+     "sources": [
+      "10.2.0.2",
+      "172.30.20.3"
+     ],
+     "names": []
+    }
+   },
+   "seeder_view": {
+    "incoming 172.30.20.2": {
+     "first": 1795812797.9092526,
+     "count": 3
+    }
+   }
+  },
+  "direct": {
+   "scenario": "direct",
+   "tag": "direct",
+   "vpn": false,
+   "completed": true,
+   "seconds_to_complete": 13.25,
+   "wall_seconds": 13.25,
+   "sha256_ok": true,
+   "size_mib": 256.0,
+   "libtorrent_process_cpu_s": 2.38,
+   "libtorrent_process_maxrss_mib": 80.1,
+   "wireproxy_cpu_s": null,
+   "wireproxy_hwm_mib": null,
+   "iface_bytes_delta": {
+    "lo": {
+     "rx": 0,
+     "tx": 0
+    },
+    "wan": {
+     "rx": 840,
+     "tx": 1168
+    },
+    "swarm": {
+     "rx": 280572955,
+     "tx": 4708049
+    }
+   },
+   "leak_packets_direct_swarm": 229996,
+   "leak_samples_direct_swarm": [
+    "20:54:01.112282 eth1  Out IP 172.30.20.10.6881 > 172.30.20.2.6969: UDP, length 16",
+    "20:54:01.112335 eth1  Out IP 172.30.20.10.6881 > 172.30.20.2.6969: UDP, length 16",
+    "20:54:11.112421 eth1  Out IP 172.30.20.10.38509 > 172.30.20.2.6969: Flags [S], seq 1498627867, win 64240, options [mss 1460,sackOK,TS val 692820904 ecr 0,nop,wscale 10], length 0",
+    "20:54:11.112464 eth1  In  IP 172.30.20.2.6969 > 172.30.20.10.38509: Flags [S.], seq 3190797077, ack 1498627868, win 65160, options [mss 1460,sackOK,TS val 1714063084 ecr 692820904,nop,wscale 10], length 0",
+    "20:54:11.112475 eth1  Out IP 172.30.20.10.38509 > 172.30.20.2.6969: Flags [.], ack 1, win 63, options [nop,nop,TS val 692820904 ecr 1714063084], length 0",
+    "20:54:11.112525 eth1  Out IP 172.30.20.10.38509 > 172.30.20.2.6969: Flags [P.], seq 1:363, ack 1, win 63, options [nop,nop,TS val 692820904 ecr 1714063084], length 362",
+    "20:54:11.112542 eth1  In  IP 172.30.20.2.6969 > 172.30.20.10.38509: Flags [.], ack 363, win 64, options [nop,nop,TS val 1714063084 ecr 692820904], length 0",
+    "20:54:11.112628 eth1  Out IP 172.30.20.10.42735 > 172.30.20.2.6969: Flags [S], seq 2220314131, win 64240, options [mss 1460,sackOK,TS val 2053328821 ecr 0,nop,wscale 10], length 0"
+   ],
+   "leak_packets_wan_non_tunnel": 7,
+   "leak_samples_wan_non_tunnel": [
+    "20:54:01.112398 eth0  Out IP 172.30.10.10.6881 > 172.30.20.2.6969: UDP, length 16",
+    "20:54:01.112418 eth0  Out IP 172.30.10.10.6881 > 172.30.20.2.6969: UDP, length 16",
+    "20:54:10.516598 eth0  Out IP 172.30.10.10 > 172.30.10.2: ICMP 172.30.10.10 udp port 47287 unreachable, length 184",
+    "20:54:11.112671 eth0  Out IP 172.30.10.10.53605 > 172.30.20.2.6969: Flags [S], seq 618608064, win 64240, options [mss 1460,sackOK,TS val 565430836 ecr 0,nop,wscale 10], length 0",
+    "20:54:11.112716 eth0  Out IP 172.30.10.10.37253 > 172.30.20.2.6969: Flags [S], seq 1775876487, win 64240, options [mss 1460,sackOK,TS val 2450314474 ecr 0,nop,wscale 10], length 0",
+    "20:54:12.116408 eth0  Out IP 172.30.10.10.37253 > 172.30.20.2.6969: Flags [S], seq 1775876487, win 64240, options [mss 1460,sackOK,TS val 2450315478 ecr 0,nop,wscale 10], length 0",
+    "20:54:12.116413 eth0  Out IP 172.30.10.10.53605 > 172.30.20.2.6969: Flags [S], seq 618608064, win 64240, options [mss 1460,sackOK,TS val 565431840 ecr 0,nop,wscale 10], length 0"
+   ],
+   "dns_packets": 0,
+   "dns_samples": [],
+   "dns_local_query_names": [],
+   "sockets_at_5s": [
+    "udp UNCONN 0 0 127.0.0.11:44428 0.0.0.0:*",
+    "udp UNCONN 0 0 172.30.20.10%eth1:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=12))",
+    "udp UNCONN 0 0 172.30.10.10%eth0:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=10))",
+    "udp UNCONN 0 0 127.0.0.1%lo:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=8))",
+    "tcp LISTEN 0 5 172.30.20.10%eth1:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=11))",
+    "tcp LISTEN 0 5 127.0.0.1%lo:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=7))",
+    "tcp LISTEN 0 5 172.30.10.10%eth0:6881 0.0.0.0:* users:((\"python3\",pid=1,fd=9))",
+    "tcp LISTEN 0 4096 127.0.0.11:34227 0.0.0.0:*"
+   ],
+   "ipv6_non_icmp_packets": 10,
+   "ipv6_samples": [
+    "20:53:59.192405 eth1  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:53:59.764402 eth0  M   IP6 :: > ff02::16: HBH ICMP6, multicast listener report v2, 2 group record(s), length 48",
+    "20:54:00.632455 eth1  M   IP6 fe80::e0dc:61ff:fefe:c42f > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:54:00.644401 eth1  M   IP6 fe80::e0dc:61ff:fefe:c42f > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:54:00.660387 eth1  M   IP6 fe80::e0dc:61ff:fefe:c42f > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:54:00.948423 eth0  M   IP6 fe80::98fa:90ff:fe92:30d3 > ff02::16: HBH ICMP6, multicast listener report v2, 3 group record(s), length 68",
+    "20:54:00.960397 eth0  M   IP6 fe80::98fa:90ff:fe92:30d3 > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28",
+    "20:54:01.044398 eth1  M   IP6 fe80::e0dc:61ff:fefe:c42f > ff02::16: HBH ICMP6, multicast listener report v2, 1 group record(s), length 28"
+   ],
+   "arp_packets": 20,
+   "peers_seen": {
+    "172.30.20.3:6881 utp out": 226818365
+   },
+   "alerts": [
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [TCP] 127.0.0.1:6881"
+    },
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 127.0.0.1:6881"
+    },
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [TCP] 172.30.10.10:6881"
+    },
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 172.30.10.10:6881"
+    },
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [TCP] 172.30.20.10:6881"
+    },
+    {
+     "t": 0.01,
+     "type": "listen_succeeded_alert",
+     "msg": "successfully listening on [uTP] 172.30.20.10:6881"
+    },
+    {
+     "t": 1.01,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[127.0.0.1:6881-v2] skipping tracker announce (unreachable) \"\" (1)"
+    },
+    {
+     "t": 1.01,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[127.0.0.1:6881-v1] skipping tracker announce (unreachable) \"\" (1)"
+    },
+    {
+     "t": 1.01,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[127.0.0.1:6881-v2] skipping tracker announce (unreachable) \"\" (1)"
+    },
+    {
+     "t": 1.01,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[127.0.0.1:6881-v1] skipping tracker announce (unreachable) \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[172.30.20.10:6881-v2] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[172.30.20.10:6881-v1] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[172.30.10.10:6881-v2] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[172.30.10.10:6881-v1] timed out \"\" (1)"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[172.30.20.10:6881-v2] received peers: 2"
+    },
+    {
+     "t": 10.52,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[172.30.20.10:6881-v1] received peers: 2"
+    },
+    {
+     "t": 13.24,
+     "type": "peer_disconnected_alert",
+     "msg": "6add96 peer 172.30.20.3:6881 disconnecting (uTP) [bittorrent] [libtorrent]: torrent finished (reason: 0)"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[127.0.0.1:6881-v1] skipping tracker announce (unreachable) \"\" (2)"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (udp://tracker.poc.test:6969/announce)[127.0.0.1:6881-v2] skipping tracker announce (unreachable) \"\" (2)"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[127.0.0.1:6881-v1] skipping tracker announce (unreachable) \"\" (2)"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_error_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[127.0.0.1:6881-v2] skipping tracker announce (unreachable) \"\" (2)"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[172.30.20.10:6881-v1] received peers: 2"
+    },
+    {
+     "t": 13.24,
+     "type": "tracker_reply_alert",
+     "msg": "6add96 (http://tracker.poc.test:6969/announce)[172.30.20.10:6881-v2] received peers: 2"
+    }
+   ],
+   "timeline": [
+    {
+     "t": 0.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 2.01,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 4.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 6.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 8.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 10.02,
+     "progress": 0.0,
+     "rate": 0,
+     "peers": 0
+    },
+    {
+     "t": 12.02,
+     "progress": 0.5458,
+     "rate": 13462418,
+     "peers": 1
+    },
+    {
+     "t": 13.24,
+     "progress": 1.0,
+     "rate": 43701950,
+     "peers": 0
+    }
+   ],
+   "exit_code": "0",
+   "outage": null,
+   "server_view": {
+    "dns_queries": {
+     "count": 0,
+     "sources": [],
+     "names": []
+    },
+    "announces": {
+     "count": 8,
+     "sources": [
+      "172.30.20.10",
+      "172.30.20.3"
+     ],
+     "names": []
+    },
+    "udp_tracker_packets": {
+     "count": 6,
+     "sources": [
+      "172.30.20.10",
+      "172.30.20.3"
+     ],
+     "names": []
+    }
+   },
+   "seeder_view": {
+    "incoming 172.30.20.10": {
+     "first": 1795812851.4837906,
+     "count": 1
+    },
+    "peer 172.30.20.10 utp": {
+     "first": 1795812851.483892,
+     "count": 0,
+     "bytes_up": 205258752
+    }
+   }
+  }
+ }
+}

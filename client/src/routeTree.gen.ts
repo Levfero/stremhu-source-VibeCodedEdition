@@ -32,6 +32,7 @@ import { Route as SetupUserIndexRouteImport } from './routes/setup/user/index'
 import { Route as ProtectedDashboardPlaybacksIndexRouteImport } from './routes/_protected/dashboard/playbacks/index'
 import { Route as ProtectedDashboardSystemIndexRouteImport } from './routes/_protected/dashboard/system/index'
 import { Route as ProtectedDashboardSystemNetworkRouteRouteImport } from './routes/_protected/dashboard/system/network/route'
+import { Route as ProtectedDashboardSystemVpnRouteRouteImport } from './routes/_protected/dashboard/system/vpn/route'
 import { Route as ProtectedDashboardUsersIndexRouteImport } from './routes/_protected/dashboard/users/index'
 import { Route as ProtectedDashboardUsersUserIdRouteRouteImport } from './routes/_protected/dashboard/users/$userId/route'
 import { Route as ProtectedRelaySettingsIndexRouteImport } from './routes/_protected/relay/settings/index'
@@ -42,6 +43,7 @@ import { Route as ProtectedSettingsPreferencesPreferenceIdRouteRouteImport } fro
 import { Route as ProtectedSettingsPreferencesAttributesRouteRouteImport } from './routes/_protected/settings/preferences/attributes/route'
 import { Route as ProtectedSettingsPreferencesCreateRouteRouteImport } from './routes/_protected/settings/preferences/create/route'
 import { Route as ProtectedDashboardSystemNetworkIndexRouteImport } from './routes/_protected/dashboard/system/network/index'
+import { Route as ProtectedDashboardSystemVpnIndexRouteImport } from './routes/_protected/dashboard/system/vpn/index'
 import { Route as ProtectedDashboardUsersUserIdIndexRouteImport } from './routes/_protected/dashboard/users/$userId/index'
 import { Route as ProtectedDashboardUsersUserIdPreferencesRouteRouteImport } from './routes/_protected/dashboard/users/$userId/preferences/route'
 import { Route as ProtectedSettingsPreferencesPreferenceIdIndexRouteImport } from './routes/_protected/settings/preferences/$preferenceId/index'
@@ -178,6 +180,12 @@ const ProtectedDashboardSystemNetworkRouteRoute =
     path: '/network',
     getParentRoute: () => ProtectedDashboardSystemRouteRoute,
   } as any)
+const ProtectedDashboardSystemVpnRouteRoute =
+  ProtectedDashboardSystemVpnRouteRouteImport.update({
+    id: '/vpn',
+    path: '/vpn',
+    getParentRoute: () => ProtectedDashboardSystemRouteRoute,
+  } as any)
 const ProtectedDashboardUsersIndexRoute =
   ProtectedDashboardUsersIndexRouteImport.update({
     id: '/',
@@ -237,6 +245,12 @@ const ProtectedDashboardSystemNetworkIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => ProtectedDashboardSystemNetworkRouteRoute,
+  } as any)
+const ProtectedDashboardSystemVpnIndexRoute =
+  ProtectedDashboardSystemVpnIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProtectedDashboardSystemVpnRouteRoute,
   } as any)
 const ProtectedDashboardUsersUserIdIndexRoute =
   ProtectedDashboardUsersUserIdIndexRouteImport.update({
@@ -328,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof ProtectedSettingsIndexRoute
   '/setup/user/': typeof SetupUserIndexRoute
   '/dashboard/system/network': typeof ProtectedDashboardSystemNetworkRouteRouteWithChildren
+  '/dashboard/system/vpn': typeof ProtectedDashboardSystemVpnRouteRouteWithChildren
   '/dashboard/users/$userId': typeof ProtectedDashboardUsersUserIdRouteRouteWithChildren
   '/settings/preferences/$preferenceId': typeof ProtectedSettingsPreferencesPreferenceIdRouteRouteWithChildren
   '/settings/preferences/attributes': typeof ProtectedSettingsPreferencesAttributesRouteRouteWithChildren
@@ -341,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/settings/preferences/': typeof ProtectedSettingsPreferencesIndexRoute
   '/dashboard/users/$userId/preferences': typeof ProtectedDashboardUsersUserIdPreferencesRouteRouteWithChildren
   '/dashboard/system/network/': typeof ProtectedDashboardSystemNetworkIndexRoute
+  '/dashboard/system/vpn/': typeof ProtectedDashboardSystemVpnIndexRoute
   '/dashboard/users/$userId/': typeof ProtectedDashboardUsersUserIdIndexRoute
   '/settings/preferences/$preferenceId/': typeof ProtectedSettingsPreferencesPreferenceIdIndexRoute
   '/settings/preferences/attributes/': typeof ProtectedSettingsPreferencesAttributesIndexRoute
@@ -370,6 +386,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof ProtectedSettingsAccountIndexRoute
   '/settings/preferences': typeof ProtectedSettingsPreferencesIndexRoute
   '/dashboard/system/network': typeof ProtectedDashboardSystemNetworkIndexRoute
+  '/dashboard/system/vpn': typeof ProtectedDashboardSystemVpnIndexRoute
   '/dashboard/users/$userId': typeof ProtectedDashboardUsersUserIdIndexRoute
   '/settings/preferences/$preferenceId': typeof ProtectedSettingsPreferencesPreferenceIdIndexRoute
   '/settings/preferences/attributes': typeof ProtectedSettingsPreferencesAttributesIndexRoute
@@ -402,6 +419,7 @@ export interface FileRoutesById {
   '/_protected/settings/': typeof ProtectedSettingsIndexRoute
   '/setup/user/': typeof SetupUserIndexRoute
   '/_protected/dashboard/system/network': typeof ProtectedDashboardSystemNetworkRouteRouteWithChildren
+  '/_protected/dashboard/system/vpn': typeof ProtectedDashboardSystemVpnRouteRouteWithChildren
   '/_protected/dashboard/users/$userId': typeof ProtectedDashboardUsersUserIdRouteRouteWithChildren
   '/_protected/settings/preferences/$preferenceId': typeof ProtectedSettingsPreferencesPreferenceIdRouteRouteWithChildren
   '/_protected/settings/preferences/attributes': typeof ProtectedSettingsPreferencesAttributesRouteRouteWithChildren
@@ -415,6 +433,7 @@ export interface FileRoutesById {
   '/_protected/settings/preferences/': typeof ProtectedSettingsPreferencesIndexRoute
   '/_protected/dashboard/users/$userId/preferences': typeof ProtectedDashboardUsersUserIdPreferencesRouteRouteWithChildren
   '/_protected/dashboard/system/network/': typeof ProtectedDashboardSystemNetworkIndexRoute
+  '/_protected/dashboard/system/vpn/': typeof ProtectedDashboardSystemVpnIndexRoute
   '/_protected/dashboard/users/$userId/': typeof ProtectedDashboardUsersUserIdIndexRoute
   '/_protected/settings/preferences/$preferenceId/': typeof ProtectedSettingsPreferencesPreferenceIdIndexRoute
   '/_protected/settings/preferences/attributes/': typeof ProtectedSettingsPreferencesAttributesIndexRoute
@@ -449,6 +468,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/setup/user/'
     | '/dashboard/system/network'
+    | '/dashboard/system/vpn'
     | '/dashboard/users/$userId'
     | '/settings/preferences/$preferenceId'
     | '/settings/preferences/attributes'
@@ -462,6 +482,7 @@ export interface FileRouteTypes {
     | '/settings/preferences/'
     | '/dashboard/users/$userId/preferences'
     | '/dashboard/system/network/'
+    | '/dashboard/system/vpn/'
     | '/dashboard/users/$userId/'
     | '/settings/preferences/$preferenceId/'
     | '/settings/preferences/attributes/'
@@ -491,6 +512,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/preferences'
     | '/dashboard/system/network'
+    | '/dashboard/system/vpn'
     | '/dashboard/users/$userId'
     | '/settings/preferences/$preferenceId'
     | '/settings/preferences/attributes'
@@ -522,6 +544,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/'
     | '/setup/user/'
     | '/_protected/dashboard/system/network'
+    | '/_protected/dashboard/system/vpn'
     | '/_protected/dashboard/users/$userId'
     | '/_protected/settings/preferences/$preferenceId'
     | '/_protected/settings/preferences/attributes'
@@ -535,6 +558,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/preferences/'
     | '/_protected/dashboard/users/$userId/preferences'
     | '/_protected/dashboard/system/network/'
+    | '/_protected/dashboard/system/vpn/'
     | '/_protected/dashboard/users/$userId/'
     | '/_protected/settings/preferences/$preferenceId/'
     | '/_protected/settings/preferences/attributes/'
@@ -718,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedDashboardSystemNetworkRouteRouteImport
       parentRoute: typeof ProtectedDashboardSystemRouteRoute
     }
+    '/_protected/dashboard/system/vpn': {
+      id: '/_protected/dashboard/system/vpn'
+      path: '/vpn'
+      fullPath: '/dashboard/system/vpn'
+      preLoaderRoute: typeof ProtectedDashboardSystemVpnRouteRouteImport
+      parentRoute: typeof ProtectedDashboardSystemRouteRoute
+    }
     '/_protected/dashboard/users/': {
       id: '/_protected/dashboard/users/'
       path: '/'
@@ -787,6 +818,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/system/network/'
       preLoaderRoute: typeof ProtectedDashboardSystemNetworkIndexRouteImport
       parentRoute: typeof ProtectedDashboardSystemNetworkRouteRoute
+    }
+    '/_protected/dashboard/system/vpn/': {
+      id: '/_protected/dashboard/system/vpn/'
+      path: '/'
+      fullPath: '/dashboard/system/vpn/'
+      preLoaderRoute: typeof ProtectedDashboardSystemVpnIndexRouteImport
+      parentRoute: typeof ProtectedDashboardSystemVpnRouteRoute
     }
     '/_protected/dashboard/users/$userId/': {
       id: '/_protected/dashboard/users/$userId/'
@@ -898,8 +936,24 @@ const ProtectedDashboardSystemNetworkRouteRouteWithChildren =
     ProtectedDashboardSystemNetworkRouteRouteChildren,
   )
 
+interface ProtectedDashboardSystemVpnRouteRouteChildren {
+  ProtectedDashboardSystemVpnIndexRoute: typeof ProtectedDashboardSystemVpnIndexRoute
+}
+
+const ProtectedDashboardSystemVpnRouteRouteChildren: ProtectedDashboardSystemVpnRouteRouteChildren =
+  {
+    ProtectedDashboardSystemVpnIndexRoute:
+      ProtectedDashboardSystemVpnIndexRoute,
+  }
+
+const ProtectedDashboardSystemVpnRouteRouteWithChildren =
+  ProtectedDashboardSystemVpnRouteRoute._addFileChildren(
+    ProtectedDashboardSystemVpnRouteRouteChildren,
+  )
+
 interface ProtectedDashboardSystemRouteRouteChildren {
   ProtectedDashboardSystemNetworkRouteRoute: typeof ProtectedDashboardSystemNetworkRouteRouteWithChildren
+  ProtectedDashboardSystemVpnRouteRoute: typeof ProtectedDashboardSystemVpnRouteRouteWithChildren
   ProtectedDashboardSystemIndexRoute: typeof ProtectedDashboardSystemIndexRoute
 }
 
@@ -907,6 +961,8 @@ const ProtectedDashboardSystemRouteRouteChildren: ProtectedDashboardSystemRouteR
   {
     ProtectedDashboardSystemNetworkRouteRoute:
       ProtectedDashboardSystemNetworkRouteRouteWithChildren,
+    ProtectedDashboardSystemVpnRouteRoute:
+      ProtectedDashboardSystemVpnRouteRouteWithChildren,
     ProtectedDashboardSystemIndexRoute: ProtectedDashboardSystemIndexRoute,
   }
 

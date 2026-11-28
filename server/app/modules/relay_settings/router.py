@@ -29,7 +29,7 @@ def get_settings(
     ],
     _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
 ):
-    return relay_settings_service.get_settings()
+    return relay_settings_service.to_response(relay_settings_service.get_settings())
 
 
 @router.put(
@@ -44,7 +44,7 @@ def update_settings(
     ],
     _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
 ):
-    return relay_settings_service.update_settings(payload)
+    return relay_settings_service.to_response(relay_settings_service.update_settings(payload))
 
 
 @router.get(
@@ -57,7 +57,7 @@ def get_settings_with_api_key(
     ],
     _: Annotated[UserModel, Depends(ApiKeyGuard([UserRoleKey.ADMIN]))],
 ):
-    return relay_settings_service.get_settings()
+    return relay_settings_service.to_response(relay_settings_service.get_settings())
 
 
 @router.put(
@@ -71,4 +71,4 @@ def update_settings_with_api_key(
     ],
     _: Annotated[UserModel, Depends(ApiKeyGuard([UserRoleKey.ADMIN]))],
 ):
-    return relay_settings_service.update_settings(payload)
+    return relay_settings_service.to_response(relay_settings_service.update_settings(payload))

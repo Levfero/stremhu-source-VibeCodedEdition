@@ -57,6 +57,7 @@ from app.modules.torrents.background_tasks import (
     restore_torrents,
 )
 from app.modules.torrents.resume_writer import ResumeWriter
+from app.modules.vpn.dependencies import get_vpn_manager
 from app.scheduler import setup_scheduler
 from app.sync import sync_database_and_settings
 
@@ -79,7 +80,7 @@ async def _cancel_producers(tasks: list[asyncio.Task[Any]]) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.stopping = True
-    definitions = relay = writer = scheduler = None
+    definitions = relay = writer = scheduler = vpn = None
     unregister_resume = None
     producers: list[asyncio.Task[Any]] = []
     try:
@@ -96,6 +97,9 @@ async def lifespan(app: FastAPI):
         definitions = get_indexer_definitions_service()
         relay = get_relay_service()
         sync_database_and_settings(app)
+        # VPN-terv L6: a hálózati szabály (közvetlen vagy VPN) a torrentek visszatöltése előtt.
+        vpn = get_vpn_manager(relay)
+        await vpn.start()
         await owned_to_thread(initialize_bootstrap_state)
         clear_origin_cache()
         writer = ResumeWriter()
@@ -185,12 +189,16 @@ async def lifespan(app: FastAPI):
                 sync_step("resume-callback", unregister_resume)
             if relay is not None:
                 await step("native-session", relay.close_native)
+            # A wireproxy a natív session után áll le: leállításkor sincs közvetlen ablak.
+            if vpn is not None:
+                await step("vpn-supervisor", vpn.aclose)
             sync_step("playbacks", clear_active_playbacks)
             sync_step("playback-history", clear_playback_history_state)
             sync_step("stream-cache", invalidate_stream_cache)
             sync_step("indexer-cache", invalidate_indexer_cache)
             sync_step("origin-cache", clear_origin_cache)
             sync_step("indexer-factory", get_indexer_definitions_service.cache_clear)
+            sync_step("vpn-factory", get_vpn_manager.cache_clear)
             sync_step("relay-factory", get_relay_service.cache_clear)
             report["seconds"] = asyncio.get_running_loop().time()-started
             logger.info("Shutdown result: complete=%s failed_stages=%s overdue=%s", report["complete"], len(report["failed_stages"]), report["overdue"])

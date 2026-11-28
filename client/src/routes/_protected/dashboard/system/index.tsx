@@ -7,6 +7,7 @@ import { KeepSeeding } from './-features/keep-seeding'
 import { NetworkAccessInfo } from './-features/network-access-info'
 import { Restart } from './-features/restart'
 import { TorrentFilesCache } from './-features/torrent-files-cache'
+import { VpnInfo } from './-features/vpn-info'
 
 export const Route = createFileRoute('/_protected/dashboard/system/')({
   component: SystemRoute,
@@ -20,6 +21,9 @@ function SystemRoute() {
       <div className="columns-1 md:columns-2 gap-4">
         <div className="break-inside-avoid mb-4">
           <NetworkAccessInfo />
+        </div>
+        <div className="break-inside-avoid mb-4">
+          <VpnInfo />
         </div>
         <div className="break-inside-avoid mb-4">
           <TorrentFilesCache />

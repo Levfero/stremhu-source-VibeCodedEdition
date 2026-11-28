@@ -3,6 +3,7 @@ from app.modules.settings.dependencies import create_settings_service
 from app.modules.settings.schemas.internal import (
     RelaySettingsUpdate,
     SystemSettingsUpdate,
+    VpnSettingsUpdate,
 )
 
 
@@ -17,6 +18,9 @@ def ensure_default_settings():
 
             # Relay Settings inicializálása/frissítése
             settings_service.save_relay(RelaySettingsUpdate())
+
+            # VPN Settings inicializálása (alapból kikapcsolva)
+            settings_service.save_vpn(VpnSettingsUpdate())
     except Exception as e:
         print(
             f"[HIBA] Nem sikerült inicializálni vagy frissíteni az alapértelmezett beállításokat: {e}"

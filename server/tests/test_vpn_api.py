@@ -20,6 +20,7 @@ from app.modules.relay.network_policy import DirectPolicy, VpnProxyPolicy
 from app.modules.relay.service import RelayService
 from app.modules.relay_settings.service import RelaySettingsService
 from app.modules.settings.schemas.internal import (
+    MAX_VPN_CONFIGS,
     RelaySettings,
     RelaySettingsUpdate,
     VpnSettings,
@@ -37,7 +38,7 @@ pytestmark = pytest.mark.anyio
 VPN = VpnProxyPolicy(port=41234, username="fixture-user", password="fixture-pass")
 
 
-def _config() -> tuple[str, str]:
+def _config(endpoint: str = "192.0.2.10:51820") -> tuple[str, str]:
     private = X25519PrivateKey.generate()
     raw = base64.b64encode(private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())).decode()
     peer = base64.b64encode(
@@ -45,7 +46,7 @@ def _config() -> tuple[str, str]:
     ).decode()
     text = (
         f"[Interface]\nPrivateKey = {raw}\nAddress = 10.2.0.2/32\nDNS = 10.2.0.1\n\n"
-        f"[Peer]\nPublicKey = {peer}\nAllowedIPs = 0.0.0.0/0\nEndpoint = 192.0.2.10:51820\n"
+        f"[Peer]\nPublicKey = {peer}\nAllowedIPs = 0.0.0.0/0\nEndpoint = {endpoint}\n"
     )
     return text, raw
 
@@ -63,6 +64,7 @@ class Manager:
 @pytest.fixture
 def service():
     store: dict[str, VpnSettings] = {"vpn": VpnSettings()}
+    key = secrets.token_bytes(32)
 
     def save(update: VpnSettingsUpdate) -> VpnSettings:
         store["vpn"] = VpnSettings.model_validate(
@@ -75,7 +77,7 @@ def service():
         cast(VpnManager, manager),
         load_settings=lambda: store["vpn"],
         save_settings=save,
-        secret_store_factory=lambda: SecretStore([secrets.token_bytes(32)]),
+        secret_store_factory=lambda: SecretStore([key]),
         network_settings=lambda: {},
     )
     return SimpleNamespace(service=vpn_service, manager=manager, store=store)
@@ -83,14 +85,18 @@ def service():
 
 async def test_import_stores_only_ciphertext_and_responses_never_echo_the_key(service):
     text, private = _config()
-    response = await service.service.update(VpnUpdateRequest(config=text))
+    response = await service.service.update(VpnUpdateRequest(config=text, name="  Budapest\n#35 "))
     stored = service.store["vpn"]
-    assert stored.encrypted_config and stored.encrypted_config.startswith("v1:")
+    assert len(stored.configs) == 1 and stored.configs[0].encrypted_config.startswith("v1:")
+    assert stored.active_config_id == stored.configs[0].id
     assert private not in stored.model_dump_json()
     assert private not in response.model_dump_json(by_alias=True)
     assert response.has_config and not response.enabled
+    assert response.configs[0].name == "Budapest #35"
+    assert response.active_config_id == stored.configs[0].id
     assert response.metadata is not None and response.metadata.endpoint == "192.0.2.10:51820"
-    assert len(service.manager.applied) == 1
+    # Kikapcsolt VPN mellett a feltöltés nem indítja el a tunnelt.
+    assert service.manager.applied == []
 
 
 async def test_invalid_config_is_rejected_without_echoing_it(service):
@@ -99,7 +105,7 @@ async def test_invalid_config_is_rejected_without_echoing_it(service):
         await service.service.update(VpnUpdateRequest(config=text.replace("[Peer]", "[Nope]")))
     assert raised.value.status_code == 400
     assert private not in str(raised.value.detail)
-    assert service.store["vpn"].encrypted_config is None
+    assert service.store["vpn"].configs == []
 
 
 async def test_enabling_requires_a_config_and_disabling_requires_confirmation(service):
@@ -110,6 +116,7 @@ async def test_enabling_requires_a_config_and_disabling_requires_confirmation(se
     text, _ = _config()
     enabled = await service.service.update(VpnUpdateRequest(config=text, enabled=True))
     assert enabled.enabled
+    config_id = enabled.configs[0].id
 
     with pytest.raises(HTTPException) as raised:
         await service.service.update(VpnUpdateRequest(enabled=False))
@@ -117,20 +124,93 @@ async def test_enabling_requires_a_config_and_disabling_requires_confirmation(se
     assert service.store["vpn"].vpn_enabled
 
     with pytest.raises(HTTPException) as raised:
-        await service.service.delete_config()
+        await service.service.delete_config(config_id)
     assert raised.value.status_code == 409
 
     disabled = await service.service.update(VpnUpdateRequest(enabled=False, confirm_unprotected=True))
     assert not disabled.enabled
     assert [settings.vpn_enabled for settings in service.manager.applied] == [True, False]
-    cleared = await service.service.delete_config()
-    assert not cleared.has_config and cleared.metadata is None
+    cleared = await service.service.delete_config(config_id)
+    assert not cleared.has_config and cleared.metadata is None and cleared.active_config_id is None
+
+
+async def test_more_configs_extend_the_failover_list_without_dropping_the_tunnel(service):
+    first, _ = _config()
+    await service.service.update(VpnUpdateRequest(config=first, enabled=True))
+    service.manager.status = VpnStatus(state=VpnState.CONNECTED, active_config_id=service.store["vpn"].configs[0].id)
+    applied = len(service.manager.applied)
+
+    second, _ = _config("192.0.2.11:51820")
+    response = await service.service.update(VpnUpdateRequest(config=second))
+    assert [config.name for config in response.configs] == ["Konfiguráció 1", "Konfiguráció 2"]
+    assert response.active_config_id == response.configs[0].id
+    assert len(service.manager.applied) == applied  # működő kapcsolat nem szakad meg
+
+    # Ugyanaz a konfiguráció újra: a helyén frissül, nem lesz duplikátum.
+    again = await service.service.update(VpnUpdateRequest(config=second, name="Bécs"))
+    assert [config.name for config in again.configs] == ["Konfiguráció 1", "Bécs"]
+
+    ids = [config.id for config in again.configs]
+    reordered = await service.service.update(VpnUpdateRequest(order=list(reversed(ids)), auto_failover=False))
+    assert [config.id for config in reordered.configs] == list(reversed(ids))
+    assert not reordered.auto_failover
+    with pytest.raises(HTTPException) as raised:
+        await service.service.update(VpnUpdateRequest(order=ids[:1]))
+    assert raised.value.status_code == 400
+
+    switched = await service.service.update(VpnUpdateRequest(active_config_id=ids[1]))
+    assert service.store["vpn"].active_config_id == ids[1]
+    assert service.manager.applied[-1].active_config_id == ids[1]
+    assert len(service.manager.applied) == applied + 1
+    assert switched.configs[0].id == ids[1]
+    with pytest.raises(HTTPException) as raised:
+        await service.service.update(VpnUpdateRequest(active_config_id="nincs"))
+    assert raised.value.status_code == 404
+
+
+async def test_upload_during_an_error_becomes_active_at_once(service):
+    first, _ = _config()
+    await service.service.update(VpnUpdateRequest(config=first, enabled=True))
+    service.manager.status = VpnStatus(state=VpnState.ERROR, error_code="decrypt-failed")
+    second, _ = _config("192.0.2.11:51820")
+    response = await service.service.update(VpnUpdateRequest(config=second))
+    assert service.store["vpn"].active_config_id == response.configs[1].id
+    assert service.manager.applied[-1].active_config_id == response.configs[1].id
+
+
+async def test_deleting_the_active_config_moves_to_the_next(service):
+    first, _ = _config()
+    second, _ = _config("192.0.2.11:51820")
+    await service.service.update(VpnUpdateRequest(config=first, enabled=True))
+    response = await service.service.update(VpnUpdateRequest(config=second))
+    first_id, second_id = (config.id for config in response.configs)
+    applied = len(service.manager.applied)
+
+    remaining = await service.service.delete_config(first_id)
+    assert [config.id for config in remaining.configs] == [second_id]
+    assert service.store["vpn"].active_config_id == second_id
+    assert len(service.manager.applied) == applied + 1
+    with pytest.raises(HTTPException) as raised:
+        await service.service.delete_config("nincs")
+    assert raised.value.status_code == 404
+
+
+async def test_the_number_of_saved_configs_is_limited(service):
+    for index in range(MAX_VPN_CONFIGS):
+        text, _ = _config(f"192.0.2.{index + 1}:51820")
+        await service.service.update(VpnUpdateRequest(config=text))
+    text, _ = _config("198.51.100.1:51820")
+    with pytest.raises(HTTPException) as raised:
+        await service.service.update(VpnUpdateRequest(config=text))
+    assert raised.value.status_code == 400
+    assert len(service.store["vpn"].configs) == MAX_VPN_CONFIGS
 
 
 def test_vpn_endpoints_require_an_admin_session():
     client = TestClient(app)
     assert client.get("/api/vpn").status_code in {401, 403}
     assert client.put("/api/vpn", json={"enabled": False}).status_code in {401, 403}
+    assert client.delete("/api/vpn/configs/abc").status_code in {401, 403}
 
 
 def _relay_settings_service(policy):

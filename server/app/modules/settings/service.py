@@ -85,7 +85,7 @@ class SettingsService:
         updated = VpnSettings.model_validate(
             {**vpn_settings.model_dump(), **data}
         )
-        self._settings_repository.save(SettingsKeyEnum.VPN, updated.model_dump(mode="json"))
+        self._settings_repository.save(SettingsKeyEnum.VPN, updated.storage_dump())
 
         return updated
 

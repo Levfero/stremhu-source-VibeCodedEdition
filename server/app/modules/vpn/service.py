@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import secrets
 from collections.abc import Callable
 
 from fastapi import HTTPException
@@ -9,10 +10,18 @@ from fastapi import HTTPException
 from app.common.async_utils import owned_to_thread
 from app.common.logger import logger
 from app.modules.relay.network_policy import VpnProxyPolicy
-from app.modules.settings.schemas.internal import VpnSettings, VpnSettingsUpdate
-from app.modules.vpn.manager import VpnManager
+from app.modules.settings.schemas.internal import (
+    MAX_VPN_CONFIGS,
+    VpnConfigMetadata,
+    VpnSettings,
+    VpnSettingsUpdate,
+    VpnStoredConfig,
+)
+from app.modules.vpn.manager import VpnManager, VpnState
 from app.modules.vpn.schemas import (
+    MAX_VPN_CONFIG_NAME,
     VpnCheck,
+    VpnConfigResponse,
     VpnMetadataResponse,
     VpnResponse,
     VpnStatusResponse,
@@ -24,6 +33,18 @@ from app.modules.vpn.wireguard_config import (
     WireGuardConfigError,
     parse_wireguard_config,
 )
+
+
+def _metadata(metadata: VpnConfigMetadata) -> VpnMetadataResponse:
+    return VpnMetadataResponse(**metadata.model_dump())
+
+
+def _same_config(left: VpnConfigMetadata, right: VpnConfigMetadata) -> bool:
+    return (
+        left.client_public_key_fingerprint == right.client_public_key_fingerprint
+        and left.peer_public_key == right.peer_public_key
+        and left.endpoint == right.endpoint
+    )
 
 
 class VpnService:
@@ -45,16 +66,32 @@ class VpnService:
     def _status(self) -> VpnStatusResponse:
         status = self._manager.status
         return VpnStatusResponse(
-            state=status.state, error_code=status.error_code, connected_at=status.connected_at
+            state=status.state,
+            error_code=status.error_code,
+            connected_at=status.connected_at,
+            active_config_id=status.active_config_id,
+            failover_at=status.failover_at,
         )
 
     def _response(self, settings: VpnSettings) -> VpnResponse:
-        metadata = settings.config_metadata
+        status = self._status()
+        saved_active = settings.active_config()
+        # Bekapcsolt VPN mellett a ténylegesen futó konfiguráció, különben amelyikkel indulna.
+        active_id = (status.active_config_id if settings.vpn_enabled else None) or (
+            saved_active.id if saved_active else None
+        )
+        active = next((stored for stored in settings.configs if stored.id == active_id), None)
         return VpnResponse(
-            **self._status().model_dump(),
+            **status.model_dump(exclude={"active_config_id"}),
+            active_config_id=active.id if active else None,
             enabled=settings.vpn_enabled,
-            has_config=bool(settings.encrypted_config),
-            metadata=VpnMetadataResponse(**metadata.model_dump()) if metadata else None,
+            has_config=bool(settings.configs),
+            metadata=_metadata(active.metadata) if active else None,
+            configs=[
+                VpnConfigResponse(id=stored.id, name=stored.name, metadata=_metadata(stored.metadata))
+                for stored in settings.configs
+            ],
+            auto_failover=settings.auto_failover,
         )
 
     async def get(self) -> VpnResponse:
@@ -63,7 +100,7 @@ class VpnService:
     def status(self) -> VpnStatusResponse:
         return self._status()
 
-    def _encrypt(self, config_text: str) -> VpnSettingsUpdate:
+    def _encrypt(self, config_text: str) -> tuple[str, VpnConfigMetadata]:
         try:
             config = parse_wireguard_config(config_text)
         except WireGuardConfigError as error:
@@ -73,14 +110,71 @@ class VpnService:
         except SecretStoreError as error:
             logger.error("operation=vpn-config-store reason=%s", error.code)
             raise HTTPException(500, "A VPN-konfiguráció titkosított tárolása nem sikerült.") from None
-        return VpnSettingsUpdate(encrypted_config=envelope, config_metadata=config.metadata())
+        return envelope, config.metadata()
+
+    def _add_config(
+        self, configs: list[VpnStoredConfig], config_text: str, name: str | None
+    ) -> VpnStoredConfig:
+        """Hozzáadja a listához, vagy ugyanazt a konfigurációt (kulcs, szerver) frissíti a helyén:
+        így egy elveszett titkosítókulcs után az újrafeltöltés helyreállítja a régit."""
+        envelope, metadata = self._encrypt(config_text)
+        clean_name = " ".join((name or "").split())[:MAX_VPN_CONFIG_NAME]
+        for index, stored in enumerate(configs):
+            if _same_config(stored.metadata, metadata):
+                configs[index] = stored.model_copy(
+                    update={"encrypted_config": envelope, "metadata": metadata, "name": clean_name or stored.name}
+                )
+                return configs[index]
+        if len(configs) >= MAX_VPN_CONFIGS:
+            raise HTTPException(400, f"Legfeljebb {MAX_VPN_CONFIGS} VPN-konfiguráció menthető.")
+        ids = {stored.id for stored in configs}
+        config_id = secrets.token_hex(4)
+        while config_id in ids:
+            config_id = secrets.token_hex(4)
+        stored = VpnStoredConfig(
+            id=config_id,
+            name=clean_name or f"Konfiguráció {len(configs) + 1}",
+            encrypted_config=envelope,
+            metadata=metadata,
+        )
+        configs.append(stored)
+        return stored
 
     async def update(self, payload: VpnUpdateRequest) -> VpnResponse:
         current = await owned_to_thread(self._load)
-        update = self._encrypt(payload.config) if payload.config is not None else VpnSettingsUpdate()
-        has_config = bool(update.encrypted_config or current.encrypted_config)
+        configs = list(current.configs)
+        saved_active = current.active_config()
+        active_id = saved_active.id if saved_active else None
+        update = VpnSettingsUpdate()
+        restart = False
 
-        if payload.enabled is True and not has_config:
+        if payload.config is not None:
+            added = self._add_config(configs, payload.config, payload.name)
+            update.configs = configs
+            # Első konfiguráció, vagy hibaállapotból (pl. elveszett kulcs, elérhetetlen
+            # szerver) az új azonnal aktív lesz; működő kapcsolatot nem szakít meg.
+            if active_id is None or (current.vpn_enabled and self._manager.status.state == VpnState.ERROR):
+                active_id = added.id
+                update.active_config_id = added.id
+                restart = True
+
+        if payload.order is not None:
+            by_id = {stored.id: stored for stored in configs}
+            if len(payload.order) != len(by_id) or set(payload.order) != set(by_id):
+                raise HTTPException(400, "A sorrendnek pontosan a mentett konfigurációkat kell tartalmaznia.")
+            configs = [by_id[config_id] for config_id in payload.order]
+            update.configs = configs
+
+        if payload.active_config_id is not None and payload.active_config_id != active_id:
+            if payload.active_config_id not in {stored.id for stored in configs}:
+                raise HTTPException(404, "Nincs ilyen VPN-konfiguráció.")
+            update.active_config_id = payload.active_config_id
+            restart = True
+
+        if payload.auto_failover is not None:
+            update.auto_failover = payload.auto_failover
+
+        if payload.enabled is True and not configs:
             raise HTTPException(400, "Előbb tölts fel egy WireGuard-konfigurációt.")
         if payload.enabled is False and current.vpn_enabled and not payload.confirm_unprotected:
             raise HTTPException(
@@ -91,17 +185,28 @@ class VpnService:
             update.vpn_enabled = payload.enabled
 
         saved = await owned_to_thread(self._save, update)
-        if payload.config is not None or saved.vpn_enabled != current.vpn_enabled:
+        if saved.vpn_enabled != current.vpn_enabled or (saved.vpn_enabled and restart):
             await self._manager.apply_settings(saved)
         return self._response(saved)
 
-    async def delete_config(self) -> VpnResponse:
+    async def delete_config(self, config_id: str) -> VpnResponse:
         current = await owned_to_thread(self._load)
-        if current.vpn_enabled:
-            raise HTTPException(409, "Bekapcsolt VPN mellett a konfiguráció nem törölhető.")
-        saved = await owned_to_thread(
-            self._save, VpnSettingsUpdate(encrypted_config=None, config_metadata=None)
-        )
+        if config_id not in {stored.id for stored in current.configs}:
+            raise HTTPException(404, "Nincs ilyen VPN-konfiguráció.")
+        remaining = [stored for stored in current.configs if stored.id != config_id]
+        if current.vpn_enabled and not remaining:
+            raise HTTPException(409, "Bekapcsolt VPN mellett az utolsó konfiguráció nem törölhető.")
+
+        update = VpnSettingsUpdate(configs=remaining)
+        saved_active = current.active_config()
+        restart = False
+        if saved_active is not None and saved_active.id == config_id:
+            following = current.config_after(config_id)
+            update.active_config_id = following.id if following else None
+            restart = current.vpn_enabled
+        saved = await owned_to_thread(self._save, update)
+        if restart:
+            await self._manager.apply_settings(saved)
         return self._response(saved)
 
     async def test(self) -> VpnTestResponse:

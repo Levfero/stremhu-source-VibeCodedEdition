@@ -18,18 +18,32 @@ export interface VpnStatusResponse {
   state: VpnState
   errorCode: string | null
   connectedAt: string | null
+  activeConfigId: string | null
+  failoverAt: string | null
+}
+
+export interface VpnConfigEntry {
+  id: string
+  name: string
+  metadata: VpnMetadata
 }
 
 export interface VpnResponse extends VpnStatusResponse {
   enabled: boolean
   hasConfig: boolean
   metadata: VpnMetadata | null
+  configs: VpnConfigEntry[]
+  autoFailover: boolean
 }
 
 export interface VpnUpdateRequest {
   config?: string
+  name?: string
   enabled?: boolean
   confirmUnprotected?: boolean
+  autoFailover?: boolean
+  activeConfigId?: string
+  order?: string[]
 }
 
 export interface VpnCheck {
@@ -54,9 +68,9 @@ export const vpnUpdate = (payload: VpnUpdateRequest) =>
     data: payload,
   })
 
-export const vpnDeleteConfig = () =>
+export const vpnDeleteConfig = (configId: string) =>
   sourceClientInstance<VpnResponse>({
-    url: '/api/vpn/config',
+    url: `/api/vpn/configs/${encodeURIComponent(configId)}`,
     method: 'DELETE',
   })
 

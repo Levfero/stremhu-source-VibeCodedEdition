@@ -47,12 +47,15 @@ export function useUpdateVpn() {
 export function useDeleteVpnConfig() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const response = await vpnDeleteConfig()
+    mutationFn: async (configId: string) => {
+      const response = await vpnDeleteConfig(configId)
       return response
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       queryClient.setQueryData(getVpn.queryKey, response)
+      await queryClient.invalidateQueries({
+        queryKey: getRelaySettings.queryKey,
+      })
     },
   })
 }

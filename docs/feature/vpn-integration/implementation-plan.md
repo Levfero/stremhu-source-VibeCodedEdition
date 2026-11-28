@@ -2,7 +2,7 @@
 
 | Metaadat | Érték |
 |---|---|
-| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
+| **Típus / státusz** | Implementációs terv. **Az F1 (backend mag), az F2 (API és felület) és az F3 (Docker) elkészült** a `feature/vpn-integration` ágon, lásd az [F1](#f1-végrehajtási-állapot), az [F2](#f2-végrehajtási-állapot) és az [F3 végrehajtási állapotát](#f3-végrehajtási-állapot). A G2, G3, G4 és G6 kapu helyben kész, a G1 P2P szerverrel lefutott, az F4 felhasználói útmutatója elkészült ([`docs/vpn-beallitas.md`](../../vpn-beallitas.md)); a G5 a felhasználó szerverén lefutott; az F5 (több konfiguráció, automatikus átállás) helyben kész; nyitott a G1 maradéka (normál szerver) és a beolvasztás ([9. fejezet](#9-fázisok-kapuk-és-elfogadási-feltételek)). |
 | **Dátum** | 2026-11-27 (Rev. 4: 2026-11-08) |
 | **Ellenőrzött kódalap** | fork `main` `7bf93aa` (benne a PR #9, #11, #12, #13, #14, #15), beolvasztva a `feature/vpn-integration` ágba. A 3. fejezet fájl- és sorhivatkozásai erre a commitra igazak. |
 | **Felváltja** | Rev. 4 (ugyanez a fájl, git-előzmény), Rev. 3 → [`archive/implementation-plan-rev3.md`](archive/implementation-plan-rev3.md) |
@@ -190,9 +190,9 @@ stateDiagram-v2
 
 | Végpont | Funkció |
 |---|---|
-| `GET /api/vpn` | Beállítások és nem titkos metaadatok (cím, DNS, végpont, kulcs-ujjlenyomat, `hasConfig`). Privát kulcsot soha nem ad vissza. |
-| `PUT /api/vpn` | `.conf` import (szövegként) és/vagy `enabled` kapcsoló. A kikapcsoláshoz `confirmUnprotected: true` kell. Validálás, titkosított mentés, az L4 módváltás alkalmazása. |
-| `DELETE /api/vpn/config` | Konfiguráció törlése (csak kikapcsolt VPN mellett). |
+| `GET /api/vpn` | Beállítások és nem titkos metaadatok (cím, DNS, végpont, kulcs-ujjlenyomat, `hasConfig`); F5 óta a mentett konfigurációk listája, az aktív azonosító, `autoFailover`, `failoverAt`. Privát kulcsot soha nem ad vissza. |
+| `PUT /api/vpn` | `.conf` import (szövegként, F5 óta a listához adva, opcionális névvel) és/vagy `enabled` kapcsoló; F5: `order`, `activeConfigId`, `autoFailover`. A kikapcsoláshoz `confirmUnprotected: true` kell. Validálás, titkosított mentés, az L4 módváltás alkalmazása. |
+| `DELETE /api/vpn/configs/{id}` | Egy mentett konfiguráció törlése (F5; korábban `DELETE /api/vpn/config`). Bekapcsolt VPN mellett az utolsó nem törölhető. |
 | `GET /api/vpn/status` | Állapot, utolsó handshake, hibakód, a tunnel átviteli számlálói (`/metrics`-ből). |
 | `POST /api/vpn/test` | Diagnosztika: handshake, DNS a tunnelen, próbakapcsolat a proxyn át, és annak ellenőrzése, hogy a libtorrent-beállítások a 6.3 szerintiek. |
 
@@ -509,6 +509,55 @@ stateDiagram-v2
 - **Nyitott:**
   - a G1 maradéka: normál (nem P2P) szerver, csomagrögzítéses szivárgásmérés élesben (az élő swarm a G5-ben működött);
   - a VPN-ág beolvasztása a `main`-be, utána a kézzel írt `vpn-client.ts` cseréje a generált kliensre (a [PR #16](https://github.com/Levfero/stremhu-source-VibeCodedEdition/pull/16) után).
+
+### F5 — Több konfiguráció és automatikus átállás
+
+- **Igény (felhasználó, 2026-11-28):** ha az egyetlen Proton-szerver leáll, a torrentforgalom állt, amíg a szerver vissza nem jött, vagy amíg kézzel nem töltött fel másik konfigurációt. Kérés: több konfiguráció, automatikus átállással.
+- **Tárolás (`settings/schemas/internal.py`):**
+  - `VpnSettings.configs` rendezett lista (azonosító, név, AES-GCM boríték, nem titkos metaadat), legfeljebb 10 elem; `active_config_id`; `auto_failover` (alapból be).
+  - Az egykonfigos sor (`encrypted_config`, `config_metadata`) olvasáskor `legacy` azonosítójú listaelem lesz; az induláskori mentés ezt tartósítja.
+  - Mentéskor az aktív konfiguráció a régi mezőkben is szerepel, így egy korábbi, egykonfigos build visszalépés után is kapcsolódik vele.
+- **Kezelő (`vpn/manager.py`):**
+  - Ha az aktív konfiguráció `failover_after` ideig (alapból 60 s, `VPN_FAILOVER_AFTER`, 20–3600) nem ad `/readyz` 200-at, vagy a wireproxy a gyors próbák után sem indul, a kezelő friss beállításokból veszi a következőt (körbe).
+  - Átálláskor a wireproxy újraindul az új konfigurációval, de **ugyanazzal a SOCKS-porttal és hitelesítéssel**, ezért a relay szabálya nem változik, és közvetlen ablak sem keletkezik. Közben az állapot `reconnecting`, a forgalom áll.
+  - A visszafejthetetlen vagy hibás konfigurációt átugorja; ha egyik sem használható, `error` a régi hibakóddal.
+  - Az új aktív azonosítót elmenti (újraindítás után is az marad). Nincs automatikus visszaugrás az eredetire.
+  - Napló: `operation=vpn-failover from=<id> to=<id> reason=<kód>`. Az azonosító véletlen hexa, nem titok, a név nem kerül a naplóba.
+  - Kikapcsolt átállásnál vagy egyetlen konfigurációval nincs váltás: a kezelő a régi módon a szerver visszatérésére vár.
+- **API (`vpn/service.py`, `vpn/router.py`):**
+  - `PUT /api/vpn`: `config` (+ `name`) hozzáad. Ugyanaz a konfiguráció (kliens-kulcs, szerverkulcs, végpont) újra feltöltve a helyén frissül. Működő kapcsolatot nem bont, de az első konfiguráció és a hibaállapotban feltöltött új konfiguráció azonnal aktív lesz.
+  - `PUT /api/vpn`: `order` (az összes azonosító új sorrendben), `activeConfigId` (kézi váltás, bekapcsolt VPN mellett újraindítással), `autoFailover`.
+  - `DELETE /api/vpn/configs/{id}`: törlés. Az aktív törlésekor a következő lesz aktív; bekapcsolt VPN mellett az utolsó nem törölhető (409).
+  - Válasz: `configs`, `activeConfigId`, `autoFailover`, `failoverAt`. A `metadata` az aktív konfigurációé, a `hasConfig` megmaradt.
+- **Felület:**
+  - *Mentett konfigurációk* lista (sorrendnyilak, *Aktív* jelölés, **Használat**, törlés) és *Automatikus átállás a következő konfigurációra* kapcsoló;
+  - az állapotblokkban *Aktív konfiguráció* és *Utolsó automatikus átállás*;
+  - az új konfigurációhoz névmező.
+
+#### F5 végrehajtási állapot
+
+- **Ellenőrzés (2026-11-28):**
+  - Ruff hibátlan, basedpyright 0 hiba, teljes `pytest tests` 903 passed. Új esetek: átállás csendes szerverről ugyanazzal a proxyval, átállás nélkül marad, körbeforgás, indulási hiba és visszafejthetetlen konfiguráció átugrása, migráció és visszafelé olvasható mentés, hozzáadás kapcsolatbontás nélkül, sorrend, kézi váltás, törlés, korlát.
+  - Kliens: vitest 4 fájl / 18 teszt, lint, format, build sikeres.
+- **Helyi Docker-próba (két PoC kernel-WireGuard teszt-kilépő, internet nélküli belső hálózaton, eldobható kötettel; `VPN_FAILOVER_AFTER=30`):**
+
+| Lépés | Eredmény |
+|---|---|
+| Az előző (egykonfigos) image egy konfigurációval, bekapcsolva | `connected` |
+| Váltás az új image-re ugyanazon a köteten | migráció: egy `legacy` elem („Konfiguráció 1”), `connected`, kapcsolatbontás nélkül |
+| „B” hozzáadása működő kapcsolat mellett | a lista bővül, az aktív marad, nincs újraindítás |
+| Az „A” kilépő `wg0` leállítva | 6 s-mal `reconnecting`, 34 s-mal `connected` a „B”-n; a Teszt öt sora rendben; egy `operation=vpn-failover … reason=no-handshake` naplósor |
+| Az „A” visszakapcsolva | 40 s múlva is a „B”-n (nincs visszaugrás) |
+| A konténer újraindítva | a „B”-n folytatja |
+| Kézi váltás az „A”-ra | 1 s alatt `connected` |
+| Visszalépés az előző image-re ugyanazon a köteten | az aktív konfigurációval `connected`; a második konfiguráció elvész, mert a régi build a saját formájában menti a beállítást |
+| Felület (Chrome) | lista, *Aktív* jelölés, nyilak, **Használat**, törlés, kapcsoló rendben. Az „A” leállítása után a felületen kb. 10 s-mal 🟡, 36 s-mal 🟢 „B szerver”, *Utolsó automatikus átállás* sorral. |
+| Napló | a teszt-kliensek privát kulcsa nem szerepel benne |
+
+- **Korlátok:**
+  - Átálláskor új a VPN kilépő IP-címe, így a trackerek is másik címet látnak; ezért kikapcsolható az átállás.
+  - Ha minden szerver áll, a kezelő `failover_after`-enként forgatja őket; a forgalom közben áll.
+  - Élő Proton-szerverekkel az átállást nem próbáltuk ki.
 
 ## 10. Viszony a beolvasztott munkákhoz
 

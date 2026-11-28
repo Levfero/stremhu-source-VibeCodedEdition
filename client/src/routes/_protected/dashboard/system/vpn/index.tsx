@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { InfoIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, InfoIcon, Trash2Icon } from 'lucide-react'
 import type { ChangeEvent } from 'react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/shared/components/ui/alert'
+import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
 import {
   Card,
@@ -19,11 +20,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/components/ui/card'
+import { Input } from '@/shared/components/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from '@/shared/components/ui/item'
 import { Label } from '@/shared/components/ui/label'
 import { Separator } from '@/shared/components/ui/separator'
 import { Switch } from '@/shared/components/ui/switch'
 import { Textarea } from '@/shared/components/ui/textarea'
-import type { VpnState, VpnTestResponse } from '@/shared/lib/source/vpn-client'
+import type {
+  VpnConfigEntry,
+  VpnState,
+  VpnTestResponse,
+} from '@/shared/lib/source/vpn-client'
 import { formatDateTime, parseApiError } from '@/shared/lib/utils'
 import {
   getVpn,
@@ -61,7 +74,11 @@ export function VpnRoute() {
   const { mutateAsync: testVpn, isPending: isTesting } = useTestVpn()
   const confirmDialog = useConfirmDialog()
   const [configText, setConfigText] = useState('')
+  const [configName, setConfigName] = useState('')
   const [testResult, setTestResult] = useState<VpnTestResponse | null>(null)
+
+  const active =
+    vpn.configs.find((config) => config.id === vpn.activeConfigId) ?? null
 
   const run = async (action: () => Promise<unknown>) => {
     try {
@@ -92,24 +109,45 @@ export function VpnRoute() {
     event.target.value = ''
     if (file) {
       setConfigText(await file.text())
+      if (configName.trim() === '') {
+        setConfigName(file.name.replace(/\.conf$/i, ''))
+      }
     }
   }
 
   const handleSave = async () => {
     await run(async () => {
-      await updateVpn({ config: configText })
+      await updateVpn({
+        config: configText,
+        name: configName.trim() || undefined,
+      })
       setConfigText('')
+      setConfigName('')
       toast.success('A WireGuard-konfiguráció elmentve.')
     })
   }
 
-  const handleDelete = async () => {
+  const handleMove = async (index: number, delta: number) => {
+    const order = vpn.configs.map((config) => config.id)
+    const [moved] = order.splice(index, 1)
+    order.splice(index + delta, 0, moved)
+    await run(() => updateVpn({ order }))
+  }
+
+  const handleActivate = async (config: VpnConfigEntry) => {
+    await run(() => updateVpn({ activeConfigId: config.id }))
+  }
+
+  const handleDelete = async (config: VpnConfigEntry) => {
+    const switches = vpn.enabled && config.id === vpn.activeConfigId
     await confirmDialog.confirm({
-      title: 'Törlöd a VPN-konfigurációt?',
-      description: 'A mentett WireGuard-konfiguráció véglegesen törlődik.',
+      title: `Törlöd a(z) „${config.name}” konfigurációt?`,
+      description: switches
+        ? 'A mentett WireGuard-konfiguráció véglegesen törlődik, és a StremHU a lista következő konfigurációjára vált.'
+        : 'A mentett WireGuard-konfiguráció véglegesen törlődik.',
       confirmText: 'Törlés',
       onConfirm: async () => {
-        await run(() => deleteConfig())
+        await run(() => deleteConfig(config.id))
       },
     })
   }
@@ -154,13 +192,21 @@ export function VpnRoute() {
               Kapcsolódva: {formatDateTime(vpn.connectedAt)}
             </p>
           )}
-          {vpn.metadata && (
+          {active && (
             <p className="text-sm text-muted-foreground">
-              Végpont:{' '}
-              <span className="font-mono">{vpn.metadata.endpoint}</span> · Cím:{' '}
+              Aktív konfiguráció:{' '}
+              <span className="font-medium text-foreground">{active.name}</span>{' '}
+              · Végpont:{' '}
+              <span className="font-mono">{active.metadata.endpoint}</span> ·
+              Cím:{' '}
               <span className="font-mono">
-                {vpn.metadata.addresses.join(', ')}
+                {active.metadata.addresses.join(', ')}
               </span>
+            </p>
+          )}
+          {vpn.failoverAt && (
+            <p className="text-sm text-muted-foreground">
+              Utolsó automatikus átállás: {formatDateTime(vpn.failoverAt)}
             </p>
           )}
         </div>
@@ -175,26 +221,121 @@ export function VpnRoute() {
           <Label htmlFor="vpn-enabled">VPN a torrentforgalomhoz</Label>
         </div>
 
+        <div className="grid gap-1">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="vpn-failover"
+              checked={vpn.autoFailover}
+              disabled={isUpdating || vpn.configs.length < 2}
+              onCheckedChange={(checked) =>
+                void run(() => updateVpn({ autoFailover: checked }))
+              }
+            />
+            <Label htmlFor="vpn-failover">
+              Automatikus átállás a következő konfigurációra
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Ha az aktív szerver kb. egy percig nem válaszol, a StremHU a lista
+            következő konfigurációjára vált, és azon marad. Átálláskor a
+            trackerek új IP-címet látnak. Legalább két mentett konfiguráció kell
+            hozzá.
+          </p>
+        </div>
+
         <Separator />
 
         <div className="grid gap-2">
-          <Label htmlFor="vpn-config">WireGuard-konfiguráció (.conf)</Label>
+          <p className="font-medium">Mentett konfigurációk</p>
+          {vpn.configs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Még nincs mentett konfiguráció.
+            </p>
+          ) : (
+            <div className="grid gap-2">
+              {vpn.configs.map((config, index) => (
+                <Item key={config.id} variant="outline" size="sm">
+                  <ItemContent>
+                    <ItemTitle>
+                      {index + 1}. {config.name}
+                      {config.id === vpn.activeConfigId && (
+                        <Badge variant="secondary">Aktív</Badge>
+                      )}
+                    </ItemTitle>
+                    <ItemDescription className="font-mono">
+                      {config.metadata.endpoint}
+                    </ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`${config.name} feljebb`}
+                      disabled={isUpdating || index === 0}
+                      onClick={() => void handleMove(index, -1)}
+                    >
+                      <ArrowUpIcon />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`${config.name} lejjebb`}
+                      disabled={isUpdating || index === vpn.configs.length - 1}
+                      onClick={() => void handleMove(index, 1)}
+                    >
+                      <ArrowDownIcon />
+                    </Button>
+                    {config.id !== vpn.activeConfigId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isUpdating}
+                        onClick={() => void handleActivate(config)}
+                      >
+                        Használat
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`${config.name} törlése`}
+                      disabled={vpn.enabled && vpn.configs.length === 1}
+                      onClick={() => void handleDelete(config)}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </ItemActions>
+                </Item>
+              ))}
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            A sorrend az átállás sorrendje. A konfigurációk titkosítva
+            tárolódnak, a privát kulcs soha nem jelenik meg újra. A teljes
+            adatkötet megszerzése ellen ez nem véd.
+          </p>
+        </div>
+
+        <Separator />
+
+        <div className="grid gap-2">
+          <Label htmlFor="vpn-config">Új WireGuard-konfiguráció (.conf)</Label>
           <Textarea
             id="vpn-config"
             rows={8}
             className="font-mono"
-            placeholder={
-              vpn.hasConfig
-                ? 'Mentett konfiguráció van; újat ide illeszthetsz be.'
-                : '[Interface] ... [Peer] ...'
-            }
+            placeholder="[Interface] ... [Peer] ..."
             value={configText}
             onChange={(event) => setConfigText(event.target.value)}
           />
-          <p className="text-sm text-muted-foreground">
-            A konfiguráció titkosítva tárolódik, a privát kulcs soha nem jelenik
-            meg újra. A teljes adatkötet megszerzése ellen ez nem véd.
-          </p>
+          <Input
+            id="vpn-config-name"
+            aria-label="A konfiguráció neve"
+            placeholder="Név (nem kötelező), pl. Budapest #35"
+            maxLength={64}
+            value={configName}
+            onChange={(event) => setConfigName(event.target.value)}
+          />
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <label>
@@ -213,11 +354,6 @@ export function VpnRoute() {
             >
               Konfiguráció mentése
             </Button>
-            {vpn.hasConfig && !vpn.enabled && (
-              <Button variant="destructive" onClick={() => void handleDelete()}>
-                Konfiguráció törlése
-              </Button>
-            )}
           </div>
         </div>
 

@@ -37,6 +37,7 @@ def get_vpn_manager(relay: RelayService) -> VpnManager:
         supervisor=ProxySupervisor(config.vpn_wireproxy_path, config.vpn_runtime_dir),
         check_alive=config.vpn_check_alive,
         check_alive_interval=config.vpn_check_alive_interval,
+        failover_after=config.vpn_failover_after,
     )
 
 

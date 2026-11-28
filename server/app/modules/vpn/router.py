@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 
 from app.config import show_internal_routes
 from app.modules.auth.dependencies import SessionGuard
@@ -32,9 +32,14 @@ async def update_vpn(_: AdminUser, payload: VpnUpdateRequest, service: Service):
     return await service.update(payload)
 
 
-@router.delete("/vpn/config", response_model=VpnResponse, include_in_schema=show_internal_routes())
-async def delete_vpn_config(_: AdminUser, service: Service):
-    return await service.delete_config()
+ConfigId = Annotated[str, Path(max_length=32, pattern=r"^[A-Za-z0-9_-]+$")]
+
+
+@router.delete(
+    "/vpn/configs/{config_id}", response_model=VpnResponse, include_in_schema=show_internal_routes()
+)
+async def delete_vpn_config(_: AdminUser, config_id: ConfigId, service: Service):
+    return await service.delete_config(config_id)
 
 
 @router.get("/vpn/status", response_model=VpnStatusResponse, include_in_schema=show_internal_routes())
